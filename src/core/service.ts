@@ -94,8 +94,8 @@ export class Flowee {
     return c ? { n, instance: c.instance, since: iso(c.since), touched: iso(c.touched) } : null;
   }
 
-  entered(n: number, state: string) {
-    this.db.exec("INSERT OR REPLACE INTO entered VALUES (?, ?, ?)", n, state, this.clock.now());
+  entered(n: number, state: string, at = this.clock.now()) {
+    this.db.exec("INSERT OR REPLACE INTO entered VALUES (?, ?, ?)", n, state, at);
   }
 
   /** An owner answer was recorded after the ticket last entered `state`. */

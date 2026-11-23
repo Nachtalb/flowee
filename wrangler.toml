@@ -6,3 +6,23 @@ preview_urls = false
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["* * * * *"]
+
+# One Durable Object per workspace (idFromName(workspace id)).
+[[durable_objects.bindings]]
+name = "WORKSPACE"
+class_name = "Workspace"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Workspace"]
+
+[version_metadata]
+binding = "VERSION"
+
+# The workspaces are flowee.config.json (or the FLOWEE_CONFIG var/secret, which wins): see docs/configuration.md.
+# Secrets (wrangler secret put NAME) are whatever names that document references.
+[vars]
+FLOWEE_MODE = "standalone"

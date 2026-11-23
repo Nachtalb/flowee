@@ -65,13 +65,15 @@ export async function pick(flow: Flow, c: Ctx): Promise<Transition | null> {
  */
 export async function fire(c: Ctx): Promise<void> {
   const flow = c.f.flow;
+  // taken before the actions: an answer recorded by this very transition counts as given after the entry
+  const at = c.f.clock.now();
   const tr = await pick(flow, c);
   if (!tr) throw wrongState(flow, c);
   c.to = tr.target ?? c.from;
   for (const a of list(tr.actions)) await act(a, c);
   if (c.to !== c.from) {
     for (const a of list(flow.chart.states[c.from].exit)) await act(a, c);
-    c.f.entered(c.t.n, c.to);
+    c.f.entered(c.t.n, c.to, at);
     for (const a of list(flow.chart.states[c.to].entry)) await act(a, c);
   }
   c.t.state = c.to;
