@@ -34,7 +34,7 @@ class Server:
                 self.end_headers()
                 self.wfile.write(data)
 
-            do_GET = do_POST = go
+            do_GET = do_POST = do_PATCH = do_DELETE = go
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
@@ -73,6 +73,7 @@ class Remote(unittest.TestCase):
         os.environ.update(self.env)
         flowee._config = None
         self.s.srv.shutdown()
+        self.s.srv.server_close()
         shutil.rmtree(self.d, ignore_errors=True)
 
     def test_url_workspace_secret_and_user_agent_come_from_the_config(self):
@@ -85,6 +86,77 @@ class Remote(unittest.TestCase):
         os.environ.update(FLOWEE_TOKEN="other", FLOWEE_WORKSPACE="beta")
         call("whoami")
         self.assertEqual((self.s.got[1]["path"], self.s.got[1]["headers"]["Authorization"]), ("/w/beta/v1/whoami", "Bearer other"))
+
+    def key_clone(self, strict=False):
+        """A clone set up the new way: url, workspace, the project key's file, the agent's name."""
+        (self.d / "key").write_text("k-acme\n")
+        extra = f'secret_file = "{self.d}/own/{{instance}}"\n' if strict else ""
+        (self.d / ".flowee.toml").write_text(f'url = "{self.s.url}"\nworkspace = "acme"\nkey_file = "{self.d}/key"\nagent = "dev2"\n{extra}')
+        flowee._config = None
+
+    def test_the_project_key_acts_as_the_named_agent(self):
+        self.key_clone()
+        self.s.replies["/w/acme/v1/next"] = [(200, {"ok": True, "ticket": {"n": 4}})]
+        rc, out, _ = call("next")
+        self.assertEqual((rc, out), (0, '{"ticket": {"n": 4}}'))
+        g = self.s.got[-1]
+        self.assertEqual((g["headers"]["Authorization"], g["headers"]["X-Flowee-Agent"]), ("Bearer k-acme", "dev2"))
+        os.environ["FLOWEE_AS"] = "tester"
+        call("whoami")
+        self.assertEqual(self.s.got[-1]["headers"]["X-Flowee-Agent"], "tester")
+        self.s.replies["/w/acme/v1/next"] = [(403, {"ok": False, "error": "unknown_agent", "message": "There is no agent 'tester'; create it with `flowee.py agents add <role> tester`."})]
+        rc, _, err = call("next")
+        self.assertEqual((rc, err), (2, "refused: unknown_agent: There is no agent 'tester'; create it with `flowee.py agents add <role> tester`."))
+
+    def test_roles_and_agents(self):
+        self.key_clone()
+        self.s.replies["/w/acme/v1/roles"] = [(200, {"ok": True, "roles": [
+            {"name": "developer", "description": "Builds what a ready ticket asks for.", "commands": ["next", "handoff"], "claims": ["ready"], "several": True},
+            {"name": "owner", "description": "Relays the owner's answers.", "commands": ["answer"], "claims": [], "several": False}]})]
+        rc, out, _ = call("roles")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.splitlines(), ["developer (several): Builds what a ready ticket asks for.", "  claims: ready", "  commands: next, handoff",
+                                            "owner (one): Relays the owner's answers.", "  claims: nothing (no queue)", "  commands: answer"])
+        self.assertNotIn("X-Flowee-Agent", self.s.got[-1]["headers"])
+        self.s.replies["/w/acme/v1/agents"] = [(200, {"ok": True, "secrets": "project", "agents": [
+            {"name": "dev1", "role": "developer", "source": "api", "paused": False, "seen": "2026-11-23T10:00:00.000Z", "holds": [12]},
+            {"name": "dev2", "role": "developer", "source": "api", "paused": True, "holds": []}]})]
+        rc, out, _ = call("agents")
+        self.assertEqual(out.splitlines(), ["dev1  developer  seen 2026-11-23T10:00:00.000Z  holds #12", "dev2  developer  paused, seen never  holds nothing"])
+        self.s.replies["/w/acme/v1/agents"] = [(200, {"ok": True, "agent": {"name": "dev3", "role": "developer"}})]
+        self.assertEqual(call("agents", "add", "developer")[:2], (0, '{"agent": {"name": "dev3", "role": "developer"}}'))
+        self.assertEqual((self.s.got[-1]["method"], self.s.got[-1]["body"]), ("POST", {"role": "developer"}))
+        call("agents", "rename", "dev3", "ada")
+        self.assertEqual((self.s.got[-1]["method"], self.s.got[-1]["path"], self.s.got[-1]["body"]), ("PATCH", "/w/acme/v1/agents/dev3", {"name": "ada"}))
+        call("agents", "pause", "ada")
+        self.assertEqual(self.s.got[-1]["body"], {"paused": True})
+        call("agents", "resume", "ada")
+        self.assertEqual(self.s.got[-1]["body"], {"paused": False})
+        call("agents", "remove", "ada")
+        self.assertEqual((self.s.got[-1]["method"], self.s.got[-1]["path"]), ("DELETE", "/w/acme/v1/agents/ada"))
+
+    def test_agents_add_is_idempotent_for_the_same_role(self):
+        self.key_clone()
+        taken = (409, {"ok": False, "error": "name_taken", "message": "The name 'dev1' is taken; choose another or leave the name out."})
+        self.s.replies["/w/acme/v1/agents"] = [taken]
+        self.s.replies["/w/acme/v1/agents/dev1"] = [(200, {"ok": True, "agent": {"name": "dev1", "role": "developer"}})]
+        self.assertEqual(call("agents", "add", "developer", "dev1")[:2], (0, '{"agent": {"name": "dev1", "role": "developer"}, "existed": true}'))
+        rc, _, err = call("agents", "add", "tester", "dev1")
+        self.assertEqual((rc, err), (2, "refused: name_taken: The name 'dev1' is taken; choose another or leave the name out."))
+
+    def test_strict_mode_stores_the_agents_own_secret_and_signs_in_with_it(self):
+        self.key_clone(strict=True)
+        self.s.replies["/w/acme/v1/agents"] = [(200, {"ok": True, "agent": {"name": "dev2", "role": "developer"}, "secret": "own-dev2"})]
+        rc, out, _ = call("agents", "add", "developer", "dev2")
+        f = self.d / "own" / "dev2"
+        self.assertEqual((rc, json.loads(out)["secret_file"]), (0, str(f)))
+        self.assertNotIn("own-dev2", out)
+        self.assertEqual((f.read_text(), oct(f.stat().st_mode & 0o777)), ("own-dev2\n", "0o600"))
+        call("whoami")
+        self.assertEqual(self.s.got[-1]["headers"]["Authorization"], "Bearer own-dev2")
+        self.s.replies["/w/acme/v1/agents"] = [(200, {"ok": True, "secrets": "per-agent", "agents": []})]
+        call("agents")
+        self.assertEqual(self.s.got[-1]["headers"]["Authorization"], "Bearer k-acme")
 
     def test_bodies_match_the_api(self):
         flowee.git = lambda *a, **k: "b" * 40

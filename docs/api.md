@@ -253,7 +253,10 @@ curl -fsS -H 'content-type: application/json' --data @workspace.json https://<in
 
 ## The client
 
-`client/flowee.py` (stdlib Python ≥ 3.11) is one subcommand per endpoint plus the local steps `gates`, `commit`,
+`client/flowee.py` (stdlib Python ≥ 3.11) is one subcommand per endpoint, the agents' commands (`roles`, `agents`,
+`agents add ROLE [NAME]`, `agents rename OLD NEW`, `agents pause|resume|remove NAME`, with the project key; `agents
+add` with a name is idempotent: an agent of that name and role exits 0; in strict mode it writes the new agent's
+secret to its `secret_file` with mode 600 and prints only the path), plus the local steps `gates`, `commit`,
 `push`, `busy`, and `version` / `update` against the instance (`GET /version`, `GET /client/flowee.py`; no secret):
 `version` prints the client's and the instance's version and says when the served client is newer or differs;
 `update` replaces the file with the served one after checking it parses, atomically, and only when called. It reads `.flowee.toml` in the repository root:
@@ -261,8 +264,9 @@ curl -fsS -H 'content-type: application/json' --data @workspace.json https://<in
 ```toml
 url = "https://flowee.example.workers.dev"
 workspace = "acme"                                   # → /w/acme/v1/…
-instance = "dev1"                                    # or FLOWEE_AS
-secret_file = "~/.secrets/flowee/{workspace}/{instance}"   # or FLOWEE_TOKEN
+key_file = "~/.secrets/flowee/{workspace}/key"       # the project key, mode 600 (or FLOWEE_TOKEN)
+agent = "dev1"                                       # this clone's agent (or FLOWEE_AS); sent as X-Flowee-Agent
+# secret_file = "~/.secrets/flowee/{workspace}/{instance}"  # an agent's own secret: strict mode, or the former way
 main_branch = "main"
 commit_types = ["feat", "fix", "docs", "test", "refactor", "perf", "build", "chore", "style"]
 ticket_suffix = " (#{n})"

@@ -12,6 +12,13 @@ Remote commands (comments and bodies come on stdin):
   owner      answer N
   sampler    found N PATH… | unobtainable N                 (feature samples)
   board      triage N [--samples] [PATH…] | needsamples N | checked N
+Agents (the project key; `agents add` is idempotent: an agent of that name and role is fine):
+  roles                 the agent types this workspace's flow offers: what each does, the states it claims
+  agents                the workspace's agents: name, role, last seen, the tickets each holds
+  agents add ROLE [NAME]   create one (NAME default: the next free one, dev1, dev2 …); strict mode stores its
+                        own secret in secret_file (mode 600) and prints only where
+  agents rename OLD NEW | agents pause NAME | agents resume NAME | agents remove NAME
+                        (remove: the tickets it holds go back to their queues)
 Pull requests (when the workspace's flow has them; the Worker names the branch):
   branch N              switch to the ticket's branch (created from the main branch, or fetched when it exists)
   pr N                  push the ticket's branch and open or update its pull request
@@ -28,8 +35,9 @@ The instance (no secret needed):
   update                replace this file with the instance's /client/flowee.py (checked to parse; never automatic)
 
 Configuration: .flowee.toml in the repository root (FLOWEE_CONFIG names another file), see docs/api.md.
-  url, workspace, instance, secret_file, main_branch, commit_types, ticket_suffix, busy_hours, git_config, [[gates]]
-Environment wins over the file: FLOWEE_URL, FLOWEE_WORKSPACE, FLOWEE_AS (instance), FLOWEE_TOKEN (the secret).
+  url, workspace, key_file (the project key), agent (this clone's agent name), main_branch, commit_types,
+  ticket_suffix, busy_hours, git_config, [[gates]]; secret_file (+ instance): an agent with its own secret instead
+Environment wins over the file: FLOWEE_URL, FLOWEE_WORKSPACE, FLOWEE_AS (the agent), FLOWEE_TOKEN (key or secret).
 Exit: 0 ok, 2 refused, 1 failure, 3 `next` found nothing.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile, time, tomllib, urllib.error, urllib.parse, urllib.request, uuid
@@ -65,10 +73,15 @@ def setting(key, default=None) -> Any:
     return config().get(key, default)
 
 
+def agent():
+    """This clone's agent name (FLOWEE_AS, `agent`, or the former `instance`), or None."""
+    return os.environ.get("FLOWEE_AS") or setting("agent") or setting("instance")
+
+
 def instance():
-    v = os.environ.get("FLOWEE_AS") or setting("instance")
+    v = agent()
     if not v:
-        raise Refused("set FLOWEE_AS or `instance` in .flowee.toml (e.g. board, dev1, tester or owner)")
+        raise Refused("set FLOWEE_AS or `agent` in .flowee.toml (e.g. board, dev1, tester or owner)")
     return v
 
 
@@ -80,13 +93,25 @@ def base_url():
     return url.rstrip("/") + (f"/w/{ws}" if ws else "")
 
 
-def token():
+def secret_path(name):
+    tpl = setting("secret_file", "~/.secrets/flowee/{workspace}/{instance}")
+    return Path(os.path.expanduser(tpl.format(instance=name, workspace=setting("workspace", ""))))
+
+
+def token(key=False):
+    """The project key (`key_file`), else the agent's own secret (`secret_file`); `key`: the project key only."""
     if v := os.environ.get("FLOWEE_TOKEN"):
         return v.strip()
-    tpl = setting("secret_file")
-    if not tpl:
-        raise Refused("set FLOWEE_TOKEN or `secret_file` in .flowee.toml")
-    f = Path(os.path.expanduser(tpl.format(instance=instance(), workspace=setting("workspace", ""))))
+    f = None
+    # an agent's own secret (strict mode, or the former per-agent files) wins over the key for its commands
+    if not key and setting("secret_file"):
+        f = secret_path(instance())
+        if not f.exists() and setting("key_file"):
+            f = None
+    if f is None:
+        if not (tpl := setting("key_file")):
+            raise Refused("set FLOWEE_TOKEN or `key_file` (the project key) in .flowee.toml")
+        f = Path(os.path.expanduser(tpl.format(workspace=setting("workspace", ""))))
     if not f.exists():
         raise Refused(f"missing {f} (or FLOWEE_TOKEN)")
     return f.read_text().strip()
@@ -129,15 +154,19 @@ def git_config():
 
 # ---------- remote ----------
 
-def api(method, path, body=None, tries=3):
-    """One call; network errors and 5xx are retried with the same idempotency key."""
+def api(method, path, body=None, tries=3, project=False):
+    """One call as this clone's agent (`project`: the project key alone); network errors and 5xx are retried with
+    the same idempotency key."""
     url = base_url() + path
-    secret = token()
+    secret = token(project)
     key = str(uuid.uuid4())
+    headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json",
+               "User-Agent": f"flowee/{VERSION}", "Idempotency-Key": key}
+    if not project and agent():
+        headers["X-Flowee-Agent"] = agent()
     for attempt in range(tries):
         req = urllib.request.Request(url, method=method, data=None if body is None else json.dumps(body).encode(),
-                                     headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json",
-                                              "User-Agent": f"flowee/{VERSION}", "Idempotency-Key": key})
+                                     headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read() or b"{}")
@@ -146,6 +175,8 @@ def api(method, path, body=None, tries=3):
                 d = json.loads(e.read() or b"{}")
             except ValueError:
                 d = {}
+            finally:
+                e.close()
             msg = d.get("message") or f"HTTP {e.code}"
             if e.code == 401:
                 raise RuntimeError(msg)
@@ -441,6 +472,67 @@ def cmd_busy(now=None):
     return 0
 
 
+# ---------- agents (the project key) ----------
+
+def cmd_roles(raw=False):
+    out = api("GET", "/v1/roles", project=True)
+    if raw:
+        print(json.dumps(out["roles"]))
+        return 0
+    for r in out["roles"]:
+        print(f"{r['name']} ({'several' if r['several'] else 'one'}): {r['description']}")
+        print(f"  claims: {', '.join(r['claims']) or 'nothing (no queue)'}")
+        print(f"  commands: {', '.join(r['commands'])}")
+    return 0
+
+
+def cmd_agents(rest):
+    sub, args = (rest[0], rest[1:]) if rest else ("list", [])
+    if sub in ("list", "--json"):
+        out = api("GET", "/v1/agents", project=True)
+        if sub == "--json" or "--json" in args:
+            print(json.dumps(out["agents"]))
+            return 0
+        for a in out["agents"]:
+            held = ", ".join(label(n) for n in a["holds"]) or "nothing"
+            state = "paused, " if a["paused"] else ""
+            print(f"{a['name']}  {a['role']}  {state}seen {a.get('seen', 'never')}  holds {held}")
+        if not out["agents"]:
+            print("no agents yet: `flowee.py roles`, then `flowee.py agents add ROLE`")
+        return 0
+    if sub == "add":
+        body = {"role": args[0], **({"name": args[1]} if len(args) > 1 else {})}
+        try:
+            out = api("POST", "/v1/agents", body, project=True)
+        except Refused as e:
+            # idempotent: the agent exists with that role already (a scheduler's first run, every run)
+            if len(args) > 1 and str(e).startswith("name_taken:"):
+                have = api("GET", f"/v1/agents/{args[1]}", project=True)["agent"]
+                if have["role"] == args[0]:
+                    print(json.dumps({"agent": have, "existed": True}))
+                    return 0
+            raise
+        if s := out.pop("secret", None):
+            f = secret_path(out["agent"]["name"])
+            f.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            with open(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as fh:
+                fh.write(s + "\n")
+            out["secret_file"] = str(f)
+        out.pop("ok", None)
+        print(json.dumps(out))
+        return 0
+    if sub in ("rename", "pause", "resume", "remove"):
+        name = args[0]
+        if sub == "remove":
+            out = api("DELETE", f"/v1/agents/{name}", project=True)
+        else:
+            out = api("PATCH", f"/v1/agents/{name}", {"name": args[1]} if sub == "rename" else {"paused": sub == "pause"}, project=True)
+        out.pop("ok", None)
+        print(json.dumps(out))
+        return 0
+    raise Refused(f"unknown agents command {sub}; see --help")
+
+
 # ---------- CLI ----------
 
 def main(argv):
@@ -462,6 +554,10 @@ def main(argv):
         return cmd_busy()
     if c in ("version", "update"):
         return cmd_version() if c == "version" else cmd_update()
+    if c == "roles":
+        return cmd_roles("--json" in rest)
+    if c == "agents":
+        return cmd_agents(rest)
     if c in ("branch", "pr", "checks"):
         return {"branch": cmd_branch, "pr": cmd_pr, "checks": cmd_checks}[c](num())
     if c in ("whoami", "queue"):
