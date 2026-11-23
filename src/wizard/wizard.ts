@@ -814,7 +814,7 @@ export class Wizard {
     await this.living.show(s.user, s.at, [
       heading("✅", s.draft.replaces ? "Changes saved" : "Workspace ready", code(r.id)),
       ...(r.warning ? [warning(r.warning)] : []),
-      ...(names.length ? [text("The file below holds each agent's secret, <b>shown only this once</b>: give each agent its own, then delete the file.")] : []),
+      ...(names.length ? [text(`These are your agents' sign-in secrets for ${code("flowee.py")}, <b>shown only this once</b>. Save each one on the machine where that agent runs (the file shows where), put the ${code(".flowee.toml")} part into the repository, then delete the file.`)] : []),
       row(btn("📂 My workspaces", "m:list")),
     ]);
     if (names.length) await this.handOver(s.at, r.id, r.secrets);
@@ -823,19 +823,41 @@ export class Wizard {
     if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest, { bottom: names.length > 0 });
   }
 
-  /** The agents' secrets with a ready .flowee.toml, once, as a file (or a message where files are refused). */
+  /** The agents' secrets as a file that explains itself, once (or a message where files are refused). */
   async handOver(at: ChatRef, id: string, secrets: Record<string, string>) {
-    const toml = [
-      `url = "${this.host.publicUrl}"`,
-      `workspace = "${id}"`,
-      `instance = "${Object.keys(secrets)[0]}"            # each agent its own, or FLOWEE_AS`,
-      `secret_file = "~/.secrets/flowee/{workspace}/{instance}"   # or FLOWEE_TOKEN`,
-    ].join("\n");
-    const body = `# Flowee workspace ${id}: agent secrets (shown once; Flowee keeps only a fingerprint)\n${Object.entries(secrets)
-      .map(([k, v]) => `${k} = ${v}`)
-      .join("\n")}\n\n# .flowee.toml\n${toml}\n`;
+    const body = secretsFile(this.host.publicUrl, id, secrets);
+    const buttons = [[btn("🗑 Delete this file from the chat", "m:rmfile")], [linkBtn("❓ How do I use these?", `${this.host.publicUrl}/docs/agents/`)]];
     // shown once: a refused file must not lose them, so they come as a message instead
-    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "🔑 Agent secrets: shown only this once.").then(() => true, () => false))) return;
-    await this.chat.view(at, [heading("🔑", "Agent secrets", code(id)), { html: `<pre>${esc(body)}</pre>` }]);
+    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "🔑 Agent secrets: shown only this once.", buttons).then(() => true, () => false))) return;
+    await this.chat.view(at, [heading("🔑", "Agent secrets", code(id)), { html: `<pre>${esc(body)}</pre>` }, row(...buttons[0]), row(...buttons[1])]);
   }
+}
+
+
+/**
+ * The secrets file: each agent's secret as a ready block that stores it with mode 600 where flowee.py reads it (the
+ * secret on stdin, never in an argument), then the `.flowee.toml` for the repository. An agent handed this file and
+ * the instance URL can set up the project side by itself.
+ */
+export function secretsFile(url: string, id: string, secrets: Record<string, string>): string {
+  const names = Object.keys(secrets);
+  const dir = `~/.secrets/flowee/${id}`;
+  return [
+    `# Flowee workspace ${id}: the agents' sign-in secrets for flowee.py, shown only this once.`,
+    "# Flowee keeps only a fingerprint of each; a lost secret is replaced in /workspaces (New agent secret).",
+    `# Hand this file to an agent with the address ${url} and say "set this up", or do the two steps below.`,
+    `# Then delete this file and the message it came in. More: ${url}/docs/agents/`,
+    "",
+    "# 1. Each agent's secret: run its block on the machine where that agent runs. It stores the secret with",
+    `#    mode 600 in ${dir}/<agent>, where .flowee.toml points flowee.py.`,
+    ...names.flatMap((n) => ["", `# ${n}`, `mkdir -p ${dir} && install -m 600 /dev/stdin ${dir}/${n} <<'EOF'`, secrets[n], "EOF"]),
+    "",
+    "# 2. .flowee.toml: commit it to the repository's root (no secret in it). Each agent runs as its own",
+    `#    instance: set FLOWEE_AS=<agent> in that agent's environment, or edit 'instance' in its clone.`,
+    `url = "${url}"`,
+    `workspace = "${id}"`,
+    `instance = "${names[0]}"`,
+    `secret_file = "~/.secrets/flowee/{workspace}/{instance}"`,
+    "",
+  ].join("\n");
 }

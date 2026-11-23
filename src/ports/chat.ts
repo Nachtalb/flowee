@@ -146,7 +146,8 @@ export interface Chat {
   /** The command menu for a scope (all private chats, all groups, one chat). */
   setScopedCommands?(commands: Command[], scope: CommandScope): Promise<void>;
   setSettings?(settings: BotSettings): Promise<void>;
-  sendFile?(to: ChatRef, name: string, data: string, caption?: string): Promise<number>;
+  /** A document message; `buttons`: rows of inline buttons under it (a press carries this message's id). */
+  sendFile?(to: ChatRef, name: string, data: string, caption?: string, buttons?: Button[][]): Promise<number>;
   /** A side view kept beside the conversation (the terminal's inbox pane): the open items, set whenever they change. */
   panel?(to: ChatRef, view: View): Promise<void>;
   download(file: FileRef): Promise<ArrayBuffer>;

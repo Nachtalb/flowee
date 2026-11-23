@@ -395,9 +395,10 @@ export class InstanceHost implements InstanceApi {
       // every press is answered, a failure as its toast (docs/chat-style.md)
       let toast: string | undefined;
       try {
-        await wizard.living.adopt(e.from, at, e.message);
+        // a secrets file's button: that message is no living one
+        if (e.data !== "m:rmfile") await wizard.living.adopt(e.from, at, e.message);
         if (e.data.startsWith("w:")) await wizard.input(e.from, at, { kind: "press", data: e.data, message: e.message });
-        else toast = (await manager.press(e.from, at, e.data)) ?? undefined;
+        else toast = (await manager.press(e.from, at, e.data, e.message)) ?? undefined;
       } catch (err) {
         console.error("press failed", err);
         toast = `⚠️ ${err instanceof Error ? err.message : String(err)}`.slice(0, 190);

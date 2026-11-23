@@ -245,10 +245,12 @@ export class Telegram implements Chat {
       callback_query_mode: "default",
     });
   }
-  async sendFile(at: ChatRef, name: string, data: string, caption?: string): Promise<number> {
+  async sendFile(at: ChatRef, name: string, data: string, caption?: string, buttons?: Button[][]): Promise<number> {
     const form = new FormData();
     for (const [k, v] of Object.entries(this.to(at))) form.append(k, String(v));
     if (caption) form.append("caption", caption);
+    if (buttons?.length)
+      form.append("reply_markup", JSON.stringify({ inline_keyboard: buttons.map((r) => r.map((b) => ({ text: b.label, ...(b.url ? { url: b.url } : b.copy ? { copy_text: { text: b.copy } } : { callback_data: b.data ?? "" }) }))) }));
     form.append("document", new Blob([data], { type: "application/json" }), name);
     return (await this.call("sendDocument", form)).message_id;
   }

@@ -3,7 +3,7 @@
 // sequence number in `tui_log`; `tui_messages` is what the conversation shows now. Terminals pull the events after
 // the last sequence they saw (`since`) and are rung (`ring`) when there are new ones. `Tee` shows a Telegram
 // conversation in the terminals too: Telegram's message ids, the same living messages.
-import type { BotSettings, Chat, ChatEvent, ChatRef, Command, CommandScope, FileRef, View, ViewOptions } from "../ports/chat";
+import type { BotSettings, Button, Chat, ChatEvent, ChatRef, Command, CommandScope, FileRef, View, ViewOptions } from "../ports/chat";
 import type { Store } from "../ports/store";
 import type { TuiEvent, TuiFrame, TuiMessage, TuiPerson, TuiSync } from "../ports/tui";
 
@@ -262,8 +262,8 @@ export class Tee implements Chat {
   setSettings(s: BotSettings) {
     return this.tg.setSettings?.(s) ?? Promise.resolve();
   }
-  async sendFile(to: ChatRef, name: string, data: string, caption?: string) {
-    const id = this.tg.sendFile ? await this.tg.sendFile(to, name, data, caption) : undefined;
+  async sendFile(to: ChatRef, name: string, data: string, caption?: string, buttons?: Button[][]) {
+    const id = this.tg.sendFile ? await this.tg.sendFile(to, name, data, caption, buttons) : undefined;
     return this.term.file(id, name, data, caption);
   }
   panel(to: ChatRef, view: View) {

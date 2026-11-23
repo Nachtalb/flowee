@@ -39,6 +39,17 @@ ticket. Comments are signed with the role (`Developer:`), never with an instance
   The Worker only holds each secret's SHA-256. Never commit a secret, never print one in a log or a comment.
 - **Scratch files** go to a directory outside the clone, per agent.
 
+## The secrets file
+
+When a workspace is set up (or an agent is added, or gets a new secret) the bot sends `flowee-<workspace>-secrets.txt`
+once. It explains itself: per agent a block to run on the machine where that agent runs, which stores the secret
+with mode 600 at `~/.secrets/flowee/<workspace>/<instance>` (the secret comes on stdin through
+`install -m 600 /dev/stdin`, never as a command argument), then the `.flowee.toml` to commit to the repository's
+root (no secret in it). Run the blocks, commit the toml, give each agent `FLOWEE_AS=<instance>`, then delete the
+file and press 🗑 under it in the chat. An agent given the instance's address and this file can do all of it, and the
+rest of the project side, by itself (`/skills/flowee-install/references/project-setup.md`). A lost secret is not
+recoverable: `/workspaces` → 🔑 New agent secret makes a new one.
+
 ## One scheduled run
 
 An agent is not a long-running process. A scheduler (cron, a CI schedule, an agent runner's own jobs) starts it

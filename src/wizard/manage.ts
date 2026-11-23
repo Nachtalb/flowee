@@ -176,8 +176,16 @@ export class Manager {
   }
 
   /** A management button; null when the data is not the menu's, else the toast for the press (if any). */
-  async press(user: string, at: ChatRef, data: string): Promise<string | undefined | null> {
+  async press(user: string, at: ChatRef, data: string, message?: number): Promise<string | undefined | null> {
     if (!data.startsWith("m:")) return null;
+    // the button under a secrets file deletes that file's message, never the living one
+    if (data === "m:rmfile") {
+      if (message === undefined) return;
+      return this.chat.remove(at, message).then(
+        () => "🗑 Deleted from the chat",
+        () => "⚠️ Telegram did not let me delete it (it may be older than two days); delete it yourself.",
+      );
+    }
     const [k, id, v, w] = data.slice(2).split(":");
     if (k === "list") {
       await this.list(user, at);
@@ -223,7 +231,7 @@ export class Manager {
           ]);
           return;
         }
-        await this.show(user, at, [heading("🔑", `New secret for ${code(v)}`), text("It is in the file below, <b>shown only this once</b>. The old one no longer works."), row(back(id))]);
+        await this.show(user, at, [heading("🔑", `New secret for ${code(v)}`), text("It is in the file below, <b>shown only this once</b>, with the line that stores it on the agent's machine. The old one no longer works."), row(back(id))]);
         await this.wizard.handOver(at, id, { [v]: await this.host.rotate(id, v) });
         return "🔑 New secret below";
       case "add": {

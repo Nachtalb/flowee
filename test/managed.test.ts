@@ -88,7 +88,7 @@ const admin = async (method: string, path: string, body?: unknown, token = "admi
 async function handed(): Promise<Record<string, string>> {
   const f = tg.of("sendDocument").at(-1)?.document as File;
   const text = await f.text();
-  return Object.fromEntries([...text.matchAll(/^([a-z0-9-]+) = ([0-9a-f]{64})$/gm)].map((m) => [m[1], m[2]]));
+  return Object.fromEntries([...text.matchAll(/^mkdir -p \S+ && install -m 600 \/dev\/stdin \S+\/([a-z0-9-]+) <<'EOF'\n([0-9a-f]{64})\nEOF$/gm)].map((m) => [m[1], m[2]]));
 }
 
 // ---- the Telegram rich-message markup the screens use ----
@@ -304,17 +304,34 @@ describe("the setup wizard: one living message", () => {
       id,
       [
         "<p>✅ <b>Workspace ready</b> · <code>app</code></p>",
-        "<p>The file below holds each agent's secret, <b>shown only this once</b>: give each agent its own, then delete the file.</p>",
+        "<p>These are your agents' sign-in secrets for <code>flowee.py</code>, <b>shown only this once</b>. Save each one on the machine where that agent runs (the file shows where), put the <code>.flowee.toml</code> part into the repository, then delete the file.</p>",
         ROW(CB("📂 My workspaces", "m:list")),
       ].join(""),
     );
     const s = await handed();
     expect(Object.keys(s)).toEqual(["board", "dev1", "dev2", "tester", "owner"]);
     expect(tg.of("sendDocument").at(-1)?.caption).toBe("🔑 Agent secrets: shown only this once.");
-    expect(await (tg.of("sendDocument").at(-1)?.document as File).text()).toContain('url = "https://flowee.test"\nworkspace = "app"');
+    const file = await (tg.of("sendDocument").at(-1)?.document as File).text();
+    expect(file).toContain('url = "https://flowee.test"\nworkspace = "app"\ninstance = "board"\nsecret_file = "~/.secrets/flowee/{workspace}/{instance}"');
+    expect(file).toContain(`# dev1\nmkdir -p ~/.secrets/flowee/app && install -m 600 /dev/stdin ~/.secrets/flowee/app/dev1 <<'EOF'\n${s.dev1}\nEOF`);
+    expect(file.split("\n").slice(0, 4)).toEqual([
+      "# Flowee workspace app: the agents' sign-in secrets for flowee.py, shown only this once.",
+      "# Flowee keeps only a fingerprint of each; a lost secret is replaced in /workspaces (New agent secret).",
+      '# Hand this file to an agent with the address https://flowee.test and say "set this up", or do the two steps below.',
+      "# Then delete this file and the message it came in. More: https://flowee.test/docs/agents/",
+    ]);
+    expect(JSON.parse(tg.of("sendDocument").at(-1)?.reply_markup)).toEqual({
+      inline_keyboard: [[{ text: "🗑 Delete this file from the chat", callback_data: "m:rmfile" }], [{ text: "❓ How do I use these?", url: "https://flowee.test/docs/agents/" }]],
+    });
     // the whole setup left two messages of the bot in the chat: the living one and the secrets file
     expect(tg.shown("100").map((m) => (m.file ? m.file : m.id))).toEqual([id, "flowee-app-secrets.txt"]);
     expect(tg.of("sendRichMessage").length).toBe(1);
+    // the file's own button deletes the file's message, never the living one, and says so in a toast
+    const doc0 = tg.sent("sendDocument").at(-1)?.id as number;
+    await tap(100, "m:rmfile", 100, doc0);
+    expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: doc0 });
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("🗑 Deleted from the chat");
+    expect(tg.shown("100").map((m) => m.id)).toEqual([id]);
     // the API serves it by token and by path; the token never shows in the configuration or the sealed store
     expect((await api(s.dev1, "/v1/whoami")).body).toEqual({ ok: true, instance: "dev1", role: "developer" });
     expect((await api(s.dev2, "/w/app/v1/whoami")).body).toEqual({ ok: true, instance: "dev2", role: "developer" });
@@ -703,8 +720,9 @@ describe("the setup wizard: one living message", () => {
     tg.refuse = { sendDocument: "Bad Request: file is too big" };
     await sharedSetup(100);
     const last = tg.sent("sendRichMessage").at(-1)?.rich_message.html as string;
-    expect(last).toMatch(/^<p>🔑 <b>Agent secrets<\/b> · <code>app<\/code><\/p><pre># Flowee workspace app: agent secrets/);
-    expect(last).toMatch(/^board = [0-9a-f]{64}$/m);
+    expect(last).toMatch(/^<p>🔑 <b>Agent secrets<\/b> · <code>app<\/code><\/p><pre># Flowee workspace app: the agents' sign-in secrets for flowee.py/);
+    expect(last).toMatch(/^[0-9a-f]{64}$/m);
+    expect(last).toContain('data="m:rmfile">🗑 Delete this file from the chat</tg-button>');
   });
 
   it("Back, Cancel, resume and expiry", async () => {
@@ -815,7 +833,7 @@ describe("the management menu: one living message", () => {
       ].join(""),
     );
     await tap(100, "m:rot:app:dev1");
-    edited(id, ["<p>🔑 <b>New secret for <code>dev1</code></b></p>", "<p>It is in the file below, <b>shown only this once</b>. The old one no longer works.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
+    edited(id, ["<p>🔑 <b>New secret for <code>dev1</code></b></p>", "<p>It is in the file below, <b>shown only this once</b>, with the line that stores it on the agent's machine. The old one no longer works.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
     expect(tg.of("answerCallbackQuery").at(-1)).toEqual({ callback_query_id: `q${uid}`, text: "🔑 New secret below" });
     const fresh = await handed();
     expect(Object.keys(fresh)).toEqual(["dev1"]);
