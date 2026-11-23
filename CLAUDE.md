@@ -307,6 +307,11 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 
 - As few dependencies as possible: runtime has none (the bun runtime uses only bun's built-ins); dev: wrangler,
   vitest + the Workers pool, TypeScript, workers-types, xstate (test only).
+- Versions: every dependency at its latest stable release, majors included. npm: caret ranges at the latest,
+  bun.lock exact (workerd and miniflare follow wrangler's exact pins); the image: `BUN_VERSION` exact, `alpine:3`
+  (the newest 3.x on each build); Actions: the major tag (`@v7`); `compatibility_date`: the newest the bundled workerd
+  supports; GitHub REST: `x-github-api-version` in tracker-github.ts. Check: `bun outdated`, `bun audit`,
+  `bun install --frozen-lockfile`; bun's and the Actions' newest via `gh api repos/<owner>/<repo>/releases/latest`.
 - Error messages are one sentence for the agent, with a stable `error` code.
 - Comments only where the code is not obvious.
 - README.md is usage only (no build, layout or architecture: those are here). docs/agents/ and skills/ are
