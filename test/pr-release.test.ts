@@ -373,6 +373,25 @@ describe("the remaining feature transitions", () => {
     expect(any.last(2)).toContain("- UI file: app/src/main/ui/Viewer.kt");
   });
 
+  it("a pass whose merge went through but whose tracker write failed completes on retry", async () => {
+    any.commit("feat: base");
+    any.add({ number: 2, state_label: "testing", title: "Thing" });
+    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    const head = code.push("flowee/2");
+    code.green(head);
+    code.pr("flowee/2", "Thing (#2)");
+    const body = { n: 2, comment: "Works.", build: head, gates: { sha: head, ok: true } };
+    any.fail = (m, path) => (m === "PATCH" && path.endsWith("/issues/2") ? 502 : undefined);
+    expect((await p("tester", "pass", body)).status).toBe(502);
+    expect(code.merged.length).toBe(1);
+    expect(labels(2)).toEqual(["testing"]);
+    any.fail = undefined;
+    const r = (await p("tester", "pass", body)).body;
+    expect(r).toMatchObject({ state: "closed" });
+    expect(code.merged.length).toBe(1);
+    expect(any.issues.get(2)!.state).toBe("closed");
+  });
+
   it("show names the branch, the pull request and its checks", async () => {
     any.add({ number: 1, state_label: "in development" });
     expect((await call("board", "show?n=1", undefined, undefined, "p")).body).toMatchObject({ branch: "flowee/1", pull: null });

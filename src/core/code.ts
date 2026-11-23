@@ -153,6 +153,13 @@ export const CODE_GUARDS: Record<string, Guard> = {
         vars(c).pull = `#${pr.number} at ${s7(pr.headSha)}`;
         return true;
       }
+      // a retried pass: its merge went through before a later tracker write failed
+      if (pr?.state === "merged" && pr.mergeSha && pr.headSha === build) {
+        c.f.db.exec("INSERT OR IGNORE INTO handed VALUES (?, ?)", c.t.n, pr.mergeSha);
+        vars(c).merge = s7(pr.mergeSha);
+        c.out.merged = pr.mergeSha;
+        return true;
+      }
       const t = local(c.f, c.t.n).repo.tracker;
       const main = c.f.branch(c.t.n);
       if (!(await t.contains(build, main))) throw new Fail(422, "not_in_build", `Build ${s7(build)} is not on ${main}; push it and test again.`);
