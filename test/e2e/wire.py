@@ -17,12 +17,19 @@ its pipeline, the release and the tag through the GitLab adapter.
 Last, a webhook walk (workspace w4): after the deploy's /setup the cron registers the repository's webhook in the
 stand-in GitHub, which then POSTs signed deliveries; `queue` answers from the webhook-fed mirror without a listing.
 Everything lives in a scratch directory that is removed at the end; wrangler is stopped at the end.
+
+`--runtime bun` runs the same walks against the self-hosted runtime (`bun src/runtime/bun/main.ts`), `--runtime docker`
+against its image (`--image`, default flowee-test-scratch:dev; container and volume named flowee-test-wire-*, removed
+at the end). Both add a polling walk (workspace w5: a chat with no public URL, so a stand-in Telegram hands updates out
+by getUpdates and the tracker is polled on the tick), then restart the process with FLOWEE_PUBLIC_URL set, check the
+stored state survived, and run the webhook walk with that public URL.
 """
-import argparse, hashlib, hmac, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
+import argparse, hashlib, hmac, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SELF_TICKING = False  # the self-hosted runtime runs its own tick (FLOWEE_TICK_SECONDS=1); wrangler needs __scheduled
 WHO = ["board", "dev1", "dev2", "tester", "owner"]
 ROLE = {"board": "board", "dev1": "developer", "dev2": "developer", "tester": "tester", "owner": "owner"}
 
@@ -312,6 +319,63 @@ class GitLab(GitHub):
         return 501, {"message": f"no route {method} {path}"}
 
 
+class Telegram:
+    """The Bot API by getUpdates: hands out `pending` updates after the offset; records every call; message ids."""
+
+    def __init__(self):
+        self.calls, self.pending, self.sent, self.next_id = [], [], [], 1000
+        self.lock = threading.Lock()
+        me = self
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                try:
+                    body = json.loads(raw) if (self.headers.get("content-type") or "").startswith("application/json") else {}
+                except ValueError:
+                    body = {}
+                data = json.dumps(me.handle(self.path, body)).encode()
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        class Quiet(ThreadingHTTPServer):
+            def handle_error(self, *a):  # a long poll the runtime aborts when it stops
+                pass
+
+        self.srv = Quiet(("127.0.0.1", 0), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.srv.server_port}"
+
+    def handle(self, path, body):
+        method = path.rsplit("/", 1)[-1]
+        with self.lock:
+            self.calls.append((method, body))
+        if method == "getUpdates":
+            for _ in range(20):  # a short long-poll
+                due = [u for u in self.pending if u["update_id"] >= body.get("offset", 0)]
+                if due:
+                    return {"ok": True, "result": due}
+                time.sleep(0.05)
+            return {"ok": True, "result": []}
+        if method.startswith("send") or method == "editMessageText":
+            with self.lock:
+                self.next_id += 1
+                self.sent.append((method, body, self.next_id))
+                return {"ok": True, "result": {"message_id": body.get("message_id") or self.next_id}}
+        if method == "getWebhookInfo":
+            return {"ok": True, "result": {"url": ""}}
+        return {"ok": True, "result": True}
+
+    def of(self, method):
+        return [b for m, b in self.calls if m == method]
+
+
 def workspace(id, heading, gh, preset="trunk", features=None, gitlab=False):
     tracker = ({"type": "gitlab", "repos": [f"acme/team/{id}"], "api": f"{gh.url}/api/v4", "token": "GITLAB_TOKEN"} if gitlab
                else {"type": "github", "repos": [f"acme/{id}"], "api": gh.url, "token": "GITHUB_TOKEN"})
@@ -327,13 +391,93 @@ def free_port():
         return s.getsockname()[1]
 
 
-def start_worker(scratch, gh, gl, heading1):
-    port = free_port()
+OWNER_CHAT = "4242"
+BOT_TOKEN = "4711:wire-bot"
+
+
+def config_for(gh, gl, heading1, polling):
     rel = {"pullRequests": {"checks": ["build"]}, "releases": {"testedTag": "tested", "checks": ["build"]}}
     w3 = workspace("w3", "For the owner", gh, "pr-release", rel)
     g3 = workspace("g3", "For the owner", gl, "pr-release", rel, gitlab=True)
     w4 = {**workspace("w4", "For the owner", gh), "sync": {"webhooks": "auto"}}
-    config = {"flowee": 1, "workspaces": [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3, w4]}
+    ws = [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3, w4]
+    if polling:
+        # a chat without a public URL: Telegram by getUpdates, the tracker polled on the tick
+        w5 = workspace("w5", "For the owner", gh)
+        w5["owners"] = [{"name": "Owner", "tracker": "owner", "chat": OWNER_CHAT}]
+        w5["chat"] = {"type": "telegram", "token": "W5_BOT", "webhookSecret": "W5_HOOK", "chatId": OWNER_CHAT}
+        ws.append(w5)
+    return {"flowee": 1, "workspaces": ws}
+
+
+def secrets():
+    out = {"GITHUB_TOKEN": "gh-test", "GITLAB_TOKEN": "gl-test", "FLOWEE_KEY": "wire-key", "W5_BOT": BOT_TOKEN}
+    for ws in ("w1", "w2", "w3", "g2", "g3", "w4", "w5"):
+        for w in WHO:
+            out[f"{ws.upper()}_{w.upper()}"] = hashlib.sha256(f"{ws}-{w}".encode()).hexdigest()
+    return out
+
+
+class SelfHosted:
+    """The bun runtime as a process (`bun`) or its image (`docker`) on a fixed port and data directory/volume."""
+
+    def __init__(self, kind, scratch, config, tg, image):
+        self.kind, self.config, self.tg, self.image = kind, config, tg, image
+        self.port = free_port()
+        self.url = f"http://127.0.0.1:{self.port}"
+        self.data = scratch / "data"
+        self.name = f"flowee-test-wire-{os.getpid()}"
+        self.p = None
+
+    def env(self, public_url=None):
+        e = {**secrets(), "FLOWEE_CONFIG": json.dumps(self.config), "FLOWEE_PORT": str(self.port), "FLOWEE_HOST": "127.0.0.1",
+             "FLOWEE_TELEGRAM_API": self.tg.url, "FLOWEE_TICK_SECONDS": "1"}
+        if public_url:
+            e["FLOWEE_PUBLIC_URL"] = public_url
+        return e
+
+    def start(self, public_url=None):
+        e = self.env(public_url)
+        if self.kind == "bun":
+            self.p = subprocess.Popen(["bun", "src/runtime/bun/main.ts"], cwd=ROOT, env=dict(os.environ, **e, FLOWEE_DATA=str(self.data)),
+                                      stdout=subprocess.DEVNULL, stderr=open(self.data.parent / "flowee.log", "a"))
+        else:
+            args = ["docker", "run", "-d", "--name", self.name, "--network", "host", "-v", f"{self.name}:/data"]
+            for k, v in e.items():
+                args += ["-e", f"{k}={v}"]
+            subprocess.run([*args, self.image], check=True, capture_output=True)
+        for _ in range(150):
+            try:
+                if urllib.request.urlopen(urllib.request.Request(f"{self.url}/health", headers={"User-Agent": "wire"}), timeout=2).status == 200:
+                    return
+            except OSError:
+                pass
+            time.sleep(0.1)
+        raise SystemExit(f"the {self.kind} runtime did not become healthy")
+
+    def health(self):
+        """The image's own HEALTHCHECK command, run in the container (no shell in it)."""
+        if self.kind != "docker":
+            return True
+        return subprocess.run(["docker", "exec", self.name, "/flowee", "health"]).returncode == 0
+
+    def stop(self):
+        if self.kind == "bun" and self.p:
+            self.p.terminate()  # SIGTERM: the graceful stop
+            self.p.wait(timeout=30)
+        elif self.kind == "docker":
+            subprocess.run(["docker", "stop", "-t", "30", self.name], capture_output=True)
+            subprocess.run(["docker", "rm", "-f", self.name], capture_output=True)
+
+    def remove(self):
+        self.stop()
+        if self.kind == "docker":
+            subprocess.run(["docker", "volume", "rm", "-f", self.name], capture_output=True)
+
+
+def start_worker(scratch, gh, gl, heading1):
+    port = free_port()
+    config = config_for(gh, gl, heading1, False)
     args = ["npx", "wrangler", "dev", "--ip", "127.0.0.1", "--port", str(port), "--persist-to", str(scratch / "state"),
             "--show-interactive-dev-session=false", "--test-scheduled", "--var", f"FLOWEE_CONFIG:{json.dumps(config)}", "--var", "GITHUB_TOKEN:gh-test",
             "--var", "GITLAB_TOKEN:gl-test", "--var", "FLOWEE_KEY:wire-key"]
@@ -435,8 +579,8 @@ def walk_pr(c, gh, url, repo_name):
 
     def cron(until=lambda: True):
         """Fires the Worker's cron; it finishes in waitUntil, so wait (bounded) for its effect."""
-        import urllib.request
-        urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
+        if not SELF_TICKING:  # wrangler dev's cron trigger; the self-hosted runtime ticks by itself
+            urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
         for _ in range(50):
             if until():
                 return
@@ -504,7 +648,8 @@ def walk_hooks(c, gh, url, repo_name):
         return out if rc == 0 else {}
 
     get("/setup")  # what the deploy calls: the workspace learns its public URL
-    urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
+    if not SELF_TICKING:  # wrangler dev's cron trigger; the self-hosted runtime ticks by itself
+        urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
     check("the cron registered the webhook", until(lambda: bool(r["hooks"])))
     if not r["hooks"]:
         return False
@@ -524,16 +669,92 @@ def walk_hooks(c, gh, url, repo_name):
     return all(steps)
 
 
+def walk_poll(c, gh, tg, rt, repo_name):
+    """Polling: no public URL; the stand-in Telegram hands updates out by getUpdates, the tracker is listed on the tick."""
+    import urllib.request
+    steps = []
+    r = gh.repo(repo_name)
+
+    def check(what, ok):
+        steps.append(ok)
+        print(f"  {'ok  ' if ok else 'FAIL'} {what}")
+
+    def until(cond, n=150):
+        for _ in range(n):
+            if cond():
+                return True
+            time.sleep(0.1)
+        return cond()
+
+    listings = lambda: sum(1 for m, p in gh.calls if m == "GET" and p == f"/repos/{repo_name}/issues")
+    check("the bot's webhook was deleted before polling", until(lambda: bool(tg.of("deleteWebhook"))))
+    check("getUpdates asks for the webhook's update types", until(lambda: any(b.get("allowed_updates") == ["message", "callback_query"] for b in tg.of("getUpdates"))))
+    check("the profile was set at start, no webhook", bool(tg.of("setMyCommands")) and not tg.of("setWebhook"))
+    tok = "w5-board"
+    req = urllib.request.Request(f"{rt.url}/w/w5/v1/sync", headers={"User-Agent": "wire", "authorization": f"Bearer {tok}"})
+    sync = (json.loads(urllib.request.urlopen(req, timeout=10).read()).get("sync", {}).get("repos") or [{}])[0]
+    check(f"sync: polled, '{sync.get('reason')}'", sync.get("mode") == "poll" and "no public URL" in (sync.get("reason") or ""))
+    first = listings()
+    check("the tracker is listed on the tick without any command", until(lambda: listings() >= first + 2))
+    # a card written in the tracker by someone else: found by polling, sent to the owner's chat
+    n = len(r["issues"]) + 1
+    r["issues"][n] = {"number": n, "title": "Colour", "body": "## Acceptance\n- it works", "state": "open", "state_reason": None, "labels": [{"name": "human review"}],
+                      "assignees": [{"login": "owner"}], "created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-03T00:00:00Z",
+                      "html_url": f"https://github.test/{repo_name}/issues/{n}", "node_id": f"I_{n}", "comments": []}
+    r["comments"] += 1
+    r["issues"][n]["comments"].append({"id": r["comments"], "body": "Board: escalated\n\n### For the owner\nKind: question\nQuestion: Blue or green? I recommend blue."})
+    card = lambda: next((b for b in tg.of("sendRichMessage") if b.get("chat_id") == OWNER_CHAT and "Blue or green" in json.dumps(b)), None)
+    check("the card reached the owner's chat by polling the tracker", until(card, 300))
+    mid = next((i for m, b, i in tg.sent if m == "sendRichMessage" and "Blue or green" in json.dumps(b)), None)
+    bot = int(BOT_TOKEN.split(":")[0])
+    tg.pending.append({"update_id": 7001, "message": {"message_id": 9001, "chat": {"id": int(OWNER_CHAT), "type": "private"}, "from": {"id": int(OWNER_CHAT), "is_bot": False, "first_name": "Owner"},
+                                                       "text": "blue", "reply_to_message": {"message_id": mid, "from": {"id": bot, "is_bot": True}}}})
+    answered = lambda: any("blue" in x["body"] and x["body"].startswith("Owner") for x in r["issues"][n]["comments"])
+    check("the owner's reply, fetched by getUpdates, is the ticket's answer", until(answered, 300))
+    check("the offset moved past it", until(lambda: any(b.get("offset") == 7002 for b in tg.of("getUpdates"))))
+    return all(steps), n
+
+
+def survived(rt, gh, tg, repo_name, n):
+    """After the restart: the offset and the inbox are where they were; nothing answered or sent twice."""
+    r = gh.repo(repo_name)
+    answers = lambda: sum(1 for x in r["issues"][n]["comments"] if x["body"].startswith("Owner"))
+    cards = lambda: sum(1 for b in tg.of("sendRichMessage") if "Blue or green" in json.dumps(b))
+    a0, c0, g0 = answers(), cards(), len(tg.of("getUpdates"))
+    for _ in range(100):
+        if len(tg.of("getUpdates")) > g0 + 2:
+            break
+        time.sleep(0.1)
+    time.sleep(2.5)  # two ticks
+    later = tg.of("getUpdates")[g0:]
+    ok = bool(later) and later[0].get("offset") == 7002 and answers() == a0 == 1 and cards() == c0 == 1 and rt.health()
+    print(f"  {'ok  ' if ok else 'FAIL'} after the restart: getUpdates resumes at {later[0].get('offset') if later else None}, {answers()} answer, {cards()} card, healthy")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flow-py", help="an external client with the same wire contract, run unchanged against workspace w1")
     ap.add_argument("--flow-env", default="FLOW", help="the external client's environment prefix (<PREFIX>_URL, _AS, _TOKEN)")
     ap.add_argument("--flow-heading", default="For the owner", help="the card heading the external client writes")
+    ap.add_argument("--runtime", choices=["wrangler", "bun", "docker"], default="wrangler", help="the Worker in wrangler dev, or the self-hosted runtime as a process or an image")
+    ap.add_argument("--image", default="flowee-test-scratch:dev", help="the image --runtime docker runs")
     a = ap.parse_args()
     scratch = Path(tempfile.mkdtemp(prefix="flowee-wire-"))
     gh = GitHub()
     gl = GitLab()
-    worker, url = start_worker(scratch, gh, gl, a.flow_heading)
+    tg = Telegram()
+    rt = worker = None
+    if a.runtime == "wrangler":
+        worker, url = start_worker(scratch, gh, gl, a.flow_heading)
+    else:
+        global SELF_TICKING
+        SELF_TICKING = True
+        rt = SelfHosted(a.runtime, scratch, config_for(gh, gl, a.flow_heading, True), tg, a.image)
+        rt.data.mkdir()
+        rt.start()
+        url = rt.url
+        print(f"{a.runtime} runtime -> {url} (Telegram stand-in {tg.url})")
     results = {}
     try:
         def repo(name):
@@ -588,6 +809,17 @@ def main():
         c = pr_client("g3", gl, "acme/team/g3")
         print(f"{c.name} -> {url}/w/g3/v1")
         results[c.name] = walk_pr(c, gl, url, "acme/team/g3")
+        if rt:
+            rp = repo("w5-client")
+            c = Client("flowee.py polling", [sys.executable, str(ROOT / "client/flowee.py")],
+                       lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w5", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w5-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                       "flowee-gates.json", rp)
+            print(f"{c.name} -> Telegram by getUpdates, the tracker polled (no public URL)")
+            results[c.name], n = walk_poll(c, gh, tg, rt, "acme/w5")
+            print(f"restart with FLOWEE_PUBLIC_URL={url}")
+            rt.stop()
+            rt.start(public_url=url)
+            results["restart"] = survived(rt, gh, tg, "acme/w5", n)
         rw = repo("w4-client")
         c = Client("flowee.py webhooks", [sys.executable, str(ROOT / "client/flowee.py")],
                    lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w4", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w4-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
@@ -595,8 +827,12 @@ def main():
         print(f"{c.name} -> {url}/hooks/w4/w4")
         results[c.name] = walk_hooks(c, gh, url, "acme/w4")
     finally:
-        worker.terminate()
-        worker.wait(timeout=30)
+        if worker:
+            worker.terminate()
+            worker.wait(timeout=30)
+        if rt:
+            rt.remove()
+        tg.srv.shutdown()
         gh.srv.shutdown()
         gl.srv.shutdown()
         shutil.rmtree(scratch, ignore_errors=True)

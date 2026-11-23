@@ -3,11 +3,13 @@
 served/) serves every file of its manifest equal to the repository's, the root document as markdown and HTML,
 POST /validate, and `flowee.py version` / `update` work against it.
 
-  python3 test/e2e/serve.py [--print-root]    # --print-root: print the root document as served, then the checks
+  python3 test/e2e/serve.py [--print-root] [--runtime wrangler|bun|docker] [--image IMAGE]
+  # --print-root: print the root document as served, then the checks
+  # --runtime bun: the self-hosted process reading served/; docker: the image, whose executable embeds the material
 
 Everything lives in a scratch directory removed at the end; wrangler is stopped at the end. No real remote is used.
 """
-import json, os, shutil, socket, subprocess, sys, tempfile, threading, urllib.error, urllib.request
+import json, os, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +40,32 @@ def start(scratch):
     return p, f"http://127.0.0.1:{port}"
 
 
+def start_self_hosted(scratch, runtime, image):
+    """The bun runtime in the managed mode, as a process or the image (its Telegram pointed at nothing)."""
+    port = free_port()
+    env = {"FLOWEE_MODE": "managed", "FLOWEE_CONFIG": json.dumps(INSTANCE), "FLOWEE_KEY": "serve-key", "FLOWEE_PORT": str(port), "FLOWEE_HOST": "127.0.0.1",
+           "FLOWEE_TELEGRAM_API": "http://127.0.0.1:9"}
+    name = f"flowee-test-serve-{os.getpid()}"
+    if runtime == "bun":
+        p = subprocess.Popen(["bun", "src/runtime/bun/main.ts"], cwd=ROOT, env=dict(os.environ, **env, FLOWEE_DATA=str(scratch / "data")), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stop = lambda: (p.terminate(), p.wait(timeout=30))
+    else:
+        args = ["docker", "run", "-d", "--rm", "--name", name, "--network", "host", "--tmpfs", "/data:uid=65532"]
+        for k, v in env.items():
+            args += ["-e", f"{k}={v}"]
+        subprocess.run([*args, image], check=True, capture_output=True)
+        stop = lambda: subprocess.run(["docker", "stop", name], capture_output=True)
+    url = f"http://127.0.0.1:{port}"
+    for _ in range(150):
+        try:
+            if urllib.request.urlopen(urllib.request.Request(f"{url}/health", headers=UA), timeout=2).status == 200:
+                return stop, url
+        except OSError:
+            time.sleep(0.1)
+    stop()
+    raise SystemExit(f"the {runtime} runtime did not become healthy")
+
+
 def get(url, headers=None, data=None):
     req = urllib.request.Request(url, data=data, headers={**UA, **(headers or {})})
     try:
@@ -48,8 +76,14 @@ def get(url, headers=None, data=None):
 
 
 def main():
+    runtime = sys.argv[sys.argv.index("--runtime") + 1] if "--runtime" in sys.argv else "wrangler"
+    image = sys.argv[sys.argv.index("--image") + 1] if "--image" in sys.argv else "flowee-test-scratch:dev"
     scratch = Path(tempfile.mkdtemp(prefix="flowee-serve-"))
-    worker, url = start(scratch)
+    if runtime == "wrangler":
+        worker, url = start(scratch)
+        stop = lambda: (worker.terminate(), worker.wait(timeout=30))
+    else:
+        stop, url = start_self_hosted(scratch, runtime, image)
     fails = []
 
     def check(what, ok):
@@ -92,8 +126,7 @@ def main():
         print(r.stdout.rstrip())
         check("flowee.py update replaces it with the served client", r.returncode == 0 and old.read_bytes() == (ROOT / "client/flowee.py").read_bytes())
     finally:
-        worker.terminate()
-        worker.wait(timeout=30)
+        stop()
         shutil.rmtree(scratch, ignore_errors=True)
     print("serve check: " + ("passed" if not fails else f"{len(fails)} failed"))
     return 1 if fails else 0
