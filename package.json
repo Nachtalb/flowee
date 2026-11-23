@@ -13,7 +13,8 @@
     "typecheck": "tsc",
     "schema": "bun scripts/schema.ts",
     "dev": "wrangler dev",
-    "validate": "bun scripts/validate.ts"
+    "validate": "bun scripts/validate.ts",
+    "deploy": "bun scripts/deploy.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.9.0",

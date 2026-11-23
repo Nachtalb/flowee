@@ -7,6 +7,7 @@ import type { WorkspaceDoc } from "../src/config/document";
 import { missingSecrets, StaticRegistry } from "../src/config/registry";
 import { INSTANCE, problems, SCHEMA, validate } from "../src/config/schema";
 import { plain } from "../src/ports/chat";
+import { plan } from "../scripts/deploy";
 import workspaces from "./workspaces.json";
 
 type Complete<T> = T extends (infer U)[] ? Complete<U>[] : T extends object ? { [K in keyof T]-?: Complete<T[K]> } : T;
@@ -195,5 +196,25 @@ describe("bun run validate", () => {
     expect(problems(workspaces)).toEqual([]);
     expect(problems({ ...shop, roles: [] })).toEqual(["$.roles: must have at least 1 item(s)."]);
     expect(problems({ flowee: 1, workspaces: [shop, shop] })).toEqual(["$.workspaces[1].id: 'shop' is used twice.", "$.workspaces[1].chat: another workspace is bound to the same chat and topic."]);
+  });
+});
+
+describe("bun run deploy", () => {
+  const inst = { bot: { token: "BOT", webhookSecret: "HOOK" }, publicUrl: "https://flowee.example.workers.dev", owner: "1" };
+  it("managed with an instance section, the local document as a secret on stdin, /setup on its public URL", () => {
+    expect(plan(JSON.stringify({ flowee: 1, workspaces: [], instance: inst }), true)).toEqual({
+      mode: "managed",
+      url: "https://flowee.example.workers.dev",
+      args: ["bunx", "wrangler", "deploy", "--var", "FLOWEE_MODE:managed", "--secrets-file", "/dev/stdin"],
+    });
+  });
+  it("standalone without one, the committed document bundled; an invalid document is not deployed", () => {
+    expect(plan(JSON.stringify(workspaces), false)).toEqual({
+      mode: "standalone",
+      url: workspaces.workspaces.find((w) => (w.chat as { publicUrl?: string } | undefined)?.publicUrl)?.chat?.publicUrl,
+      args: ["bunx", "wrangler", "deploy", "--var", "FLOWEE_MODE:standalone"],
+    });
+    expect(plan("{", true)).toMatchObject({ problems: [expect.stringMatching(/^\$: is not JSON/)] });
+    expect(plan(JSON.stringify({ flowee: 1, workspaces: [], instance: { ...inst, owner: 1 } }), true)).toMatchObject({ problems: [expect.stringContaining("$.instance.owner")] });
   });
 });
