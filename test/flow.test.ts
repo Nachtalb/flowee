@@ -530,9 +530,9 @@ describe("signatures", () => {
 describe("without GitHub token", () => {
   it("whoami works, GitHub commands answer 502 github", async () => {
     const original = await inObject((o) => {
-      const t = (o.env as unknown as Record<string, unknown>).GITHUB_TOKEN;
-      o.env = { ...o.env, GITHUB_TOKEN: undefined } as typeof o.env;
-      o.reset();
+      const t = (o.host.env as unknown as Record<string, unknown>).GITHUB_TOKEN;
+      o.host.env = { ...o.host.env, GITHUB_TOKEN: undefined } as typeof o.host.env;
+      o.host.reset();
       return t as string;
     });
     expect((await call("dev1", "whoami")).status).toBe(200);
@@ -543,8 +543,8 @@ describe("without GitHub token", () => {
     });
     expect((await call("dev1", "queue")).status).toBe(502);
     await inObject((o) => {
-      o.env = { ...o.env, GITHUB_TOKEN: original } as typeof o.env;
-      o.reset();
+      o.host.env = { ...o.host.env, GITHUB_TOKEN: original } as typeof o.host.env;
+      o.host.reset();
     });
   });
 });

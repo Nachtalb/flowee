@@ -1,8 +1,7 @@
-// The managed mode's instance: one Durable Object holding the stored workspace registry, the sealed secrets, the
+// The managed mode's instance: one host (a Durable Object, or one object in the process) holding the stored workspace registry, the sealed secrets, the
 // wizard sessions and the bots made for workspaces. Every update of the instance bot and of the workspaces' own
 // bots passes through here first: the wizard and the management menu take theirs, the rest is forwarded to the
 // workspace bound to the update's bot, chat and topic.
-import { DurableObject } from "cloudflare:workers";
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
 import { PRESETS } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
@@ -13,12 +12,14 @@ import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
 import type { ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
+import type { Store } from "../ports/store";
+import type { InstanceApi, Platform, Room, Routed } from "../runtime/platform";
 import { Manager, type ManageHost } from "../wizard/manage";
 import { boundView, chatLabel, type Draft, failedView, fromDoc, type Preset, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
 import { Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
-import { envSecrets, SqlStore, WORKSPACE_HEADER } from "./store-durable-object";
+import { envSecrets, WORKSPACE_HEADER } from "./workspace-host";
 import { GitHub, githubRepo, githubToken } from "./tracker-github";
 import { randomSecret, seal, unseal, vaultKey } from "./vault";
 
@@ -30,18 +31,18 @@ export const PRIVATE_COMMANDS: Command[] = [
   { command: "export", description: "export your configurations" },
 ];
 
-export type Routed = { forward?: string; status?: number };
-
-export class Instance extends DurableObject<Env> {
-  declare env: Env;
-  readonly store: SqlStore;
+export class InstanceHost implements InstanceApi {
+  readonly store: Store;
   private plain?: Map<string, string>;
   private reg?: StoredRegistry;
   private cfg!: InstanceConfig;
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    this.store = new SqlStore(ctx.storage.sql);
+  constructor(
+    room: Room,
+    public env: Env,
+    private platform: Pick<Platform, "workspace">,
+  ) {
+    this.store = room.store;
     this.store.exec("CREATE TABLE IF NOT EXISTS vault (name TEXT PRIMARY KEY, ws TEXT NOT NULL, sealed TEXT NOT NULL)");
     this.store.exec("CREATE TABLE IF NOT EXISTS sessions (user TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL)");
     this.store.exec("CREATE TABLE IF NOT EXISTS updates (bot TEXT NOT NULL, id INTEGER NOT NULL, ts INTEGER NOT NULL, PRIMARY KEY (bot, id))");
@@ -91,7 +92,7 @@ export class Instance extends DurableObject<Env> {
   private setKv = (k: string, v: string) => void this.store.exec("INSERT OR REPLACE INTO kv VALUES (?, ?)", k, v);
 
   private stub(id: string) {
-    return this.env.WORKSPACE.get(this.env.WORKSPACE.idFromName(id));
+    return this.platform.workspace(id);
   }
 
   /** Hands a workspace its document and its sealed secrets (it opens them with the same key). */

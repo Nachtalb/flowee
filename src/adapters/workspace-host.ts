@@ -1,6 +1,6 @@
-// One Durable Object per workspace: its SQLite storage is the workspace's Store, its alarm the Clock's wake-up,
-// and its single instance serialises the workspace's commands (the lock covers the awaits in between).
-import { DurableObject } from "cloudflare:workers";
+// The host of one workspace: its room's store is the workspace's Store, the room's wake-up the Clock's, and its
+// single instance per workspace (one Durable Object, or one object in the process) serialises the workspace's
+// commands (the lock covers the awaits in between). The runtime (src/runtime) makes the room and calls in.
 import { api, auth, json } from "../api/http";
 import type { WorkspaceDoc } from "../config/document";
 import { settings } from "../config/registry";
@@ -11,7 +11,8 @@ import { Flowee } from "../core/service";
 import { Envoy } from "../envoy/envoy";
 import type { Clock } from "../ports/clock";
 import type { Secrets } from "../ports/secrets";
-import type { Store, Value } from "../ports/store";
+import type { Store } from "../ports/store";
+import type { Room } from "../runtime/platform";
 import { Paste } from "./files-paste";
 import { TRACKERS } from "./trackers";
 import { Telegram } from "./chat-telegram";
@@ -23,16 +24,6 @@ export const WORKSPACE_HEADER = "x-flowee-workspace";
 /** The public origin the deploy called /setup on (standalone): the base of the webhook addresses. */
 export const ORIGIN_HEADER = "x-flowee-origin";
 
-export class SqlStore implements Store {
-  constructor(private sql: SqlStorage) {}
-  exec(q: string, ...a: Value[]) {
-    return { rowsWritten: this.sql.exec(q, ...a).rowsWritten };
-  }
-  rows<R extends Record<string, Value>>(q: string, ...a: Value[]): R[] {
-    return this.sql.exec<R>(q, ...a).toArray();
-  }
-}
-
 export const envSecrets = (env: Env): Secrets => ({
   get: (name) => {
     const v = (env as unknown as Record<string, unknown>)[name];
@@ -40,17 +31,18 @@ export const envSecrets = (env: Env): Secrets => ({
   },
 });
 
-export class Workspace extends DurableObject<Env> {
-  declare env: Env;
-  readonly store: SqlStore;
+export class WorkspaceHost {
+  readonly store: Store;
   private chain: Promise<unknown> = Promise.resolve();
   private rt?: { id: string; flow: Flowee; envoy?: Envoy };
   /** Opened secrets of a managed workspace (sealed in its storage, opened once per object life). */
   private plain?: Map<string, string>;
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    this.store = new SqlStore(ctx.storage.sql);
+  constructor(
+    private room: Room,
+    public env: Env,
+  ) {
+    this.store = room.store;
     migrate(this.store);
   }
 
@@ -104,7 +96,7 @@ export class Workspace extends DurableObject<Env> {
       for (const r of f.tracker.list) await f.events.disable(r);
     }
     this.reset();
-    await this.ctx.storage.deleteAll();
+    await this.room.clear();
     migrate(this.store);
   }
 
@@ -137,10 +129,7 @@ export class Workspace extends DurableObject<Env> {
     if (!doc) throw new Error(`there is no workspace '${ws}'`);
     this.rt = build(doc, this.env, this.store, this.secrets(), {
       now: () => Date.now(),
-      wake: async (ms) => {
-        const at = await this.ctx.storage.getAlarm();
-        if (!at || at > Date.now() + ms) await this.ctx.storage.setAlarm(Date.now() + ms);
-      },
+      wake: (ms) => this.room.wake(Date.now() + ms),
     });
     return this.rt;
   }
@@ -158,10 +147,8 @@ export class Workspace extends DurableObject<Env> {
     await this.schedule(rt.flow);
   }
 
-  private async schedule(f: Flowee) {
-    const at = f.wakeAt();
-    const now = await this.ctx.storage.getAlarm();
-    if (!now || now > at) await this.ctx.storage.setAlarm(at);
+  private schedule(f: Flowee) {
+    return this.room.wake(f.wakeAt());
   }
 
   async fetch(req: Request): Promise<Response> {

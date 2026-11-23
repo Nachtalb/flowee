@@ -1,5 +1,6 @@
-// The layers stay apart: core, ports, envoy and api import no adapter and nothing of Cloudflare, GitHub or
-// Telegram; nothing in src names a project, a person, a repository or a chat.
+// The layers stay apart: core, ports, envoy and api import no adapter and nothing of Cloudflare, Bun, GitHub or
+// Telegram; only src/runtime/cloudflare imports cloudflare:*, only src/runtime/bun imports bun:*; nothing in src
+// names a project, a person, a repository or a chat.
 import { describe, expect, it } from "vitest";
 import fixtures from "./workspaces.json";
 
@@ -22,10 +23,26 @@ describe("architecture boundaries", () => {
     }
   });
 
-  it("no layer but adapters (and the entry) imports an adapter, cloudflare:* or a platform API", () => {
+  it("only a runtime's own directory imports its platform: cloudflare:* in src/runtime/cloudflare, bun:* in src/runtime/bun", () => {
+    const dir = (path: string) => /^\.\.\/src\/runtime\/(cloudflare|bun)\//.exec(path)?.[1];
+    for (const [path, src] of Object.entries(files))
+      for (const i of imports(src)) {
+        if (i.startsWith("cloudflare:")) expect(dir(path), `${path} imports ${i}`).toBe("cloudflare");
+        if (i.startsWith("bun:") || i === "bun") expect(dir(path), `${path} imports ${i}`).toBe("bun");
+        // one runtime never reaches into the other; only the entry and the runtimes import a runtime
+        const r = /runtime\/(cloudflare|bun)\//.exec(i)?.[1] ?? (dir(path) && /^\.\.?\/(cloudflare|bun)\//.exec(i)?.[1]);
+        if (r && dir(path) !== r) expect(path === "../src/index.ts" && r === "cloudflare", `${path} imports ${i}`).toBe(true);
+      }
+    // the platform APIs by name, not only by import (Bun.* is a global)
+    for (const [path, src] of Object.entries(files)) {
+      if (!dir(path)) expect(/\bBun\.\w|DurableObjectState|ctx\.storage/.test(src), path).toBe(false);
+    }
+  });
+
+  it("no layer but adapters, runtime (and the entry) imports an adapter, cloudflare:* or a platform API", () => {
     for (const [path, src] of Object.entries(files)) {
       const l = layer(path);
-      if (l === "adapters" || l === "index.ts") continue;
+      if (l === "adapters" || l === "runtime" || l === "index.ts") continue;
       for (const i of imports(src)) {
         expect(i.includes("adapters/"), `${path} imports ${i}`).toBe(false);
         expect(i.startsWith("cloudflare:"), `${path} imports ${i}`).toBe(false);

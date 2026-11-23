@@ -5,7 +5,7 @@
 // instance bot's profile, and who may create.
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Instance } from "../src/adapters/instance-durable-object";
+import type { Instance } from "../src/runtime/cloudflare/worker";
 import worker from "../src/index";
 import type { FakeGitHub, FakeTelegram } from "./fake";
 import { setup } from "./helpers";
@@ -45,9 +45,9 @@ beforeEach(async () => {
     return fake(i, init);
   }) as typeof fetch;
   await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => {
-    for (const t of ["vault", "sessions", "updates", "kv"]) o.store.exec(`DELETE FROM ${t}`);
-    o.store.exec("DROP TABLE IF EXISTS workspaces");
-    Object.assign(o, { reg: undefined, plain: undefined });
+    for (const t of ["vault", "sessions", "updates", "kv"]) o.host.store.exec(`DELETE FROM ${t}`);
+    o.host.store.exec("DROP TABLE IF EXISTS workspaces");
+    Object.assign(o.host, { reg: undefined, plain: undefined });
   });
 });
 
@@ -269,7 +269,7 @@ describe("the setup wizard: one living message", () => {
     expect(doc.workspace).toMatchObject({ id: "app", tracker: { repos: ["acme/app"], token: "W_APP_TRACKER" }, chat: { chatId: "100", token: "TELEGRAM_BOT_TOKEN" }, owners: [{ chat: "100" }] });
     expect(doc.missing).toEqual([]);
     expect(JSON.stringify(doc)).not.toContain(TOKEN);
-    const sealed = await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => o.store.rows<{ sealed: string }>("SELECT sealed FROM vault"));
+    const sealed = await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => o.host.store.rows<{ sealed: string }>("SELECT sealed FROM vault"));
     expect(sealed.length).toBe(6);
     expect(JSON.stringify(sealed)).not.toContain(TOKEN.slice(11));
     // the envoy works in the bound private chat: the card comes, a reply answers it
@@ -390,7 +390,7 @@ describe("the setup wizard: one living message", () => {
     expect(own("setWebhook").at(-1)?.url).toBe("https://flowee.test/telegram/w/widget");
     // hash-gated: a new version's /setup changes nothing that did not change
     const before = tg.calls.length;
-    await runInDurableObject(env.WORKSPACE.get(env.WORKSPACE.idFromName("widget")), (o) => o.store.exec("DELETE FROM meta WHERE k = 'setup'"));
+    await runInDurableObject(env.WORKSPACE.get(env.WORKSPACE.idFromName("widget")), (o) => o.host.store.exec("DELETE FROM meta WHERE k = 'setup'"));
     await worker.fetch(new Request("https://flowee.test/setup"), menv());
     expect(tg.calls.slice(before).filter((c) => c.bot === "777:own-token" && c.method.startsWith("set"))).toEqual([]);
     // the card goes to the topic through the own bot; only the owner's reply in that topic answers
@@ -573,10 +573,10 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:resume");
     expect(screen()).toBe(BOT);
     await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => {
-      const row = o.store.rows<{ data: string }>("SELECT data FROM sessions WHERE user = '100'")[0];
+      const row = o.host.store.rows<{ data: string }>("SELECT data FROM sessions WHERE user = '100'")[0];
       const s = JSON.parse(row.data);
       s.ts -= 25 * 3600e3;
-      o.store.exec("UPDATE sessions SET data = ? WHERE user = '100'", JSON.stringify(s));
+      o.host.store.exec("UPDATE sessions SET data = ? WHERE user = '100'", JSON.stringify(s));
     });
     await tap(100, "w:bot:shared");
     expect(screen()).toBe(["<p>⌛ <b>This setup expired</b></p>", "<p>A day passed without an answer, so nothing was created.</p>", ROW(CB("🚀 Start again", "w:new"))].join(""));

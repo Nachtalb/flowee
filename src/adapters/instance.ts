@@ -1,18 +1,15 @@
 // The instance: its mode and its workspaces. Standalone serves exactly the workspaces configured at deploy, with
 // one bot; nothing creates, changes or deletes a workspace at run time. Managed keeps them in the Instance
-// Durable Object (instance-durable-object.ts), made in the chat or imported, each with its own or the shared bot.
+// host (instance-host.ts), made in the chat or imported, each with its own or the shared bot.
 import committed from "../../flowee.config.json";
 import { Fail } from "../core/errors";
 import { StaticRegistry, type WorkspaceRegistry } from "../config/registry";
 import { validateInstance } from "../config/schema";
 import type { InstanceDoc } from "../config/document";
-import type { Instance } from "./instance-durable-object";
-import type { Workspace } from "./store-durable-object";
-import { envSecrets } from "./store-durable-object";
+import { envSecrets } from "./workspace-host";
 
+/** The configuration variables every runtime gives; secrets are further variables by the names documents give. */
 export interface Env {
-  WORKSPACE: DurableObjectNamespace<Workspace>;
-  INSTANCE: DurableObjectNamespace<Instance>;
   /** Managed mode: the key that seals secrets entered in the chat. */
   FLOWEE_KEY?: string;
   /** Managed mode: the bearer token of the /admin configuration API. */

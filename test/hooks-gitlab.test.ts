@@ -22,8 +22,8 @@ const d = (h: Record<string, string>, body: string): Delivery => ({ header: (n) 
 beforeEach(async () => {
   fx = installHooks();
   await inObject((o) => {
-    for (const t of ["meta", "mirror", "deliveries", "hook_events", "inbox"]) o.store.exec(`DELETE FROM ${t}`);
-    o.reset();
+    for (const t of ["meta", "mirror", "deliveries", "hook_events", "inbox"]) o.host.store.exec(`DELETE FROM ${t}`);
+    o.host.reset();
   }, "hooksgl");
 });
 

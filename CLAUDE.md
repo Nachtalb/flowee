@@ -59,13 +59,15 @@ src/
   adapters/   trackers.ts (the tracker adapters by kind), tracker-github.ts (+ tracker-github-code.ts: branches,
               pulls, checks, releases, tags), tracker-gitlab.ts (REST v4: merge requests, pipelines, tags, releases),
               hooks-github.ts / hooks-gitlab.ts (each tracker's webhooks: verify, parse, register),
-              chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, store-durable-object.ts (one Durable
-              Object per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry),
-              instance-durable-object.ts (managed mode: the stored registry, sealed secrets, wizard host, update
+              chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, workspace-host.ts (one host per
+              workspace on its runtime's room; wires a document to its adapters), instance.ts (mode, the instance's
+              registry), instance-host.ts (managed mode: the stored registry, sealed secrets, wizard host, update
               routing, /admin, pasted imports only after /import), vault.ts (AES-GCM), photo.ts (the default bot
               photo: assets/logo-square.svg rendered at 256 px, base64)
-  index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup,
-              /hooks/<workspace>/<alias> (tracker webhooks, verified in the workspace's object)
+  runtime/    the runtime boundary: platform.ts (Room, Platform: what a runtime gives the hosts), router.ts (every
+              runtime's HTTP routes: resolves each request's workspace, forwards to its host; the minute's tick,
+              /setup, /hooks/<workspace>/<alias>); cloudflare/ (the Worker, the Durable Objects, SqlStore)
+  index.ts    the Worker's entry: re-exports src/runtime/cloudflare/worker.ts
 flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
               starting points trunk and pr-release (src/config/presets.ts) only preset switches
 schema/       workspace.schema.json, instance.schema.json (generated)
@@ -88,7 +90,7 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
 ## Architecture rules
 
 - **Boundaries.** `core` imports only `core` and `ports`; `ports` only `ports` (and `core/errors`); `envoy` and
-  `api` only `core`, `ports` and themselves. Nothing outside `adapters` and `index.ts` imports an adapter or
+  `api` only `core`, `ports` and themselves. Nothing outside `adapters`, `runtime` and `index.ts` imports an adapter or
   `cloudflare:*`, or names a platform API. `test/boundary.test.ts` enforces this, and that no source file names a
   repository, person or chat of the test workspaces: those live in configuration only. The public repository
   names no real project, person or chat id anywhere (docs, tests, fixtures included).
@@ -104,7 +106,7 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
   for a healthy webhook workspace it makes no tracker call. Alarms are per workspace and exact, the cron one global
   tick; a rarer cron would slow the polling fallback by the same factor (docs/webhooks.md).
 - **One workspace, one Durable Object, one store.** Every API token, chat update and stored key resolves a
-  workspace first (`index.ts`); a Durable Object refuses a request for another workspace than its own. Commands of
+  workspace first (`src/runtime/router.ts`); a Durable Object refuses a request for another workspace than its own. Commands of
   a workspace run under its lock (`Workspace.lock`).
 - **Configuration, not constants.** A workspace is one JSON document (docs/configuration.md); secrets are named in
   it, never held. Defaults are neutral (`Owner:`, `### For the owner`).
@@ -157,7 +159,7 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   permission in words) set as the adapter's `hooks`; tests with the tracker's documented payloads
   (`test/hooks-gitlab.test.ts`, `test/fixtures/`).
 - **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
-  `plain()`; give the Worker a route for its updates (`index.ts`), add its `chat.type` to the schema and choose the
+  `plain()`; give the router a route for its updates (`src/runtime/router.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods
   the wizard uses (docs/adapters.md, "What the wizard needs") and, for own bots, the `Bots` port.
 - **a chat screen** (wizard, menu, any message a bot shows): docs/chat-style.md is the rule (blocks, wording, the
@@ -168,7 +170,7 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line
   of help, button rows, `nav`) and the input it takes (`w:` button data in `press()`, typed text in `text()`, which
   deletes the message); write the answer into the `Draft` and the document in `toDoc()`. An editable part goes into `parts` in `src/wizard/manage.ts`. Host calls (sealing,
-  checks) go through `WizardHost`, implemented in `instance-durable-object.ts`. Test it in `test/managed.test.ts`
+  checks) go through `WizardHost`, implemented in `instance-host.ts`. Test it in `test/managed.test.ts`
   with the fake Telegram (Back, Cancel and resume included).
 - **a configuration field:** `src/config/document.ts` (type), `src/config/schema.ts` (schema + cross-field rules),
   `bun run schema`, the full example in `test/config.test.ts` (the compiler demands it), a row in

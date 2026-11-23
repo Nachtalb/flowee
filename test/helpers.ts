@@ -1,5 +1,5 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import type { Workspace } from "../src/adapters/store-durable-object";
+import type { Workspace } from "../src/runtime/cloudflare/worker";
 import { TABLES } from "../src/core/schema";
 import type { Flowee } from "../src/core/service";
 import { install } from "./fake";
@@ -21,8 +21,8 @@ export type F = Flowee & {
 /** Runs fn inside the workspace's Durable Object (storage seeding, cron, env changes). */
 export const inFlow = <R>(fn: (f: F) => R | Promise<R>, ws = "shop") =>
   runInDurableObject(stub(ws), (o: Workspace) => {
-    const f = o.runtime(ws).flow as F;
-    f.sql = { exec: (q, ...a) => o.store.exec(q, ...a) };
+    const f = o.host.runtime(ws).flow as F;
+    f.sql = { exec: (q, ...a) => o.host.store.exec(q, ...a) };
     return fn(f);
   });
 

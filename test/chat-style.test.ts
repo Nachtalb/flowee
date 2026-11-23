@@ -38,6 +38,6 @@ describe("chat style guard", () => {
   });
 
   it("the instance never writes a screen itself", () => {
-    expect(files["../src/adapters/instance-durable-object.ts"]).not.toMatch(/<p>|<b>|\{ html: /);
+    expect(files["../src/adapters/instance-host.ts"]).not.toMatch(/<p>|<b>|\{ html: /);
   });
 });

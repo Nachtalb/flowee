@@ -30,8 +30,8 @@ beforeEach(async () => {
   T = Date.UTC(2026, 10, 23, 7, 0, 30);
   for (const ws of ["hooks", "hooks2"])
     await inObject((o) => {
-      for (const t of ["claims", "inbox", "messages", "meta", "mirror", "deliveries", "hook_events", "entered", "answers", "postponed"]) o.store.exec(`DELETE FROM ${t}`);
-      o.reset();
+      for (const t of ["claims", "inbox", "messages", "meta", "mirror", "deliveries", "hook_events", "entered", "answers", "postponed"]) o.host.store.exec(`DELETE FROM ${t}`);
+      o.host.reset();
     }, ws);
 });
 

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { Env as InstanceEnv } from "../src/adapters/instance";
+import type { CloudflareEnv as InstanceEnv } from "../src/runtime/cloudflare/worker";
 
 declare global {
   namespace Cloudflare {

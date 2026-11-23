@@ -1,15 +1,15 @@
 # Ports and adapters
 
 The core (`src/core`) and the envoy (`src/envoy`) talk to the world only through the ports in `src/ports`.
-Adapters (`src/adapters`) implement them; `src/adapters/store-durable-object.ts` (`build()`) wires a workspace's
+Adapters (`src/adapters`) implement them; `src/adapters/workspace-host.ts` (`build()`) wires a workspace's
 document to its adapters. `test/boundary.test.ts` fails when a layer imports across these lines.
 
 | Port | Phase 1 adapter |
 |---|---|
 | `Tracker` | `tracker-github.ts` (REST + Projects v2 GraphQL), `tracker-gitlab.ts` (REST v4, docs/gitlab.md); chosen per repository by `src/adapters/trackers.ts` |
 | `Chat` | `chat-telegram.ts` (Bot API, rich messages) |
-| `Store` | `store-durable-object.ts` (`SqlStore`, Durable Object SQLite; one object per workspace) |
-| `Clock` | the Durable Object (`Date.now`, its alarm) |
+| `Store` | the runtime's room: `src/runtime/cloudflare/worker.ts` (`SqlStore`, Durable Object SQLite; one object per workspace) |
+| `Clock` | the workspace host (`Date.now`, its room's wake-up: the Durable Object's alarm) |
 | `Secrets` | Worker secrets by name (`envSecrets`) |
 | `Files` | `files-paste.ts` (rustypaste-compatible upload) |
 
