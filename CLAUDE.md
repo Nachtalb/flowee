@@ -37,16 +37,22 @@ src/
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
               digest, profile), render.ts (views, navigation, search)
   api/        http.ts: the agents' HTTP API (auth, idempotency, dispatch)
+  wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps, drafts, the document a
+              draft makes), manage.ts (/workspaces menu, export, import)
   config/     document.ts (the workspace document), schema.ts (JSON Schema + validator), features.ts (the
-              features' schema and rules), registry.ts (WorkspaceRegistry, settings from a document), presets.ts
-              (presets, flowOf: a workspace's pruned flow)
-  adapters/   tracker-github.ts (+ tracker-github-code.ts: branches, pulls, checks, releases, tags), chat-telegram.ts, files-paste.ts, store-durable-object.ts (one Durable Object
-              per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry)
+              features' schema and rules), registry.ts (WorkspaceRegistry, StoredRegistry, settings from a
+              document), presets.ts (presets, flowOf: a workspace's pruned flow)
+  adapters/   tracker-github.ts (+ tracker-github-code.ts: branches, pulls, checks, releases, tags),
+              chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, store-durable-object.ts (one Durable
+              Object per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry),
+              instance-durable-object.ts (managed mode: the stored registry, sealed secrets, wizard host, update
+              routing, /admin), vault.ts (AES-GCM), photo.ts (the default bot photo)
   index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup
 flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
-schema/       workspace.schema.json (generated)
+schema/       workspace.schema.json, instance.schema.json (generated)
 client/       flowee.py + test_flowee.py
-docs/         api.md, flows.md, adapters.md, configuration.md, parity.md, anyfile-parity.md
+docs/         api.md, flows.md, adapters.md, configuration.md, parity.md, anyfile-parity.md, managed.md (wizard,
+              management, import), telegram.md (profiles, setMySettings, groups and topics)
 test/         vitest suites, fakes (fake.ts), fixtures (workspaces.json), e2e/wire.py
 ```
 
@@ -64,7 +70,10 @@ test/         vitest suites, fakes (fake.ts), fixtures (workspaces.json), e2e/wi
 - **Configuration, not constants.** A workspace is one JSON document (docs/configuration.md); secrets are named in
   it, never held. Defaults are neutral (`Owner:`, `### For the owner`).
 - **Standalone mode** (`FLOWEE_MODE`) serves exactly the configured workspaces with one bot. Management (workspace
-  creation, managed bots) belongs to the managed mode and must not be reachable in standalone.
+  creation, managed bots, `/admin`) belongs to the managed mode and must not be reachable in standalone.
+- **Managed mode** keeps workspaces in the Instance Durable Object; it hands each workspace object its document
+  and sealed secrets (`Workspace.configure`), so a workspace object never reads the registry there. `wizard/`
+  imports only `core`, `ports`, `config` types and `envoy/render`; the Telegram specifics stay in the adapter.
 
 ## Engine decision: own interpreter, not the xstate runtime
 

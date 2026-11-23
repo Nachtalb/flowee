@@ -151,6 +151,24 @@ Question: <the question, the options, a recommendation>      (question, decision
 The block runs from the heading (2 to 4 `#`) to the next heading; field names are case-sensitive at line start;
 a value continues on the following non-empty lines.
 
+## Configuration API (managed mode)
+
+For automation: an agent writes a workspace document (docs/configuration.md, `schema/workspace.schema.json`)
+and submits it; the same validation as the chat import. `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` (a Worker
+secret; without it every call is 401). In the standalone mode every `/admin/` path answers `501 unsupported`.
+
+| Method + path | Body | Response (besides `ok`) |
+|---|---|---|
+| `GET /admin/workspaces` | | `flowee: 1`, `workspaces: [<document>…]`: the instance document, no secrets |
+| `GET /admin/workspaces/<id>` | | `workspace`, `missing: [<secret name>…]`, `owner`, `paused` |
+| `PUT /admin/workspaces/<id>` | the workspace document (`id` must be `<id>`) | `id`, `created`, `missing` (the secret names still needed). Invalid: `400 bad_config` with `problems: ["$.path: one sentence.", …]`, nothing changed. Owner: the instance owner (kept when replacing). |
+| `PUT /admin/workspaces/<id>/secrets` | `{"<SECRET_NAME>": "<value>", …}` | `stored`, `missing`. Names the document does not reference are refused. An agent's secret (`roles[].secret`) is given as the secret itself and stored only as its SHA-256; the rest is sealed (AES-GCM). |
+| `DELETE /admin/workspaces/<id>` | | `deleted: true` |
+| `GET /w/<id>/config` | (an agent token of that workspace) | `workspace`: its document, no secrets |
+
+The documents keep the secret names they are given (the operator's API); the chat import gives a workspace its
+own slot names instead (docs/configuration.md, "Secrets in the managed mode").
+
 ## The client
 
 `client/flowee.py` (stdlib Python ≥ 3.11) is one subcommand per endpoint plus the local steps `gates`, `commit`,

@@ -74,9 +74,24 @@ The routing of an update to its workspace is the adapter's too (`Telegram.route(
 topic; the Worker looks the binding up in the registry). A Discord adapter would map channels/threads to
 `ChatRef {chat, topic}`, interactions to `press`, and render views with `plain()` and components.
 
+### What the wizard needs from a chat adapter
+
+The wizard and the management menu (`src/wizard/`, docs/managed.md) use `text` with HTML and button rows (button
+data `w:…`, `m:…`), `dropButtons`, `remove` (the credential message is deleted right after reading), `download`
+(an imported `.json` file) and these optional methods: `request(to, html, request)` (a reply-keyboard request:
+`managedBot` with a suggested name and username, or `chat` to pick a group), `dropKeyboard`, `sendFile` (exports
+and the agents' secrets; without it they are sent as a message), `setScopedCommands(commands, scope)` (`default`,
+`private`, `groups` or one chat) and `setSettings` (bot-wide settings, docs/telegram.md). `parse` must also give
+`managed` events (a bot the user created), `chatKind` (private or group) and `shared` (a chat picked with a
+`chat` request), and `/bind <code>` arrives as a plain message. Managed bots themselves are the optional `Bots`
+port (`src/ports/bots.ts`: `token`, `replaceToken`, `access`, `setAccess`; Telegram: `TelegramBots`). A Discord
+adapter would render the same views as messages with components, offer no `managedBot` request (the wizard then
+skips the bot step: only the instance's bot) and bind channels/threads with the same `/bind` command.
+
 ## WorkspaceRegistry
 
 `src/config/registry.ts`: `list`, `get(id)`, `byDigest(sha256hex)` (the API token's workspace and instance),
 `byChat({chat, topic})`, `export(id)`, `exportAll()`, `import(doc)` (create or replace, validated before anything
-changes), `importAll(instanceDoc)`. Phase 1 has `StaticRegistry` (the standalone instance's configuration);
-the managed mode of phase 2 adds a stored registry behind the same interface.
+changes), `importAll(instanceDoc)`. `StaticRegistry` is the standalone instance's configuration; `StoredRegistry`
+(the managed mode) keeps the same in a `Store` (the Instance Durable Object's SQLite) with each workspace's owner
+and paused flag, written through on every change.
