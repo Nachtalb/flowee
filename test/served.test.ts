@@ -120,6 +120,18 @@ describe("served material", () => {
     }
   });
 
+  it("the build's deployment check takes a document's ids, URLs, bot names and repositories, and the secret patterns hit tokens", () => {
+    const doc = {
+      flowee: 1,
+      instance: { bot: { token: "BOT", webhookSecret: "HOOK", username: "acme_ops_bot" }, publicUrl: "https://ops.acme.example", owner: "424242", creators: ["515151"] },
+      workspaces: [{ id: "w", tracker: { repo: "acme/secret-app", token: "T" }, chat: { chatId: "-100777888", topicId: 9876 }, owners: [{ chat: "616161" }] }, { tracker: { repo: "Nachtalb/flowee" } }],
+    };
+    expect(deploymentValues(doc).sort()).toEqual(["-100777888", "424242", "515151", "616161", "9876", "acme/secret-app", "acme_ops_bot", "https://ops.acme.example"].sort());
+    const fake = (p: string, n: number) => p + "x".repeat(n);
+    for (const t of [fake("ghp_", 36), fake("github_pat_", 40), fake("glpat-", 20), `123456789:AA${"x".repeat(33)}`, "-----BEGIN OPENSSH PRIVATE KEY-----", "a".repeat(64)])
+      expect(SECRET_PATTERNS.some((re) => re.test(t)), t.slice(0, 12)).toBe(true);
+  });
+
   it("every link in served markdown (and in the root document) resolves to a served path", async () => {
     const m = await manifest();
     const routes = new Set(["/", "/llms.txt", "/index.md", "/validate", "/version", "/skills/", "/docs/", "/docs/agents/", "/manifest.json", ...m.files.map((p) => `/${p}`)]);
