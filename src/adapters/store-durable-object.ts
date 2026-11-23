@@ -4,6 +4,8 @@ import { DurableObject } from "cloudflare:workers";
 import { api, json } from "../api/http";
 import type { WorkspaceDoc } from "../config/document";
 import { settings } from "../config/registry";
+import { repoList } from "../config/schema";
+import { Repos } from "../core/repos";
 import { migrate } from "../core/schema";
 import { Flowee } from "../core/service";
 import { Envoy } from "../envoy/envoy";
@@ -107,7 +109,13 @@ export class Workspace extends DurableObject<Env> {
 export function build(doc: WorkspaceDoc, env: Env, store: Store, clock: Clock) {
   const secrets = envSecrets(env);
   const s = settings(doc);
-  const tracker = new GitHub({ repo: doc.tracker.repos[0], api: doc.tracker.api, token: secrets.get(doc.tracker.token), tokenName: doc.tracker.token, project: doc.tracker.project });
+  const tracker = new Repos(
+    repoList(doc).map((r) => ({
+      ...r,
+      tracker: new GitHub({ repo: r.repo, api: doc.tracker.api, token: secrets.get(r.token), tokenName: r.token, project: doc.tracker.project }),
+    })),
+    store,
+  );
   const flow = new Flowee(s, tracker, store, clock, secrets);
   let envoy: Envoy | undefined;
   if (doc.chat) {

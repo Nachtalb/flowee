@@ -39,7 +39,7 @@ export async function api(f: Flowee, req: Request, cmd: string, lock: <R>(fn: ()
     } catch {
       return json({ ok: false, error: "bad_request", message: "The body must be a JSON object." }, 400);
     }
-  } else if (url.searchParams.has("n") || cmd === "show") body = { n: Number(url.searchParams.get("n")) };
+  } else if (url.searchParams.has("n") || cmd === "show") body = { n: url.searchParams.get("n") ?? undefined };
   const key = post ? req.headers.get("idempotency-key") : null;
   return lock(async () => {
     if (key) {
@@ -50,7 +50,8 @@ export async function api(f: Flowee, req: Request, cmd: string, lock: <R>(fn: ()
     let out: Record<string, unknown>;
     try {
       out = { ok: true, ...(await f.run(caller, cmd, body)) };
-      if (typeof body.n === "number") f.db.exec("UPDATE claims SET touched = ? WHERE n = ? AND instance = ?", f.clock.now(), body.n, caller.instance);
+      const n = f.tracker.parse(body.n);
+      if (n !== undefined) f.db.exec("UPDATE claims SET touched = ? WHERE n = ? AND instance = ?", f.clock.now(), n, caller.instance);
     } catch (e) {
       if (!(e instanceof Fail)) console.error(cmd, e);
       const x = e instanceof Fail ? e : new Fail(500, "internal", "The service failed unexpectedly; nothing more is known.");

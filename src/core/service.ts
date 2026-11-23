@@ -1,15 +1,16 @@
 // One workspace's ticket flow: the commands of the HTTP API, the queues, the lease reaper. Tracker, chat, storage
 // and time come in through ports; the chart decides every transition.
 import type { Clock } from "../ports/clock";
-import type { Issue, Tracker } from "../ports/tracker";
+import type { Issue } from "../ports/tracker";
 import type { Secrets } from "../ports/secrets";
 import type { Store } from "../ports/store";
 import { parseCard } from "./card";
 import { BUILTIN, type Flow, type InputRule } from "./chart";
+import { type Repos, SLOT } from "./repos";
 import { type Caller, type Ctx, check, fire, pick } from "./engine";
 import { Fail } from "./errors";
 import type { Settings } from "./settings";
-import { dependsOn, fill, iso, or, stripper } from "./text";
+import { fill, iso, or, stripper } from "./text";
 
 export interface Ticket {
   n: number;
@@ -38,7 +39,7 @@ export class Flowee {
 
   constructor(
     public s: Settings,
-    public tracker: Tracker,
+    public tracker: Repos,
     public db: Store,
     public clock: Clock,
     public secrets: Secrets,
@@ -57,6 +58,13 @@ export class Flowee {
     return `${this.signWord(role)}: ${this.strip(text)}`;
   }
 
+  /** `#12`, or `app#12` in a workspace with several repositories. */
+  label = (id: number) => this.tracker.label(id);
+  /** The ticket as the API writes it. */
+  ref = (id: number) => this.tracker.ref(id);
+  /** The branch the ticket's commits land on. */
+  branch = (id: number) => this.tracker.at(id).repo.branch;
+
   rows = <R extends Record<string, unknown>>(q: string, ...a: (string | number | null)[]) => this.db.rows(q, ...a) as unknown as R[];
 
   // ---- tickets ----
@@ -68,7 +76,7 @@ export class Flowee {
       return l && i.labels.includes(l);
     });
     if (s.length > 1)
-      throw new Fail(409, "two_states", `#${i.n} has two state labels (${s.map((x) => this.flow.meta(x).label).join(", ")}); fix it by hand.`);
+      throw new Fail(409, "two_states", `${this.label(i.n)} has two state labels (${s.map((x) => this.flow.meta(x).label).join(", ")}); fix it by hand.`);
     return s[0] ?? this.flow.initial;
   }
 
@@ -91,7 +99,7 @@ export class Flowee {
 
   claimView(n: number) {
     const c = this.claim(n);
-    return c ? { n, instance: c.instance, since: iso(c.since), touched: iso(c.touched) } : null;
+    return c ? { n: this.ref(n), instance: c.instance, since: iso(c.since), touched: iso(c.touched) } : null;
   }
 
   entered(n: number, state: string, at = this.clock.now()) {
@@ -116,8 +124,9 @@ export class Flowee {
 
   /** Shas of the ticket's commits on the main branch, oldest first. */
   async commitsOf(t: Ticket): Promise<string[]> {
-    const tag = fill(this.flow.options.commitSuffix, { n: t.n });
-    return (await this.tracker.commits(this.s.mainBranch, t.issue.createdAt)).filter((c) => c.subject.trimEnd().endsWith(tag)).map((c) => c.sha);
+    const tags = this.tracker.commitTags(t.n, this.flow.options.commitSuffix);
+    const { repo } = this.tracker.at(t.n);
+    return (await repo.tracker.commits(repo.branch, t.issue.createdAt)).filter((c) => tags.some((tag) => c.subject.trimEnd().endsWith(tag))).map((c) => c.sha);
   }
 
   ctx(caller: Caller, t: Ticket, event: string, input: Body = {}): Ctx {
@@ -137,10 +146,10 @@ export class Flowee {
     const out: Issue[] = [];
     for (const s of states) {
       const cl = this.flow.meta(s).claimable;
-      let xs = issues.filter((i) => this.stateOrNull(i) === s && free(i)).sort((a, b) => a.n - b.n);
+      let xs = issues.filter((i) => this.stateOrNull(i) === s && free(i)).sort(byNumber);
       if (cl?.sort === "handover") {
         const at = (i: Issue) => this.rows<{ ts: number }>("SELECT ts FROM origins WHERE n = ?", i.n)[0]?.ts ?? Date.parse(i.updatedAt);
-        xs = xs.sort((a, b) => at(a) - at(b) || a.n - b.n);
+        xs = xs.sort((a, b) => at(a) - at(b) || byNumber(a, b));
       }
       for (const i of xs) {
         if (cl?.when && !(await check(cl.when, { ...this.ctx(c, { n: i.n, issue: i, state: s }, "next"), open }))) continue;
@@ -153,7 +162,7 @@ export class Flowee {
   view(t: Ticket, resumed: boolean) {
     const answers = this.answers(t.n);
     const o = this.flow.meta(t.state).review ? this.origin(t.n) : undefined;
-    return { n: t.n, title: t.issue.title, state: t.state, resumed, ...(o ? { origin: o } : {}), ...(answers.length ? { answers } : {}) };
+    return { n: this.ref(t.n), title: t.issue.title, state: t.state, resumed, ...(o ? { origin: o } : {}), ...(answers.length ? { answers } : {}) };
   }
 
   // ---- commands ----
@@ -222,13 +231,13 @@ export class Flowee {
       case "queue":
         return this.queue(c);
       case "show":
-        return this.show(num(b));
+        return this.show(this.tracker.need(b.n));
       case "next":
         return this.next(c);
       case "file":
-        return this.file(str(b.title), str(b.body));
+        return this.file(str(b.title), str(b.body), b.repo);
     }
-    const n = num(b);
+    const n = this.tracker.need(b.n);
     const data: Body = {};
     const input = this.input(c, cmd, b, data);
     const t = await this.ticket(n);
@@ -244,10 +253,10 @@ export class Flowee {
     const mine = this.rows<{ n: number; since: number; touched: number }>("SELECT n, since, touched FROM claims WHERE instance = ? ORDER BY since", c.instance)[0];
     const out: Record<string, unknown> = {
       role: c.role,
-      queue: (await this.queueOf(c, issues)).map((i) => i.n),
-      claim: mine ? { n: mine.n, since: iso(mine.since), touched: iso(mine.touched) } : null,
+      queue: (await this.queueOf(c, issues)).map((i) => this.ref(i.n)),
+      claim: mine ? { n: this.ref(mine.n), since: iso(mine.since), touched: iso(mine.touched) } : null,
     };
-    if (this.flow.options.inboxRoles.includes(c.role)) out.inbox = this.inbox(issues).map((i) => i.n).sort((a, b) => a - b);
+    if (this.flow.options.inboxRoles.includes(c.role)) out.inbox = this.inbox(issues).sort(byNumber).map((i) => this.ref(i.n));
     return out;
   }
 
@@ -261,7 +270,7 @@ export class Flowee {
   async show(n: number) {
     const t = await this.ticket(n);
     const open = new Set<number>();
-    const deps = dependsOn(t.issue.body);
+    const deps = this.tracker.dependsOn(t.n, t.issue.body);
     for (const d of deps) {
       try {
         if ((await this.tracker.issue(d)).open) open.add(d);
@@ -270,12 +279,12 @@ export class Flowee {
       }
     }
     return {
-      n: t.n,
+      n: this.ref(t.n),
       title: t.issue.title,
       state: t.state,
       claim: this.claimView(t.n),
-      depends_on: deps,
-      blocked_by: [...open],
+      depends_on: deps.map(this.ref),
+      blocked_by: [...open].map(this.ref),
       commits: await this.commitsOf(t),
       ...(this.flow.meta(t.state).review ? { origin: this.origin(t.n) ?? null } : {}),
       answers: this.answers(t.n),
@@ -300,14 +309,20 @@ export class Flowee {
     return { ticket: this.view(t, false) };
   }
 
-  async file(title: string, body: string) {
+  /** Files a ticket in the repository `repo` names (the first one by default). */
+  async file(title: string, body: string, repo?: unknown) {
+    const i = await this.fileIssue(title, body, repo);
+    return { n: this.ref(i.n), url: i.url };
+  }
+
+  async fileIssue(title: string, body: string, repo?: unknown): Promise<Issue> {
     if (title.length < 1 || title.length > 120) throw new Fail(400, "bad_request", "title must be 1 to 120 characters.");
     if (!body) throw new Fail(400, "bad_request", "body must not be empty.");
     const m = this.flow.meta(this.flow.initial);
-    const i = await this.tracker.create(title, body, m.label ? [m.label] : []);
+    const i = await this.tracker.createIn(this.tracker.repo(repo), title, body, m.label ? [m.label] : []);
     this.entered(i.n, this.flow.initial);
     if (m.status && this.tracker.board) await this.tracker.board.setStatus(i, m.status);
-    return { n: i.n, url: i.url };
+    return i;
   }
 
   /** The owner's words on a ticket (API or chat): the `answer` event as the owner. */
@@ -350,10 +365,7 @@ export class Flowee {
   }
 }
 
-export function num(b: Body): number {
-  const n = b.n;
-  if (typeof n !== "number" || !Number.isInteger(n) || n < 1) throw new Fail(400, "bad_request", "n must be a ticket number.");
-  return n;
-}
+/** Lower number first across repositories; the same number: the repository listed first. */
+export const byNumber = (a: Issue, b: Issue) => (a.n % SLOT) - (b.n % SLOT) || a.n - b.n;
 
 export { BUILTIN };

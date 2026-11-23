@@ -128,9 +128,9 @@ describe("export and import", () => {
     expect(r.export("livedu")).toEqual(livedu);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other"]);
+    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [livedu, livedu] })).toThrow("$.workspaces[1].id: 'livedu' is used twice.");
-    expect(r.list()).toHaveLength(2);
+    expect(r.list()).toHaveLength(3);
   });
 
   it("an import needs no secret to validate and names the missing ones", () => {

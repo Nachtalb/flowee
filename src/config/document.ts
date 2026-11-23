@@ -7,6 +7,9 @@ export const VERSION = 1;
 
 export type FlowRef = { preset: string } | { chart: Chart; options: FlowOptions };
 
+/** One repository: `owner/name`, or with an alias (the `app` of `app#12`), its own token or branch. */
+export type RepoDoc = string | { repo: string; alias?: string; token?: string; mainBranch?: string };
+
 export interface WorkspaceDoc {
   flowee: 1;
   id: string;
@@ -16,12 +19,12 @@ export interface WorkspaceDoc {
   features?: Record<string, boolean>;
   tracker: {
     type: "github";
-    /** owner/name; one repository per workspace for now. */
-    repos: string[];
+    /** The repositories; tickets are `alias#n` when there are several. */
+    repos: RepoDoc[];
     mainBranch?: string;
     /** The API base URL (GitHub Enterprise, a local stand-in); default https://api.github.com. */
     api?: string;
-    /** Secret name of the tracker token. */
+    /** Secret name of the tracker token (shared by every repository without its own). */
     token: string;
     /** A GitHub Projects (v2) board whose Status follows the state; needs a classic token with `project`. */
     project?: { owner: string; number: number };

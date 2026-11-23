@@ -23,6 +23,9 @@ const TEXTS = {
   untitled: str("Title of a ticket filed with an empty first line."),
 };
 
+const REPO = str("owner/name", { pattern: "^[\\w.-]+/[\\w.-]+$" });
+export const ALIAS = "^[a-z0-9][a-z0-9-]{0,31}$";
+
 export const SCHEMA: S = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://github.com/Nachtalb/flowee/schema/workspace.schema.json",
@@ -50,7 +53,27 @@ export const SCHEMA: S = {
       tracker: obj(
         {
           type: { enum: ["github"], description: "The tracker adapter." },
-          repos: { type: "array", minItems: 1, maxItems: 1, items: str("owner/name", { pattern: "^[\\w.-]+/[\\w.-]+$" }), description: "Repositories (one for now)." },
+          repos: {
+            type: "array",
+            minItems: 1,
+            description: "The repositories; with several, a ticket is alias#n.",
+            items: {
+              description: "owner/name, or an object with an alias, its own token or branch.",
+              oneOf: [
+                REPO,
+                obj(
+                  {
+                    repo: REPO,
+                    alias: str("Short name in ticket references (alias#n); default: the repository's name, lowercased.", { pattern: ALIAS }),
+                    token: secret("this repository's tracker token (default: tracker.token)"),
+                    mainBranch: str("This repository's branch commits land on (default: tracker.mainBranch)."),
+                  },
+                  ["repo"],
+                  "A repository with options.",
+                ),
+              ],
+            },
+          },
           mainBranch: str("The branch commits land on.", { default: "main" }),
           api: str("The API base URL (GitHub Enterprise, a local stand-in).", { default: "https://api.github.com", pattern: "^https?://" }),
           token: secret("the tracker token"),
@@ -178,6 +201,12 @@ export function validate(doc: unknown): string[] {
   } catch (e) {
     return [`$.flow: ${(e as Error).message}`];
   }
+  const repos = repoList(d);
+  repos.forEach((r, i) => {
+    if (!new RegExp(ALIAS).test(r.alias)) errs.push(`$.tracker.repos[${i}]: the alias '${r.alias}' made from the name is not usable; give an alias.`);
+    if (repos.findIndex((x) => x.alias === r.alias) < i) errs.push(`$.tracker.repos[${i}].alias: '${r.alias}' is used twice.`);
+    if (repos.findIndex((x) => x.repo.toLowerCase() === r.repo.toLowerCase()) < i) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is listed twice.`);
+  });
   const roles = Object.keys(flow.options.roles);
   const seen = new Set<string>();
   d.roles.forEach((r, i) => {
@@ -219,7 +248,20 @@ export function validateInstance(doc: unknown): string[] {
   return errs;
 }
 
+/** The repositories of a document with their alias, token and branch resolved. */
+export function repoList(d: WorkspaceDoc) {
+  return d.tracker.repos.map((x) => {
+    const r = typeof x === "string" ? { repo: x } : x;
+    return {
+      repo: r.repo,
+      alias: r.alias ?? r.repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32),
+      token: r.token ?? d.tracker.token,
+      branch: r.mainBranch ?? d.tracker.mainBranch ?? "main",
+    };
+  });
+}
+
 /** Secret names a document references. */
 export function secretNames(d: WorkspaceDoc): string[] {
-  return [...new Set([d.tracker.token, ...d.roles.map((r) => r.secret), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
+  return [...new Set([d.tracker.token, ...repoList(d).map((r) => r.token), ...d.roles.map((r) => r.secret), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
 }

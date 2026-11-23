@@ -67,8 +67,9 @@ type Button =
   | { b: "L" | "S" | "P"; page: number }
   | { b: "o" | "q"; n: number };
 
-const toItem = (r: Row, postponedItem = false): Item => ({
+const toItem = (r: Row, label: (n: number) => string, postponedItem = false): Item => ({
   n: r.n,
+  label: label(r.n),
   cid: r.comment_id ?? 0,
   title: r.title,
   url: r.url,
@@ -166,14 +167,14 @@ export class Envoy implements Inbox {
   private del = (k: string) => void this.exec("DELETE FROM meta WHERE k = ?", k);
   private now = () => this.f.clock.now();
 
-  private item = (n: number) => this.rows<Row>("SELECT * FROM inbox WHERE n = ?", n).map((r) => toItem(r))[0];
-  private liveOf = (n: number) => this.rows<Row>("SELECT * FROM inbox WHERE n = ? AND status != 'gone'", n).map((r) => toItem(r))[0];
-  private openItems = () => this.rows<Row>(`SELECT * FROM inbox WHERE ${OPEN} ORDER BY skip_seq, ts, n`).map((r) => toItem(r));
+  private item = (n: number) => this.rows<Row>("SELECT * FROM inbox WHERE n = ?", n).map((r) => toItem(r, this.f.label))[0];
+  private liveOf = (n: number) => this.rows<Row>("SELECT * FROM inbox WHERE n = ? AND status != 'gone'", n).map((r) => toItem(r, this.f.label))[0];
+  private openItems = () => this.rows<Row>(`SELECT * FROM inbox WHERE ${OPEN} ORDER BY skip_seq, ts, n`).map((r) => toItem(r, this.f.label));
   private openCount = () => this.openItems().length;
   private workOrder = (): [number, boolean][] =>
     this.rows<Row>("SELECT * FROM inbox WHERE status != 'gone' ORDER BY skip_seq, ts, n").map((r) => [r.n, r.status !== "answered"]);
   private postponedItems = () =>
-    this.rows<Row>("SELECT n, comment_id, card, title, url, 'sent' AS status, since AS ts FROM postponed ORDER BY since, n").map((r) => toItem(r, true));
+    this.rows<Row>("SELECT n, comment_id, card, title, url, 'sent' AS status, since AS ts FROM postponed ORDER BY since, n").map((r) => toItem(r, this.f.label, true));
   private postponedItem = (n: number) => this.postponedItems().find((i) => i.n === n);
   private answeredAt = (n: number) => this.rows<{ a: number | null }>("SELECT answered_at AS a FROM inbox WHERE n = ?", n)[0]?.a ?? null;
 
@@ -347,7 +348,7 @@ export class Envoy implements Inbox {
       if (answer) await this.react(answer, failed ? "👎" : "👍");
       if (failed) {
         if (wasOpen) this.reopen(n);
-        let warn = `⚠️ #${n}: not recorded: ${failed}`;
+        let warn = `⚠️ ${this.f.label(n)}: not recorded: ${failed}`;
         if (!answer) {
           this.set(draftKey(n), text);
           warn += ". It is open again and your text is kept.";
@@ -383,19 +384,19 @@ export class Envoy implements Inbox {
     if (this.current() === k && (await this.flush())) {
       // something was typed: that is an answer, not a skip
       await this.goNext();
-      return `📨 #${k} sent`;
+      return `📨 ${this.f.label(k)} sent`;
     }
-    if (this.item(k)?.status !== "open") return `#${k} isn't open`;
+    if (this.item(k)?.status !== "open") return `${this.f.label(k)} isn't open`;
     this.exec("UPDATE inbox SET skip_seq = (SELECT COALESCE(MAX(skip_seq), 0) + 1 FROM inbox) WHERE n = ?", k);
     this.set(KV.current, k);
     await this.goNext();
-    return `⏭ #${k} moved to the end`;
+    return `⏭ ${this.f.label(k)} moved to the end`;
   }
 
   private async ok(pressed?: number): Promise<Toast> {
     const key = pressed === undefined ? undefined : this.route(pressed);
     if (key === undefined) return "Nothing to OK here";
-    if (this.item(key)?.status !== "open") return `#${key} isn't open`;
+    if (this.item(key)?.status !== "open") return `${this.f.label(key)} isn't open`;
     const d = this.get(draftKey(key));
     this.del(draftKey(key));
     const text = d === undefined ? "OK" : `${d}\n\nOK`;
@@ -407,7 +408,7 @@ export class Envoy implements Inbox {
     if (cardId !== undefined && it && this.route(cardId) === key) await this.chat.editView(this.at, cardId, html(this.cardHtml(it, inCycle))).catch(() => {});
     if (inCycle) await this.goNext();
     this.record(key, text, true);
-    return `✅ #${key} OK`;
+    return `✅ ${this.f.label(key)} OK`;
   }
 
   async sendTodo(header: string, quiet: boolean) {
@@ -434,6 +435,12 @@ export class Envoy implements Inbox {
   }
 
   // ---- routing his messages ----
+
+  /** A ticket typed on its own: `7`, `#7`, or `app#7` with several repositories. */
+  private typed(text: string) {
+    const n = parseNumber(text);
+    return n !== undefined ? this.f.tracker.parse(n) : this.f.tracker.multi ? this.f.tracker.parse(text) : undefined;
+  }
 
   /** The item shown by the bot message he replied to. */
   private target(m: ChatMessage): number | undefined {
@@ -511,7 +518,7 @@ export class Envoy implements Inbox {
         const open = this.openItems();
         toast = `📋 ${open.length} open · ✅ ${this.answeredToday()} answered today`;
         const oldest = [...open].sort((a, b) => a.since - b.since)[0];
-        if (oldest) toast += `\n⏳ oldest: #${oldest.n} (${waited(oldest.since, this.now())})`;
+        if (oldest) toast += `\n⏳ oldest: ${this.f.label(oldest.n)} (${waited(oldest.since, this.now())})`;
       }
     }
     if (toast) await this.send(esc(toast));
@@ -551,7 +558,7 @@ export class Envoy implements Inbox {
       case "q": {
         // just the card: a reply to it is the whole answer, but it never becomes current
         const it = this.postponedItem(button.n);
-        if (!it) return `#${button.n} isn't postponed any more`;
+        if (!it) return `${this.f.label(button.n)} isn't postponed any more`;
         this.map(await this.chat.view(this.at, html(this.cardHtml(it, true))), it.n);
         return;
       }
@@ -655,11 +662,11 @@ export class Envoy implements Inbox {
     const composing = this.get(KV.newDraft) !== undefined;
     let key = msgs.map((m) => this.target(m)).find((x) => x !== undefined);
     if (!composing && key === undefined) {
-      const n = msgs.length === 1 ? parseNumber(first.text ?? "x") : undefined;
+      const n = msgs.length === 1 ? this.typed(first.text ?? "x") : undefined;
       if (n !== undefined) {
         const it = this.liveOf(n);
         if (it) await this.showItem(it.n, true);
-        else await this.reply(first, `#${n}: Not in your inbox`);
+        else await this.reply(first, `${this.f.label(n)}: Not in your inbox`);
         return;
       }
       // going through the cards, a plain message belongs to the open card on screen
@@ -716,15 +723,15 @@ export class Envoy implements Inbox {
       const t = this.f.s.texts;
       let note: string;
       try {
-        const { n } = await this.f.file(ticketTitle(text, t.untitled), `${t.filedBody}\n\n${quoted}`);
+        const { n } = await this.f.fileIssue(ticketTitle(text, t.untitled), `${t.filedBody}\n\n${quoted}`);
         try {
           await this.f.answer(n, text, "chat");
         } catch (e) {
-          throw new Error(`#${n} filed, but your words were not logged: ${e instanceof Error ? e.message.replace(/\.$/, "") : e}`);
+          throw new Error(`${this.f.label(n)} filed, but your words were not logged: ${e instanceof Error ? e.message.replace(/\.$/, "") : e}`);
         }
         // a reply to the note adds to the ticket
         this.map(status, n, "filed");
-        note = `🆕 #${n} filed for the Board`;
+        note = `🆕 ${this.f.label(n)} filed for the Board`;
       } catch (e) {
         console.error("ticket not filed", e);
         // nothing is lost: New ticket shows it again, ready to file

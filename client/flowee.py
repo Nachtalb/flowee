@@ -2,7 +2,8 @@
 """Flowee client: one stdlib file, a thin client of the Flowee API (docs/api.md) plus the local git steps.
 
 Remote commands (comments and bodies come on stdin):
-  whoami | queue | show N | next | heartbeat N | release N | file TITLE
+  whoami | queue | show N | next | heartbeat N | release N | file TITLE [--repo ALIAS]
+  N is a ticket: 12, or alias#12 in a workspace with several repositories
   developer  handoff N
   tester     pass N [--owner-check] | fail N           (build = HEAD, gates from `flowee.py gates`)
   dev/tester stuck N
@@ -11,7 +12,7 @@ Remote commands (comments and bodies come on stdin):
   owner      answer N
 Local commands:
   gates                 run the gates of .flowee.toml on the working tree, one log per step, stop at the first failure
-  commit N MSG [PATH…]  signed one-line commit `MSG (#N)`; refused unless the gates passed on exactly this tree
+  commit N MSG [PATH…]  signed one-line commit `MSG (#N)` (`MSG (alias#N)`); refused unless the gates passed on exactly this tree
   push                  fetch origin + signed rebase onto the main branch, push to origin; a rejected push is retried
   busy                  'busy' (exit 2) when uncommitted changes younger than busy_hours exist, else 'idle'
 
@@ -20,7 +21,7 @@ Configuration: .flowee.toml in the repository root (FLOWEE_CONFIG names another 
 Environment wins over the file: FLOWEE_URL, FLOWEE_WORKSPACE, FLOWEE_AS (instance), FLOWEE_TOKEN (the secret).
 Exit: 0 ok, 2 refused, 1 failure, 3 `next` found nothing.
 """
-import json, os, re, subprocess, sys, tempfile, time, tomllib, urllib.error, urllib.request, uuid
+import json, os, re, subprocess, sys, tempfile, time, tomllib, urllib.error, urllib.parse, urllib.request, uuid
 from pathlib import Path
 from typing import Any
 
@@ -84,8 +85,31 @@ def main_branch():
     return setting("main_branch", "main")
 
 
+def ref(text):
+    """A ticket: `12`/`#12` (int), or `app#12` in a workspace with several repositories."""
+    t = str(text).strip()
+    if re.fullmatch(r"#?\d+", t):
+        return int(t.lstrip("#"))
+    if re.fullmatch(r"[a-z0-9][a-z0-9-]*#\d+", t):
+        return t
+    raise ValueError(f"{text!r} is no ticket: use 12 or alias#12")
+
+
+def label(n):
+    return n if isinstance(n, str) else f"#{n}"
+
+
 def suffix(n):
-    return setting("ticket_suffix", " (#{n})").format(n=n)
+    t = setting("ticket_suffix", " (#{n})")
+    return (t.replace("#{n}", "{n}") if isinstance(n, str) else t).format(n=n)
+
+
+def tag_re():
+    """The ticket suffix of any ticket; group 1 is `#7`/`7` or `app#7`."""
+    a, b = setting("ticket_suffix", " (#{n})").split("{n}", 1)
+    if a.endswith("#"):
+        return re.escape(a[:-1]) + r"((?:[a-z0-9][a-z0-9-]*)?#\d+)" + re.escape(b)
+    return re.escape(a) + r"((?:[a-z0-9][a-z0-9-]*#)?\d+)" + re.escape(b)
 
 
 def git_config():
@@ -197,10 +221,12 @@ def check_message(n, msg):
     msg = msg.strip()
     if "\n" in msg:
         raise Refused("one line only: type(scope): subject")
-    tag = re.escape(suffix("NUM")).replace("NUM", r"(\d+)")
-    m = re.search(tag + "$", msg)
-    if m and int(m.group(1)) != n:
-        raise Refused(f"the message names #{m.group(1)}, the ticket is #{n}")
+    m = re.search(tag_re() + "$", msg)
+    if m:
+        named = m.group(1).lstrip("#")
+        # in its own repository a ticket may also be named by its bare number
+        if named != str(n) and not (isinstance(n, str) and named == n.split("#")[1]):
+            raise Refused(f"the message names {label(ref(named)) if named.isdigit() else named}, the ticket is {label(n)}")
     msg = msg if m else msg + suffix(n)
     types = "|".join(map(re.escape, setting("commit_types", TYPES)))
     if not re.match(rf"^({types})(\([\w./-]+\))?!?: \S.*$", msg):
@@ -233,7 +259,7 @@ def cmd_commit(n, msg, paths):
 
 def cmd_push(tries=3):
     branch = main_branch()
-    tag = re.escape(suffix("NUM")).replace("NUM", r"\d+") + "$"
+    tag = tag_re() + "$"
     for attempt in range(tries):
         git(*git_config(), "fetch", "-q", "origin", branch)
         r = subprocess.run(["git", *sign_args(), "rebase", "-q", "-S", "FETCH_HEAD"], capture_output=True, text=True)
@@ -286,7 +312,7 @@ def main(argv):
         print(VERSION)
         return 0
     c, rest = argv[0], argv[1:]
-    num = lambda: int(rest[0])
+    num = lambda: ref(rest[0])
     if c == "gates":
         return cmd_gates()
     if c == "commit":
@@ -298,7 +324,7 @@ def main(argv):
     if c in ("whoami", "queue"):
         out = api("GET", f"/v1/{c}")
     elif c == "show":
-        out = api("GET", f"/v1/show?n={num()}")
+        out = api("GET", f"/v1/show?n={urllib.parse.quote(str(num()))}")
     elif c == "next":
         out = api("POST", "/v1/next", {})
         if not out.get("ticket"):
@@ -307,7 +333,10 @@ def main(argv):
     elif c == "heartbeat":
         out = api("POST", "/v1/heartbeat", {"n": num()})
     elif c == "file":
-        out = api("POST", "/v1/file", {"title": " ".join(rest), "body": stdin_text()})
+        body = {"title": " ".join(x for i, x in enumerate(rest) if x != "--repo" and (i == 0 or rest[i - 1] != "--repo")), "body": stdin_text()}
+        if "--repo" in rest:
+            body["repo"] = rest[rest.index("--repo") + 1]
+        out = api("POST", "/v1/file", body)
     elif c == "answer":
         out = api("POST", "/v1/answer", {"n": num(), "text": stdin_text()})
     elif c == "spec":

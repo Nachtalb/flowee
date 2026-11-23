@@ -12,7 +12,7 @@ export const ACTIONS: Record<string, Action> = {
 
   async comment(c, p) {
     const vars = {
-      n: c.t.n,
+      n: c.f.ref(c.t.n),
       build: c.input.build,
       gates: (c.input.gates as { sha?: string } | undefined)?.sha,
       commits: ((c.data.commits as string[]) ?? []).join(" "),
@@ -39,12 +39,12 @@ export const ACTIONS: Record<string, Action> = {
     const patch: IssuePatch = { labels: next, assignees };
     if (m.closed) Object.assign(patch, { open: false, reason: (p.reason as IssuePatch["reason"]) ?? "completed" });
     else if (!c.t.issue.open) patch.open = true;
-    await c.f.tracker.update(c.t.n, patch, `the label change of #${c.t.n}`);
+    await c.f.tracker.update(c.t.n, patch, `the label change of ${c.f.label(c.t.n)}`);
   },
 
   async updateBody(c) {
     const title = c.input.title as string | undefined;
-    await c.f.tracker.update(c.t.n, title ? { body: String(c.input.body), title } : { body: String(c.input.body) }, `the body of #${c.t.n}`);
+    await c.f.tracker.update(c.t.n, title ? { body: String(c.input.body), title } : { body: String(c.input.body) }, `the body of ${c.f.label(c.t.n)}`);
   },
 
   claim(c) {

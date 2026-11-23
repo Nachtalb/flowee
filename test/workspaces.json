@@ -137,6 +137,69 @@
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "555"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "multi",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          {
+            "repo": "acme/app",
+            "alias": "app"
+          },
+          {
+            "repo": "acme/lib",
+            "alias": "lib",
+            "token": "LIB_TOKEN",
+            "mainBranch": "master"
+          }
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "MULTI_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "MULTI_DEV1"
+        },
+        {
+          "instance": "dev2",
+          "role": "developer",
+          "secret": "MULTI_DEV2"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "MULTI_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "MULTI_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Mo",
+          "tracker": "mo",
+          "chat": "777"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "777"
+      }
     }
   ]
 }

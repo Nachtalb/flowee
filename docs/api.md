@@ -17,6 +17,9 @@ works unchanged (`test/e2e/wire.py --flow-py …` proves it against `wrangler de
   stored response without acting again (5xx answers are not stored, so a retry completes the command).
 - Commands of one workspace run one at a time; every command re-reads the ticket from the tracker first.
 
+Tickets: `N` below is the issue number in a workspace with one repository, and `"alias#n"` (a string) in one
+with several (docs/configuration.md, "Several repositories"); responses write tickets the same way.
+
 Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "message": "<one sentence>"}`.
 
 | Status | `error` | Example |
@@ -42,7 +45,7 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 | `POST /v1/next` | `{}` | `ticket: {n, title, state, resumed, origin?, answers?}` or `ticket: null` |
 | `POST /v1/heartbeat` | `{n}` | `touched` |
 | `POST /v1/release` | `{n, comment}` | `state` |
-| `POST /v1/file` | `{title, body}` | `n`, `url` |
+| `POST /v1/file` | `{title, body, repo?}` (`repo`: an alias, default the first repository) | `n`, `url` |
 | `POST /v1/handoff` | `{n, comment}` | `state`, `commits` |
 | `POST /v1/pass` | `{n, comment, build, gates: {sha, ok}, owner_check?}` | `state` (`closed` or `board review`) |
 | `POST /v1/fail` | `{n, comment, build}` | `state` |

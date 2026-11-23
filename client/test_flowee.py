@@ -96,6 +96,8 @@ class Remote(unittest.TestCase):
         call("answer", "3", stdin="blue")
         call("escalate", "3", stdin="card")
         call("show", "3")
+        call("show", "lib#3")
+        call("file", "B", "--repo", "lib", stdin="b")
         self.assertEqual([(g["method"], g["path"], g["body"]) for g in self.s.got], [
             ("POST", "/w/acme/v1/file", {"title": "A title", "body": "body text"}),
             ("POST", "/w/acme/v1/spec", {"n": 3, "body": "new body", "title": "New"}),
@@ -104,6 +106,8 @@ class Remote(unittest.TestCase):
             ("POST", "/w/acme/v1/answer", {"n": 3, "text": "blue"}),
             ("POST", "/w/acme/v1/escalate", {"n": 3, "comment": "card"}),
             ("GET", "/w/acme/v1/show?n=3", None),
+            ("GET", "/w/acme/v1/show?n=lib%233", None),
+            ("POST", "/w/acme/v1/file", {"title": "B", "body": "b", "repo": "lib"}),
         ])
 
     def test_pass_needs_green_gates_on_a_clean_head(self):
@@ -165,6 +169,20 @@ class Local(unittest.TestCase):
         self.assertEqual(flowee.check_message(7, "wip(web): x"), "wip(web): x [GH-7]")
         with self.assertRaises(flowee.Refused):
             flowee.check_message(7, "wip: x [GH-8]")
+
+    def test_alias_tickets_of_several_repositories(self):
+        flowee._config = {}
+        self.assertEqual([flowee.ref(x) for x in ("7", "#7", "app#7")], [7, 7, "app#7"])
+        with self.assertRaises(ValueError):
+            flowee.ref("App#7")
+        self.assertEqual(flowee.check_message("app#7", "fix(web): x"), "fix(web): x (app#7)")
+        self.assertEqual(flowee.check_message("app#7", "fix(web): x (#7)"), "fix(web): x (#7)")
+        self.assertEqual(flowee.check_message("app#7", "fix(web): x (app#7)"), "fix(web): x (app#7)")
+        for bad in ("fix(web): x (lib#7)", "fix(web): x (#8)"):
+            with self.assertRaises(flowee.Refused):
+                flowee.check_message("app#7", bad)
+        with self.assertRaises(flowee.Refused):
+            flowee.check_message(7, "fix(web): x (app#7)")
 
     def test_gates_stop_at_the_first_failure_with_one_log_each(self):
         steps = [("one", ".", ["true"]), ("two", ".", ["sh", "-c", "echo boom; exit 3"]), ("three", ".", ["true"])]

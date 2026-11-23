@@ -26,7 +26,8 @@ profile and webhook. Configuration and secrets: docs/configuration.md.
 
 ```
 src/
-  core/       the flow: statechart loader (chart.ts), engine (engine.ts), guards.ts, actions.ts, the service
+  core/       the flow: statechart loader (chart.ts), engine (engine.ts), guards.ts, actions.ts, repos.ts (the
+              workspace's repositories as one tracker, ticket ids and alias#n), the service
               (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts
   ports/      interfaces: tracker.ts (+ optional capabilities), chat.ts (views, events, plain fallback), store.ts,
               clock.ts, secrets.ts, files.ts
@@ -74,6 +75,11 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 
 ## How to add …
 
+- **tracker calls for one ticket:** `c.f.tracker` (`src/core/repos.ts`) is every repository behind one `Tracker`
+  over global ticket ids (issue, comments, update, comment, openIssues, board). Repository-level calls (commits,
+  compare, branches, pulls, checks, releases, tags) go to the ticket's repository:
+  `const { repo, n } = c.f.tracker.at(c.t.n)` gives `repo.tracker` (local numbers), `repo.branch` and the local
+  `n`; show a ticket with `c.f.label(id)` (`#12` / `app#12`), write it in a response with `c.f.ref(id)`.
 - **a guard or an action:** `src/core/guards.ts` (`kind: "selector" | "check"`) / `src/core/actions.ts`; a row in
   docs/flows.md (a test checks); a test. Reach the tracker, store and clock through `c.f` only.
 - **a flow preset:** `flows/<name>.json` + `flows/<name>.options.json`, register in `src/config/presets.ts`,

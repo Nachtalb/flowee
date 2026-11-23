@@ -81,7 +81,7 @@ export async function fire(c: Ctx): Promise<void> {
 
 /** 409 wrong_state naming the states the caller's role could use the event in. */
 export function wrongState(flow: Flow, c: Ctx): Fail {
-  return new Fail(409, "wrong_state", `#${c.t.n} is '${c.from}'; ${c.event} needs ${or(from(flow, c.event, c.caller.role))}.`);
+  return new Fail(409, "wrong_state", `${c.f.label(c.t.n)} is '${c.from}'; ${c.event} needs ${or(from(flow, c.event, c.caller.role))}.`);
 }
 
 export function from(flow: Flow, event: string, role: string): string[] {

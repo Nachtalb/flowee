@@ -23,8 +23,3 @@ export function stripper(signs: string[]) {
   const re = new RegExp(`^((${signs.map(reEsc).join("|")}):\\s*)+`);
   return (text: string) => text.trim().replace(re, "");
 }
-
-export function dependsOn(body: string | null): number[] {
-  const m = /^Depends on:(.*)$/im.exec(body ?? "");
-  return m ? [...m[1].matchAll(/#(\d+)/g)].map((x) => Number(x[1])) : [];
-}

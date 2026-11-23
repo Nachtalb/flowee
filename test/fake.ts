@@ -23,6 +23,8 @@ export class FakeGitHub {
   status = new Map<string, string>(); // node id -> project status
   fail?: (method: string, path: string) => number | undefined;
   writes: string[] = [];
+  /** The Authorization header of every request. */
+  auth: string[] = [];
   private nextComment = 1;
 
   constructor(public repo = "Nachtalb/livedu") {}
@@ -69,13 +71,14 @@ export class FakeGitHub {
   }
 
   private idx(sha: string) {
-    return sha === "main" ? this.main.length - 1 : this.main.findIndex((c) => c.sha === sha);
+    return sha === "main" || sha === "master" ? this.main.length - 1 : this.main.findIndex((c) => c.sha === sha);
   }
 
   async handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
+    this.auth.push(req.headers.get("authorization") ?? "");
     await new Promise((r) => setTimeout(r, 2)); // real latency lets concurrent requests interleave
     const code = this.fail?.(method, path);
     if (code) return new Response("{}", { status: code });
@@ -202,12 +205,15 @@ export class FakePaste {
 export function install() {
   const gh = new FakeGitHub();
   const gh2 = new FakeGitHub("acme/widget");
+  const app = new FakeGitHub("acme/app");
+  const lib = new FakeGitHub("acme/lib");
+  const repos = [gh2, app, lib];
   const tg = new FakeTelegram();
   const paste = new FakePaste();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init);
     const host = new URL(req.url).host;
-    if (host === "api.github.com") return (gh2.owns(new URL(req.url).pathname) ? gh2 : gh).handle(req);
+    if (host === "api.github.com") return (repos.find((r) => r.owns(new URL(req.url).pathname)) ?? gh).handle(req);
     if (host === "assets.test") return new Response(new Uint8Array([137, 80, 78, 71]));
     if (host === "api.telegram.org" && new URL(req.url).pathname.startsWith("/file/"))
       return new Response(`bytes of ${new URL(req.url).pathname.split("/").pop()}`);
@@ -215,5 +221,5 @@ export function install() {
     if (host === "f.naa.gg") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, tg, paste };
+  return { gh, gh2, app, lib, tg, paste };
 }

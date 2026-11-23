@@ -19,6 +19,8 @@ export default defineConfig({
           TG_WEBHOOK_SECRET: "hook-test",
           ...Object.fromEntries(who.map((w) => [`TOKEN_${w.toUpperCase()}`, hash(`s-${w}`)])),
           ...Object.fromEntries(who.map((w) => [`OTHER_${w.toUpperCase()}`, hash(`o-${w}`)])),
+          ...Object.fromEntries(who.map((w) => [`MULTI_${w.toUpperCase()}`, hash(`m-${w}`)])),
+          LIB_TOKEN: "gh-lib",
         },
       },
     }),

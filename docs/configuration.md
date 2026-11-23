@@ -48,10 +48,14 @@ with its JSON path, e.g. `$.tracker.repos: must have at least 1 item(s).`
 | `features` | object of booleans | `{}` | Feature switches of the flow (none in this version; later presets read them, e.g. pull requests, releases). |
 | `tracker` | object | required | The tracker that keeps the record. |
 | `tracker.type` | `"github"` | required | The tracker adapter. |
-| `tracker.repos` | array of `owner/name`, exactly 1 | required | The repository (several per workspace come later). |
+| `tracker.repos` | array, ≥ 1, of `owner/name` or `{repo, alias?, token?, mainBranch?}` | required | The repositories. With several, a ticket is `alias#n` (see "Several repositories" below). |
+| `tracker.repos[].repo` | `owner/name` | required | The repository. |
+| `tracker.repos[].alias` | string `^[a-z0-9][a-z0-9-]{0,31}$` | the name, lowercased | The `app` of `app#12`; unique in the workspace. |
+| `tracker.repos[].token` | secret name | `tracker.token` | This repository's own tracker token. |
+| `tracker.repos[].mainBranch` | string | `tracker.mainBranch` | This repository's branch commits land on. |
 | `tracker.mainBranch` | string | `main` | The branch commits land on. |
 | `tracker.api` | URL | `https://api.github.com` | The API base (GitHub Enterprise, a local stand-in). |
-| `tracker.token` | secret name | required | The tracker token. |
+| `tracker.token` | secret name | required | The tracker token, shared by every repository without its own. |
 | `tracker.project` | `{owner, number}` | | A user's GitHub Projects (v2) board whose Status follows the state (needs a classic token). |
 | `tracker.project.owner` | string | required | The user login owning the project. |
 | `tracker.project.number` | integer ≥ 1 | required | The project number. |
@@ -92,9 +96,27 @@ with its JSON path, e.g. `$.tracker.repos: must have at least 1 item(s).`
 | `profile` | object | | The bot's profile. |
 | `profile.photo` | `https://…` | | A PNG fetched and set as the bot's photo (once per change). |
 
+### Several repositories
+
+A workspace has one flow over one or several repositories. With one, a ticket is its issue number, exactly as
+before: `12` in API bodies, `#12` in texts, commits end with ` (#12)`. With several, a ticket is `alias#n`
+everywhere: API bodies and query strings (`{"n": "app#12"}`, `show?n=app%2312`; a bare number is refused),
+responses (`"n": "app#12"`, `queue: ["app#1", "lib#1"]`), cards, lists and error texts. A commit names its
+ticket with ` (#12)` in the ticket's own repository or with ` (app#12)`; only commits of the ticket's repository
+(on its branch) count. `Depends on: #3, lib#4` resolves a bare `#3` in the ticket's own repository. `file`
+takes an optional `repo` (an alias; default the first repository).
+
+Queues across repositories: within each state the lower issue number goes first, and on equal numbers the
+repository listed first (the board's hand-over order stays oldest hand-over first). Storage keys are the
+ticket's global id: its repository's slot × 10⁹ + its number. The first repository a workspace had holds slot
+0, so a one-repository workspace stores plain numbers as it always did; slots are kept per repository
+(`owner/name`) in the workspace's storage, so renaming an alias or reordering the list never moves a ticket.
+A repository removed and added again gets its old slot back.
+
 ### Invalid combinations (one sentence each)
 
 - A `roles[].role` that is no role of the flow; an `instance` used twice.
+- Two repositories with the same alias, the same repository twice, or a name that gives no usable alias.
 - No instance with the flow's owner role (`trunk`: `owner`): the owner could not answer through the API.
 - `chat` without any `owners[].chat`.
 - `files` without `chat`; `profile` without `chat.publicUrl`.

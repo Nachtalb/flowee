@@ -8,6 +8,8 @@ export type Content = Card | { kind: "excerpt"; text: string } | { kind: "none" 
 export type Status = "open" | "answered" | "gone";
 export interface Item {
   n: number;
+  /** `#12`, or `app#12` with several repositories (default `#n`). */
+  label?: string;
   cid: number;
   title: string;
   url: string;
@@ -16,6 +18,9 @@ export interface Item {
   status: Status;
   postponed?: boolean;
 }
+
+// the ticket's number in its repository (ids of further repositories carry their slot above 10⁹)
+const local = (it: Item) => it.n % 1_000_000_000;
 
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const len = (s: string) => [...s].length;
@@ -98,7 +103,8 @@ export function waited(since: number, now: number): string {
 }
 
 export const itemUrl = (it: Item) => (it.cid > 0 ? `${it.url}#issuecomment-${it.cid}` : it.url);
-const link = (it: Item) => `<a href="${esc(itemUrl(it))}">#${it.n}</a>`;
+const label = (it: Item) => it.label ?? `#${it.n}`;
+const link = (it: Item) => `<a href="${esc(itemUrl(it))}">${label(it)}</a>`;
 
 export function cut(s: string, max: number): string {
   const c = [...s];
@@ -148,7 +154,7 @@ function table(rows: Item[], open: string, now: number): Block {
     table: {
       head: ["#", "Kind", "Waiting", "Title", ""],
       rows: rows.map((it) => ({
-        cells: [String(it.n), kind(it)[1], waited(it.since, now), esc(cut(it.title, 40))],
+        cells: [label(it).replace(/^#/, ""), kind(it)[1], waited(it.since, now), esc(cut(it.title, 40))],
         button: { label: "Open", data: `${open}:${it.n}:${it.cid}`, style: "primary" },
       })),
     },
@@ -193,7 +199,7 @@ export function results(hits: Hit[], found: number, query: string, page: number,
   ];
   const snippets = hits
     .filter((h) => h.snippet)
-    .map((h) => `<li><b>#${h.item.n}</b> ${h.snippet}</li>`)
+    .map((h) => `<li><b>${label(h.item)}</b> ${h.snippet}</li>`)
     .join("");
   if (snippets) v.push({ html: `<ul>${snippets}</ul>` });
   return [...v, listButtons("S", page, pages, true)];
@@ -367,9 +373,9 @@ export function search(items: Item[], query: string): Hit[] {
     for (const t of terms) {
       let th: number;
       let bh = 0;
-      if ("n" in t) th = t.n === it.n ? 1 : 0;
+      if ("n" in t) th = t.n === local(it) ? 1 : 0;
       else {
-        th = positions(title, t.words).length + (t.words.length === 1 && t.words[0] === String(it.n) ? 1 : 0);
+        th = positions(title, t.words).length + (t.words.length === 1 && t.words[0] === String(local(it)) ? 1 : 0);
         for (const [, f] of fields) bh += positions(f, t.words).length;
       }
       if (th + bh === 0) {
