@@ -39,6 +39,10 @@ whole group; typed commands are only answered inside the bound topic.
 
 The standalone bot's settings are left as its owner made them in BotFather.
 
+No default administrator rights are requested (`setMyDefaultAdministratorRights`): in a group the bot only sends,
+edits and deletes its own messages and reads commands and replies, none of which needs a right; the one message
+it deletes that is not its own (the GitHub token) is in the private chat.
+
 ## Webhooks
 
 The instance bot: `<publicUrl>/telegram` with `instance.bot.webhookSecret`, updates `message`, `callback_query`,
