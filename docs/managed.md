@@ -36,7 +36,8 @@ configuration, secrets and stored state go, the repositories stay).
 
 - `/export`: all the user's workspaces as `flowee.json` (an instance document); 📤 in the menu: one workspace.
   Never a secret: documents name secret slots only.
-- Import: send a `.json` file to the instance bot, or paste the JSON as a message (`/import` says so). The
+- Import: send a `.json` file to the instance bot, or send `/import` and paste the JSON as the next message (pasted
+  JSON without `/import` before it is not taken for a document). The
   document is validated with the same validator as everywhere; every problem is one line starting with its JSON
   path (`$.tracker.repos: must have at least 1 item(s).`). A valid one is summarised (`create x` / `replace x`;
   an id owned by someone else is refused), then the wizard asks **only what is missing**: the own bot when the
@@ -53,7 +54,7 @@ configuration, secrets and stored state go, the repositories stay).
 
 | Arrives on | Goes to |
 |---|---|
-| `/telegram` (instance bot, its secret) | `managed_bot` updates, `w:`/`m:` buttons, private-chat commands `/setup` `/workspaces` `/import` `/export`, `.json` files, a pasted document, text for an open wizard step, `/bind <code>` in a group: the wizard. Anything else from a chat (and topic) bound to a workspace served by the instance bot: that workspace's envoy. Else, in a private chat: the introduction. |
+| `/telegram` (instance bot, its secret) | `managed_bot` updates, `w:`/`m:` buttons, private-chat commands `/setup` `/workspaces` `/import` `/export`, `.json` files, a document pasted after `/import`, text for an open wizard step, `/bind <code>` in a group: the wizard. Anything else from a chat (and topic) bound to a workspace served by the instance bot: that workspace's envoy. Else, in a private chat: the introduction. |
 | `/telegram/w/<id>` (an own bot, its own secret) | `/bind <code>` of a setup waiting for it; else the workspace `<id>`. A wrong secret: 403. |
 | `/v1/…` with a token, `/w/<id>/v1/…` | the workspace whose agent the token is (stored registry); paused: 503. |
 | `/w/<id>/config` with an agent token of that workspace | its document (no secrets). |

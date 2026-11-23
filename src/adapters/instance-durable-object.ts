@@ -338,18 +338,23 @@ export class Instance extends DurableObject<Env> {
       return {};
     }
     if (cmd === "import") {
-      await say(e.at, "📥 Send the configuration as a <code>.json</code> file, or paste it as a message.");
+      this.setKv(`import:${e.from}`, String(Date.now()));
+      await say(e.at, "📥 Send the configuration as a <code>.json</code> file, or paste it as your next message.");
       return {};
     }
     const c = e.content;
     if (typeof c === "object" && "files" in c && c.files[0]?.name.endsWith(".json")) {
+      this.store.exec("DELETE FROM kv WHERE k = ?", `import:${e.from}`);
       const text = new TextDecoder().decode(await tg.download(c.files[0]));
       await manager.importText(e.from, e.at, text);
       return {};
     }
     // a reply to one of the bot's messages (a card) is never wizard input
     if (typeof e.text === "string" && !e.replyTo && (await wizard.input(e.from, e.at, { kind: "text", text: e.text, message: e.id }))) return {};
-    if (e.text?.trim().startsWith("{")) {
+    // pasted JSON counts only as the answer to /import; a file always does
+    const asked = Number(this.kv(`import:${e.from}`) ?? 0) > Date.now() - 24 * 3600e3;
+    if (typeof e.text === "string" && asked) {
+      this.store.exec("DELETE FROM kv WHERE k = ?", `import:${e.from}`);
       await manager.importText(e.from, e.at, e.text);
       return {};
     }

@@ -400,6 +400,7 @@ describe("export and import", () => {
   });
 
   it("a pasted document with problems: one sentence each with its JSON path, nothing created", async () => {
+    await dm(100, "/import");
     await dm(100, JSON.stringify({ flowee: 1, id: "Bad Id", flow: { preset: "kanban" }, tracker: { type: "github", repos: [], token: "x" }, roles: [], owners: [] }));
     expect(said()).toBe(
       [
@@ -412,8 +413,22 @@ describe("export and import", () => {
         "• $.owners: must have at least 1 item(s).",
       ].join("\n").replace(/"/g, "&quot;"),
     );
+    await dm(100, "/import");
     await dm(100, "{not json");
     expect(said()).toMatch(/^⚠️ Not imported: \$: is not JSON \(/);
+  });
+
+  it("pasted JSON is imported only as the answer to /import", async () => {
+    const doc = JSON.stringify({ flowee: 1, id: "pasted", flow: { preset: "trunk" }, tracker: { type: "github", repos: ["acme/app"], token: "X" }, roles: [{ instance: "owner", role: "owner", secret: "Y" }], owners: [{ name: "A" }] });
+    await dm(100, doc);
+    expect(said()).toContain("<b>Flowee</b> runs a ticket flow");
+    await dm(100, "/import");
+    expect(said()).toBe("📥 Send the configuration as a <code>.json</code> file, or paste it as your next message.");
+    await dm(100, doc);
+    expect(tg.of("sendMessage").at(-2)?.text).toBe("📥 The document is valid. It will:\n• create <code>pasted</code>\nI ask only for what is missing, then you confirm.");
+    await tap(100, "w:cancel");
+    await dm(100, doc);
+    expect(said()).toContain("<b>Flowee</b> runs a ticket flow");
   });
 
   it("the API: import names the missing secrets, secrets are stored (agents' as digests), export has none", async () => {
