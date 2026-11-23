@@ -238,6 +238,8 @@ export class FakeGitLab {
       if (!i) return nf();
       if (method === "PUT") {
         if (body.labels !== undefined) i.labels = body.labels === "" ? [] : String(body.labels).split(",");
+        if (body.add_labels) i.labels = [...new Set([...i.labels, ...String(body.add_labels).split(",")])];
+        if (body.remove_labels) i.labels = i.labels.filter((l) => !String(body.remove_labels).split(",").includes(l));
         if (body.assignee_ids) {
           const ids = (body.assignee_ids as number[]).filter((x) => x !== 0);
           i.assignees = ids.map((id) => ({ id, username: [...this.users].find(([, v]) => v === id)?.[0] ?? "?" }));

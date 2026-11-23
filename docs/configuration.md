@@ -81,6 +81,7 @@ valid, 1 a problem, 2 unreadable).
 | `tracker.project` | `{owner, number}` | | A user's GitHub Projects (v2) board whose Status follows the state (needs a classic token). |
 | `tracker.project.owner` | string | required | The user login owning the project. |
 | `tracker.project.number` | integer ≥ 1 | required | The project number. |
+| `tracker.notPlannedLabel` | string | `not planned` | GitLab stores no close reason: a ticket the flow closes as not planned (`drop`) gets this label, taken off again when it reopens. GitHub uses its own `not_planned` reason. |
 | `roles` | array, ≥ 1 | required | The callers of the API. |
 | `roles[].instance` | string `^[a-z0-9][a-z0-9-]*$` | required | Instance name (claims belong to it), unique. |
 | `roles[].role` | string | required | A role of the flow (`trunk`: board, developer, tester, owner). |

@@ -34,6 +34,8 @@ export interface WorkspaceDoc {
     token: string;
     /** A GitHub Projects (v2) board whose Status follows the state; needs a classic token with `project`. */
     project?: { owner: string; number: number };
+    /** GitLab stores no close reason: a ticket closed as not planned gets this label (default `not planned`). */
+    notPlannedLabel?: string;
   };
   roles: { instance: string; role: string; secret: string }[];
   owners: { name?: string; tracker?: string; chat?: string }[];

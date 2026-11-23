@@ -15,6 +15,8 @@ export interface TrackerConfig {
   tokenName: string;
   /** A GitHub Projects (v2) board (GitHub only). */
   project?: { owner: string; number: number };
+  /** GitLab: the label of a ticket closed as not planned. */
+  notPlannedLabel?: string;
 }
 
 export interface TrackerAdapter {

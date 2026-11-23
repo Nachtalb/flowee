@@ -171,6 +171,8 @@ export interface GitLabConfig {
   api?: string;
   token: string | undefined;
   tokenName: string;
+  /** The label a ticket closed as not planned gets, since GitLab stores no close reason (default `not planned`). */
+  notPlannedLabel?: string;
 }
 
 export class GitLab implements Tracker {
@@ -282,9 +284,13 @@ export class GitLab implements Tracker {
 
   async update(n: number, p: IssuePatch, what: string): Promise<void> {
     const patch: Record<string, unknown> = {};
-    if (p.labels) patch.labels = p.labels.join(",");
+    // GitLab stores no close reason: `not_planned` closes and adds a label that says it (docs/gitlab.md); reopening takes it off
+    const np = this.c.notPlannedLabel ?? "not planned";
+    const notPlanned = p.open === false && p.reason === "not_planned";
+    if (p.labels) patch.labels = [...p.labels.filter((l) => !(p.open === true && l === np)), ...(notPlanned && !p.labels.includes(np) ? [np] : [])].join(",");
+    else if (notPlanned) patch.add_labels = np;
+    else if (p.open === true) patch.remove_labels = np;
     if (p.assignees) patch.assignee_ids = p.assignees.length ? await this.userIds(p.assignees, what) : [0];
-    // GitLab has no close reason: `not_planned` closes like `completed` (docs/gitlab.md)
     if (p.open === false) patch.state_event = "close";
     if (p.open === true) patch.state_event = "reopen";
     if (p.body !== undefined) patch.description = p.body;

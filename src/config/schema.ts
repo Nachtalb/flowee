@@ -88,6 +88,7 @@ export const SCHEMA: S = {
             ["owner", "number"],
             "A GitHub Projects (v2) board whose Status follows the state.",
           ),
+          notPlannedLabel: str("GitLab: the label a ticket closed as not planned gets, since GitLab stores no close reason.", { default: "not planned" }),
         },
         ["repos", "token"],
         "The issue tracker that keeps the record.",

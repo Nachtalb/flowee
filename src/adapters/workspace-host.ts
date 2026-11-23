@@ -200,7 +200,7 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
       ...r,
       // a GitHub repository keeps its plain path as its slot key, as before mixed workspaces
       key: r.type === "github" ? undefined : r.key,
-      tracker: TRACKERS[r.type].make({ repo: r.repo, api: r.api, token: secrets.get(r.token), tokenName: r.token, project: r.type === "github" ? doc.tracker.project : undefined }),
+      tracker: TRACKERS[r.type].make({ repo: r.repo, api: r.api, token: secrets.get(r.token), tokenName: r.token, project: r.type === "github" ? doc.tracker.project : undefined, notPlannedLabel: doc.tracker.notPlannedLabel }),
     })),
     store,
   );

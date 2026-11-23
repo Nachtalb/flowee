@@ -32,7 +32,7 @@ GitHub; this page lists where GitLab differs and what Flowee does about it.
 | Confidential issues | `confidential` | Read and moved like any other; the token needs Planner or higher to see them. Flowee never sets it. |
 | Labels (array) | Labels (comma-separated string; missing ones are created) | The flow's label names as configured, sent whole (`labels`) in the one update write. A label name containing a comma cannot exist on GitLab. Scoped labels (`state::ready`) work if the flow names them so. |
 | Assignees by login | `assignee_ids` (user ids) | Logins are looked up once each (`GET /users?username=`); an unknown login is `502 gitlab` naming it. GitLab Free allows one assignee. |
-| Close with `state_reason` (`completed`, `not_planned`) | `state_event: close` (no reason) | Both reasons close the issue; the flow's comment and labels say why. |
+| Close with `state_reason` (`completed`, `not_planned`) | `state_event: close` (no reason) | Both close the issue; `not_planned` also adds the label `tracker.notPlannedLabel` (default `not planned`), which a reopen takes off. |
 | Comments | Notes, including system notes (label changes, closing) | `comments` reads `activity_filter=only_comments`, oldest first, and drops any `system` note: cards and answers are only human notes. |
 | Commits since, compare `base...head` | `repository/commits?ref_name&since`, `repository/merge_base` | `contains(base, head)`: base resolved to a sha (branch or tag names too), then the merge base of both equals base. |
 | Pull request | Merge request (`iid`, written `!n`) | `pulls` = merge requests: open from the branch (`Closes #n` in the description: GitLab closes the issue on merge into the default branch), update, find by `source_branch`, the newest open one first, diffs. |
@@ -95,7 +95,7 @@ Maintainer on a protected main (or Developer with "Allowed to merge: Developers 
   states with a `meta.status` simply set nothing on GitLab.
 - **Approvals, auto-merge and merge trains** are GitLab's to enforce; Flowee does not approve or queue. A merge
   GitLab will not do now is `409 not_mergeable`, and nothing in the flow changes.
-- **Close reasons.** GitLab's REST API closes without a reason; `not_planned` and `completed` look the same there.
+- **Close reasons.** GitLab's REST API closes without a reason, so a ticket closed as not planned carries the label `tracker.notPlannedLabel` (default `not planned`) instead.
 - **Several assignees** need GitLab Premium; on Free the flow assigns only one owner anyway.
 - **The wizard** (managed mode) asks for GitHub repositories today; GitLab workspaces come as a document
   (`bun run validate`, then import or deploy). The GitLab link reader is `TRACKERS.gitlab.parseRepo(api)`.

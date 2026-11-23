@@ -470,6 +470,12 @@
               "description": "Project number."
             }
           }
+        },
+        "notPlannedLabel": {
+          "type": "string",
+          "minLength": 1,
+          "description": "GitLab: the label a ticket closed as not planned gets, since GitLab stores no close reason.",
+          "default": "not planned"
         }
       }
     },

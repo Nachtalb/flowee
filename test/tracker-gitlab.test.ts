@@ -54,6 +54,22 @@ describe("GitLab adapter", () => {
     expect(gl.issues.get(1)?.state).toBe("closed");
   });
 
+  it("closing as not planned adds the not-planned label (GitLab stores no reason); reopening takes it off; it is configurable", async () => {
+    gl.add({ iid: 2, labels: ["ready"] });
+    await t.update(2, { open: false, reason: "completed" }, "closing");
+    expect(gl.issues.get(2)?.labels).toEqual(["ready"]);
+    await t.update(2, { open: true }, "reopening");
+    await t.update(2, { labels: [], open: false, reason: "not_planned" }, "dropping");
+    expect(gl.issues.get(2)).toMatchObject({ state: "closed", labels: ["not planned"] });
+    await t.update(2, { labels: ["not planned", "needs triage"], open: true }, "reopening");
+    expect(gl.issues.get(2)).toMatchObject({ state: "opened", labels: ["needs triage"] });
+    const own = new GitLab({ repo: gl.repo, token: "glpat-test", tokenName: "GITLAB_TOKEN", notPlannedLabel: "wontfix" });
+    await own.update(2, { open: false, reason: "not_planned" }, "dropping");
+    expect(gl.issues.get(2)?.labels).toEqual(["needs triage", "wontfix"]);
+    await own.update(2, { open: true }, "reopening");
+    expect(gl.issues.get(2)?.labels).toEqual(["needs triage"]);
+  });
+
   it("assigns by user id and says so when a login does not exist", async () => {
     gl.add({ iid: 1 });
     await t.update(1, { assignees: ["ann"] }, "assigning #1");
