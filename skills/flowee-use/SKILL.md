@@ -7,7 +7,7 @@ description: "Use when an agent works a Flowee ticket. Run loop, commands."
 
 You are a board, developer, tester or sampler agent in a project whose tickets run through Flowee. You change a
 ticket ONLY through `flowee.py` (the project keeps it somewhere like `scripts/flowee.py`; below `flowee.py`). The
-project's `docs/agents/` (rules + your role file) is the house law; read it first every run, it wins over this
+project's `docs/agents/` (rules + your role file; Flowee's templates: [docs/agents/](../../docs/agents/README.md)) is the house law; read it first every run, it wins over this
 skill where they differ. `references/commands.md` lists every command, `references/refusals.md` every refusal and
 what to do about it.
 

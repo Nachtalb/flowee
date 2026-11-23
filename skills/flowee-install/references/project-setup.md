@@ -3,8 +3,12 @@
 ## 1. The client in the project repository
 
 ```sh
-cp <flowee>/client/flowee.py <project>/scripts/flowee.py
+cp <flowee>/client/flowee.py <project>/scripts/flowee.py               # from a clone of Flowee
+curl -fsSL <url>/client/flowee.py -o <project>/scripts/flowee.py      # or from the instance: its own version
 ```
+
+Later, `python3 scripts/flowee.py version` says when the instance serves a newer client; `python3 scripts/flowee.py
+update` then replaces the file (checked to parse first; it never updates by itself). Commit the new file.
 
 `.flowee.toml` at the repository root, committed (no secret in it):
 
@@ -28,7 +32,8 @@ cmd = ["bun", "run", "test"]
 The gates are the project's checks that must be green before any commit (typecheck, lint, tests); `commit` and
 `pass` refuse without them. The managed wizard's secrets file contains a ready `.flowee.toml` too.
 
-Copy Flowee's `docs/agents/` folder into the project as the agents' instructions and fill in its placeholders.
+Copy Flowee's `docs/agents/` folder ([docs/agents/README.md](../../../docs/agents/README.md); also in
+`<url>/bundle.tar.gz`) into the project as the agents' instructions and fill in its placeholders.
 
 ## 2. One clone per agent instance
 
@@ -83,7 +88,7 @@ read**, **Contents: read**. A `tracker.project` board needs a classic token with
 
 A project access token (one project; Premium on gitlab.com) or a personal access token with the **`api`** scope
 (`read_api` cannot write issues; there is no narrower write scope). The role decides what it may do
-(docs/gitlab.md in the Flowee repository has the full table):
+([docs/gitlab.md](../../../docs/gitlab.md) has the full table):
 
 | Feature | Role |
 |---|---|

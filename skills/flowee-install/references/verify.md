@@ -10,12 +10,15 @@ Run each check and compare with what it prints. Commands never put a secret on t
 | the document | `bun run validate flowee.config.local.json` | `ok flowee.config.local.json: <ids>`; exit 0. Otherwise one `<file>: $.path: sentence.` per problem, exit 1 |
 | wrangler login | `ls -d ~/.wrangler; bunx wrangler whoami` | `ls` finds nothing; `whoami` names the account |
 | secrets stored | `bunx wrangler secret list` | every name the document references (values are never shown) |
-| deployed | `curl -fsS https://<worker>/` (any client: its own User-Agent) | `Flowee: the ticket flow API for AI agent teams and its chat envoy.` |
+| the served material locally | `python3 test/e2e/serve.py` (starts and stops `wrangler dev`, which builds `served/`) | `serve check: passed`; exit 0 |
+| deployed | `curl -fsS https://<worker>/` (any client: its own User-Agent) | the root document, starting `# Flowee: set it up from this URL`, with `- Mode:` and `- Version:` of this deployment |
+| served version | `curl -fsS https://<worker>/version` | `{"ok": true, "flowee": "<version>", "commit": "<commit>", "client": {...}}`, the commit just deployed |
+| the client's version | in the project: `python3 scripts/flowee.py version` | `client X`, `server X (commit …)`, `up to date`; a newer served client names `update` |
 | bot profile and webhook | `bun run deploy` (its last line), or `curl -fsS https://<worker>/setup` | standalone: `{"<id>": {"name": "set", "description": "set", "short_description": "set", "commands": "set", "photo": "set", "webhook": "set", …}}`; a second call says `"current"` for each. Managed: an `"instance"` entry with the instance bot's steps (also `settings`) plus one per workspace |
 | an agent's secret | in the agent's clone: `python3 <client> whoami` | `{"instance": "dev1", "role": "developer"}`; a wrong secret: `failed: Unknown or missing token.`, exit 1 |
 | the queue | `python3 <client> queue` | `{"role": "developer", "queue": [], "claim": null}` (board and owner also `"inbox"`) |
 | the chat | the owner sends `/start` to the bot | the bar (`✨ Inbox empty`) or the first open card |
-| webhooks registered | a minute after `/setup`: `curl -fsS -H @"$TMP/agent" https://<worker>/v1/sync` (an agent's `Authorization` header in a file) | each repository `"mode": "webhook", "via": "api"` and `"lastDelivery"` set (GitHub's ping arrived; GitLab: press **Test** on the hook once). `"mode": "poll"` names the `reason` (e.g. `the token lacks …`): add that permission, or set the hook up by hand (docs/webhooks.md) |
+| webhooks registered | a minute after `/setup`: `curl -fsS -H @"$TMP/agent" https://<worker>/v1/sync` (an agent's `Authorization` header in a file) | each repository `"mode": "webhook", "via": "api"` and `"lastDelivery"` set (GitHub's ping arrived; GitLab: press **Test** on the hook once). `"mode": "poll"` names the `reason` (e.g. `the token lacks …`): add that permission, or set the hook up by hand ([docs/webhooks.md](../../../docs/webhooks.md)) |
 | webhooks deliver | GitHub: the repository's Settings → Webhooks → the Flowee hook → Recent Deliveries; GitLab: Settings → Webhooks → Edit → Recent events | the `ping` (GitHub) or the test event answered `200` |
 | queue off the tracker | `python3 <client> queue` | `"source": "mirror"` while webhooks are healthy |
 
