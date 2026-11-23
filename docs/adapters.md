@@ -3,14 +3,17 @@
 The core (`src/core`) and the envoy (`src/envoy`) talk to the world only through the ports in `src/ports`.
 Adapters (`src/adapters`) implement them; `src/adapters/workspace-host.ts` (`build()`) wires a workspace's
 document to its adapters. `test/boundary.test.ts` fails when a layer imports across these lines.
+Below the hosts is the runtime boundary (`src/runtime/platform.ts`): the Cloudflare runtime and the self-hosted bun
+runtime each give a host its `Room` (store, wake-up) and serve the same router (CLAUDE.md, "How to add a runtime";
+docs/self-hosting.md).
 
 | Port | Phase 1 adapter |
 |---|---|
 | `Tracker` | `tracker-github.ts` (REST + Projects v2 GraphQL), `tracker-gitlab.ts` (REST v4, docs/gitlab.md); chosen per repository by `src/adapters/trackers.ts` |
-| `Chat` | `chat-telegram.ts` (Bot API, rich messages) |
-| `Store` | the runtime's room: `src/runtime/cloudflare/worker.ts` (`SqlStore`, Durable Object SQLite; one object per workspace) |
-| `Clock` | the workspace host (`Date.now`, its room's wake-up: the Durable Object's alarm) |
-| `Secrets` | Worker secrets by name (`envSecrets`) |
+| `Chat` | `chat-telegram.ts` (Bot API, rich messages; updates by webhook, or by getUpdates in the self-hosted runtime: `chat.transport`) |
+| `Store` | the runtime's room: `src/runtime/cloudflare/worker.ts` (`SqlStore`, Durable Object SQLite; one object per workspace), `src/runtime/bun/store.ts` (`SqliteStore`, bun:sqlite; one file per workspace). `test/store-contract.test.ts` runs the same cases on both. |
+| `Clock` | the workspace host (`Date.now`, its room's wake-up: the Durable Object's alarm, or the bun scheduler's stored wake-up) |
+| `Secrets` | Worker secrets by name (`envSecrets`); self-hosted: environment variables, `<NAME>_FILE` files |
 | `Files` | `files-paste.ts` (rustypaste-compatible upload) |
 
 ## Tracker

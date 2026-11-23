@@ -1,6 +1,6 @@
 # Flowee: notes for agents working on this repository
 
-Flowee is a Cloudflare Worker (TypeScript) that runs a ticket flow for AI agent teams over an issue tracker and
+Flowee is a Cloudflare Worker, or one self-hosted process on bun (TypeScript, the same code), that runs a ticket flow for AI agent teams over an issue tracker and
 brings the owner's inbox into a chat (the Envoy), plus `client/flowee.py`, the agents' stdlib Python client.
 README.md is usage only; this file is how the code is built and laid out.
 
@@ -9,13 +9,20 @@ README.md is usage only; this file is how the code is built and laid out.
 ```sh
 bun install
 bun run typecheck                 # tsc (TypeScript 7), strict
-bun run test                      # vitest in workerd (@cloudflare/vitest-plugin): fake GitHub, GitLab + Telegram via fetch
+bun run test                      # every suite twice: vitest in workerd (@cloudflare/vitest-plugin), then the same files on
+                                  #   the bun runtime (test:bun, vitest.bun.config.ts) plus test/bun/; fakes via fetch
+bun run start                     # the self-hosted runtime from the clone (docs/self-hosting.md)
+bun run compile                   # one executable, served/ embedded (scripts/compile.ts; --target, --outfile)
+docker build -t flowee .          # the image FROM scratch (Dockerfile); compose.yaml is the example deployment
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run schema                    # regenerate schema/*.schema.json after changing src/config/schema.ts or a preset
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
 bun run bundle                    # build served/ (the public material); `bun run test`, wrangler dev and deploy run it
 python3 test/e2e/serve.py         # the served material, the root document, /validate, flowee.py version/update in wrangler dev
 python3 test/e2e/wire.py          # flowee.py against `wrangler dev` and a stand-in GitHub and GitLab, trunk and pr-release
+#   --runtime bun | docker [--image NAME]: the self-hosted runtime (process or image) instead, plus a polling walk
+#   (stand-in Telegram by getUpdates), a restart that keeps the state, the webhook walk with FLOWEE_PUBLIC_URL;
+#   serve.py takes the same --runtime and --image
 #   --flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]: also an external client with the same wire contract
 bun test/e2e/gitlab-live.ts       # the GitLab adapter's reads against gitlab.com, anonymous and read-only (network)
 bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFIG in .dev.vars (git-ignored)
@@ -71,7 +78,11 @@ src/
               photo: assets/logo-square.svg rendered at 256 px, base64)
   runtime/    the runtime boundary: platform.ts (Room, Platform: what a runtime gives the hosts), router.ts (every
               runtime's HTTP routes: resolves each request's workspace, forwards to its host; the minute's tick,
-              /setup, /hooks/<workspace>/<alias>); cloudflare/ (the Worker, the Durable Objects, SqlStore)
+              /setup, /hooks/<workspace>/<alias>, polled Telegram updates); cloudflare/ (the Worker, the Durable
+              Objects, SqlStore); bun/ (main.ts: the `flowee` command; config.ts: the environment, `*_FILE`,
+              FLOWEE_KEY; app.ts: hosts, Bun.serve, the data directory's lock, served material from served/ or
+              embedded; store.ts: bun:sqlite; scheduler.ts: alarms and the tick; poller.ts: Telegram getUpdates;
+              compiled.ts: the executable's entry; bun.d.ts: the Bun/Node APIs it uses)
   index.ts    the Worker's entry: re-exports src/runtime/cloudflare/worker.ts
 flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
               starting points trunk and pr-release (src/config/presets.ts) only preset switches
@@ -87,7 +98,8 @@ docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab
               webhooks.md (events per feature, permissions, health and fallback, the alarm/cron split),
               envoy.md (the chat interface, row by row),
               chat-style.md (how every screen looks, the living message, the reply-keyboard exception),
-              flow-features.md (the feature catalogue), managed.md (wizard, management, import), telegram.md
+              flow-features.md (the feature catalogue), managed.md (wizard, management, import), self-hosting.md
+              (the bun runtime: configuration, data directory, polling or webhooks, the image), telegram.md
               (profiles, setMySettings, groups and topics), agents/ (role templates for projects using Flowee)
 skills/       agent skills: flowee-install, flowee-use, flowee-configure (the full configuration spec)
 test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-hooks.ts: hooks routes, signed
@@ -104,6 +116,17 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
   `cloudflare:*`, or names a platform API. `test/boundary.test.ts` enforces this, and that no source file names a
   repository, person or chat of the test workspaces: those live in configuration only. The public repository
   names no real project, person or chat id anywhere (docs, tests, fixtures included).
+- **The runtime boundary.** Two runtimes run the same code: `src/runtime/cloudflare` (the Worker, a Durable Object
+  per workspace and one for the instance, the cron trigger) and `src/runtime/bun` (one process). Both serve
+  `src/runtime/router.ts` and build the same hosts (`adapters/workspace-host.ts`, `adapters/instance-host.ts`) on a
+  `Room` (`src/runtime/platform.ts`: the store, one wake-up time, wiping), call a host's `alarm()` when its wake-up is
+  due and `tick()` every minute. Only `src/runtime/cloudflare` imports `cloudflare:*`, only `src/runtime/bun`
+  imports `bun:*` or names `Bun.*`, neither imports the other, and only `index.ts` (the Worker's entry) imports a
+  runtime (`test/boundary.test.ts`). The Worker's bundle holds nothing of the bun runtime: check `wrangler deploy
+  --dry-run --outdir` for `bun:` when a shared file starts importing from a runtime. A Workers-only API the shared
+  code uses (`crypto.subtle.timingSafeEqual`) is supplied by the bun runtime (`app.ts`), not avoided in the core.
+- **One process per data directory** (bun): it holds an exclusive SQLite lock on `<data>/flowee.sqlite` while it
+  runs; a second refuses to start. Per-workspace serialisation is the hosts' own lock, as in a Durable Object.
 - **The tracker is the record.** Every command re-reads the ticket; the store keeps only what the tracker cannot
   (claims, origins, handed commits, answers, the inbox, idempotency, chat message ids). The one copy of tracker data,
   the webhook-fed mirror of open tickets (`src/core/events.ts`), answers only the read-only `queue` and the envoy's
@@ -114,8 +137,14 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
   every-minute cron runs it with `force`, which lists every polled repository as before. Decision: the cron stays
   every minute because polling (no or unhealthy webhooks) needs it and it wakes objects whose alarm was never set;
   for a healthy webhook workspace it makes no tracker call. Alarms are per workspace and exact, the cron one global
-  tick; a rarer cron would slow the polling fallback by the same factor (docs/webhooks.md).
-- **One workspace, one Durable Object, one store.** Every API token, chat update and stored key resolves a
+  tick; a rarer cron would slow the polling fallback by the same factor (docs/webhooks.md). Self-hosted, the
+  scheduler (`src/runtime/bun/scheduler.ts`) is both: stored wake-ups per workspace and the tick, one loop that
+  sleeps at most a tick and compares the wall clock, so missed wake-ups run at once after a restart or a suspend.
+- **Telegram: webhook or polling** (`chat.transport`, `instance.transport`). Polling is the bun runtime's
+  (`poller.ts`: one loop per bot, deleteWebhook first, the offset stored after each update, 409 stops it with one
+  sentence) and its default without a public URL; polled updates enter the router at `polled()`, after which they
+  are handled exactly like a webhook's. The Worker refuses polling (`webhookOnly()` in `src/config/schema.ts`).
+- **One workspace, one host, one store** (a Durable Object, or a SQLite file in the process). Every API token, chat update and stored key resolves a
   workspace first (`src/runtime/router.ts`); a Durable Object refuses a request for another workspace than its own. Commands of
   a workspace run under its lock (`Workspace.lock`).
 - **Configuration, not constants.** A workspace is one JSON document (docs/configuration.md); secrets are named in
@@ -168,6 +197,13 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   constant time, the delivery id, parse into `TrackerEvent`s, register/unregister/status through the API, the
   permission in words) set as the adapter's `hooks`; tests with the tracker's documented payloads
   (`test/hooks-gitlab.test.ts`, `test/fixtures/`).
+- **a runtime:** a directory `src/runtime/<name>/` that (1) makes a `Room` per workspace and one for the instance
+  (a `Store` speaking SQLite's dialect, `wake(at)` keeping the soonest, `clear()`), (2) builds `WorkspaceHost` /
+  `InstanceHost` on them and a `Platform` handing those out by id, (3) serves HTTP into `route(req, platform)`, (4)
+  runs `host.alarm()` when a wake-up is due and `tick(platform)` every minute, (5) gives the configuration and secrets
+  as `env` (and `ASSETS` for the served material); polling bots use `polled()`. Add it to the boundary test, give
+  `test/` a harness behind `cloudflare:test` (as `test/bun/cloudflare-test.ts`) and a vitest config, so every suite
+  and `test/store-contract.test.ts` run on it, and a `--runtime` in `test/e2e/wire.py`.
 - **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
   `plain()`; give the router a route for its updates (`src/runtime/router.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods
@@ -195,8 +231,8 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 
 ## Conventions
 
-- As few dependencies as possible: runtime has none; dev: wrangler, vitest + the Workers pool, TypeScript,
-  workers-types, xstate (test only).
+- As few dependencies as possible: runtime has none (the bun runtime uses only bun's built-ins); dev: wrangler,
+  vitest + the Workers pool, TypeScript, workers-types, xstate (test only).
 - Error messages are one sentence for the agent, with a stable `error` code.
 - Comments only where the code is not obvious.
 - README.md is usage only (no build, layout or architecture: those are here). docs/agents/ and skills/ are

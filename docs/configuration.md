@@ -1,7 +1,8 @@
 # Configuration
 
-An instance is one deployment of the Worker. Its configuration is **instance options** (Worker vars), the
-**workspace documents** and the **secrets** those documents name.
+An instance is one deployment of the Worker, or one self-hosted process. Its configuration is **instance options**
+(Worker vars; self-hosted: environment variables, docs/self-hosting.md), the **workspace documents** and the
+**secrets** those documents name.
 
 ## Instance
 

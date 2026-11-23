@@ -57,7 +57,7 @@ Use https://<your-flowee-instance>/ to set Flowee up for this project.
 
 ## Quick start
 
-Flowee is a Cloudflare Worker. You need a Cloudflare account, `bun`, a GitHub or GitLab token and a Telegram bot. It runs in one
+Flowee is a Cloudflare Worker, or one process you run yourself ([below](#run-it-yourself-one-process-no-cloudflare)). On Cloudflare you need a Cloudflare account, `bun`, a GitHub or GitLab token and a Telegram bot. It runs in one
 of two modes.
 
 Your deployment's configuration goes into `flowee.config.local.json`: it is git-ignored, so the chat ids and URLs
@@ -106,6 +106,28 @@ or with an own bot Flowee creates for the workspace.
    `.flowee.toml`.
 
 Details: [docs/managed.md](docs/managed.md), [docs/telegram.md](docs/telegram.md).
+
+### Run it yourself: one process, no Cloudflare
+
+The same configuration document, served by one process on any machine. Without a public address the bot's updates
+are fetched by polling and the trackers are polled; behind a reverse proxy with `FLOWEE_PUBLIC_URL` it gets webhooks
+as on Cloudflare. Its data is one directory (a SQLite file per workspace).
+
+```sh
+# the executable
+bun run compile -- --target bun-linux-x64 --outfile flowee
+FLOWEE_CONFIG_FILE=flowee.json FLOWEE_DATA=./data TELEGRAM_BOT_TOKEN=… GITHUB_TOKEN=… ./flowee
+
+# Docker (FROM scratch, 107 MB)
+docker build -t flowee .
+docker run -d -p 8787:8787 -v flowee-data:/data -v "$PWD/flowee.json:/config/flowee.json:ro" -e FLOWEE_CONFIG_FILE=/config/flowee.json -e GITHUB_TOKEN=… flowee
+
+# Docker Compose (the document at ./flowee.json, each secret in ./secrets/<NAME>)
+$EDITOR compose.yaml
+docker compose up -d
+```
+
+Configuration, the data directory, backup, upgrade, polling and webhooks: [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Configuration
 
@@ -225,6 +247,7 @@ Exports never contain a secret.
 | Feature catalogue | [docs/flow-features.md](docs/flow-features.md) |
 | The chat interface | [docs/envoy.md](docs/envoy.md), [docs/telegram.md](docs/telegram.md) |
 | Managed mode, wizard, import | [docs/managed.md](docs/managed.md) |
+| Self-hosting: the executable, Docker, polling or webhooks | [docs/self-hosting.md](docs/self-hosting.md) |
 | Running agents | [docs/agents/](docs/agents/README.md) |
 | Ports and adapters (Discord, another tracker) | [docs/adapters.md](docs/adapters.md) |
 | Building and changing Flowee | [CLAUDE.md](CLAUDE.md) |

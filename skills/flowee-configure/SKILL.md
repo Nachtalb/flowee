@@ -78,7 +78,10 @@ in the chat (`/workspaces` → the workspace → ✏️ Where tickets appear →
 
 ## Pitfalls
 
-- `chat` needs at least one `owners[].chat`; `files` needs `chat`; `profile` needs `chat.publicUrl`.
+- `chat` needs at least one `owners[].chat`; `files` needs `chat`; `profile` needs `chat.publicUrl` (unless
+  `chat.transport` is `polling`).
+- `chat.transport`: `webhook` (needs `chat.publicUrl`; the only one on Cloudflare, which refuses `polling`) or
+  `polling` (self-hosted: getUpdates, no public address; the self-hosted default when no public URL is configured).
 - In a standalone instance every workspace with a chat names the SAME `chat.token` and `chat.webhookSecret` (one
   bot); give `chat.publicUrl` in one workspace only.
 - `roles[].secret` names the secret that holds the SHA-256 hex of the agent's API secret, never the secret itself.
