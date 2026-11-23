@@ -1,0 +1,173 @@
+// The workspace document: schema committed and in step with the TypeScript types, one-sentence problems with
+// their JSON path, export/import round trips, secrets only ever by name.
+import { describe, expect, it } from "vitest";
+import committed from "../schema/workspace.schema.json";
+import type { WorkspaceDoc } from "../src/config/document";
+import { missingSecrets, StaticRegistry } from "../src/config/registry";
+import { SCHEMA, validate } from "../src/config/schema";
+import { plain } from "../src/ports/chat";
+import workspaces from "./workspaces.json";
+
+type Complete<T> = T extends (infer U)[] ? Complete<U>[] : T extends object ? { [K in keyof T]-?: Complete<T[K]> } : T;
+
+/** Every field of the types set: the compiler refuses this when a type gains a field the example lacks. */
+const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } = {
+  flowee: 1,
+  id: "full",
+  name: "Full",
+  flow: { preset: "trunk" },
+  features: { anything: true },
+  tracker: { type: "github", repos: ["acme/app"], mainBranch: "main", token: "GH", project: { owner: "acme", number: 1 } },
+  roles: [
+    { instance: "board", role: "board", secret: "T_BOARD" },
+    { instance: "owner", role: "owner", secret: "T_OWNER" },
+  ],
+  owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
+  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example" },
+  files: { url: "https://files.example/", token: "FILES", expire: "30d" },
+  texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u" },
+  schedule: { timezone: "Europe/Zurich", digestFrom: 8, digestTo: 11 },
+  profile: { photo: "https://x.example/p.png" },
+};
+
+const paths = (o: unknown, p = "$"): string[] =>
+  Array.isArray(o) ? paths(o[0], `${p}[]`) : o && typeof o === "object" ? Object.entries(o).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "features" || k === "flow" ? [] : paths(v, `${p}.${k}`))]) : [];
+const schemaPaths = (s: Record<string, any>, p = "$"): string[] =>
+  s.type === "array"
+    ? schemaPaths(s.items, `${p}[]`)
+    : s.properties
+      ? Object.entries(s.properties as Record<string, any>).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "features" || k === "flow" ? [] : schemaPaths(v, `${p}.${k}`))])
+      : [];
+
+const secrets = (names: Record<string, string>) => ({ get: (n: string) => names[n] });
+const livedu = workspaces.workspaces[0] as unknown as WorkspaceDoc;
+
+describe("the schema", () => {
+  it("is committed as generated (bun run schema)", () => {
+    expect(committed).toEqual(SCHEMA);
+  });
+
+  it("has exactly the fields of the TypeScript types", () => {
+    expect(validate(FULL)).toEqual([]);
+    expect(schemaPaths(SCHEMA).sort()).toEqual(paths(FULL).sort());
+  });
+
+  it("accepts the test workspaces", () => {
+    for (const w of workspaces.workspaces) expect(validate(w)).toEqual([]);
+  });
+
+  it("reports each problem as one sentence with its JSON path", () => {
+    const bad = JSON.parse(JSON.stringify(FULL));
+    bad.flowee = 2;
+    expect(validate(bad)).toEqual(["$.flowee: must be 1."]);
+    bad.flowee = 1;
+    bad.id = "Not An Id";
+    bad.tracker.repos = [];
+    delete bad.tracker.token;
+    bad.roles[0].role = 5;
+    bad.color = "blue";
+    bad.flow = { preset: "kanban" };
+    bad.schedule.digestTo = 30;
+    expect(validate(bad).sort()).toEqual(
+      [
+        "$.id: must match ^[a-z0-9][a-z0-9-]{0,62}$.",
+        "$.tracker.repos: must have at least 1 item(s).",
+        "$.tracker.token: is required.",
+        "$.roles[0].role: must be a string.",
+        "$.color: is not a known field.",
+        '$.flow.preset: must be one of "trunk".',
+        "$.schedule.digestTo: must be at most 24.",
+      ].sort(),
+    );
+  });
+
+  it("checks what the schema cannot: roles of the flow, unique instances, combinations", () => {
+    const bad = JSON.parse(JSON.stringify(FULL));
+    bad.roles.push({ instance: "board", role: "sampler", secret: "T_X" });
+    bad.roles = bad.roles.filter((r: { role: string }) => r.role !== "owner");
+    delete bad.owners[0].chat;
+    bad.schedule = { timezone: "Mars/Olympus", digestFrom: 12, digestTo: 9 };
+    delete bad.chat.publicUrl;
+    expect(validate(bad)).toEqual([
+      "$.roles[1].role: 'sampler' is no role of the flow (board, developer, tester, owner).",
+      "$.roles[1].instance: 'board' is used twice.",
+      "$.roles: no instance has the owner role 'owner', so the owner cannot answer through the API.",
+      "$.owners: with a chat, at least one owner needs a chat user id.",
+      "$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.",
+      "$.schedule: digestFrom must be before digestTo.",
+      "$.schedule.timezone: 'Mars/Olympus' is no IANA time zone.",
+    ]);
+  });
+
+  it("validates an inline statechart with the engine's own loader", () => {
+    const d = JSON.parse(JSON.stringify(FULL));
+    d.flow = { chart: { id: "x", initial: "a", states: { a: { meta: { label: "a" }, on: { go: "b" } } } }, options: { roles: {}, commands: {} } };
+    const [e] = validate(d);
+    expect(e).toMatch(/^\$\.flow: Exactly one state must have meta\.closed .* State 'a', event 'go': the target 'b' does not exist\./);
+  });
+});
+
+describe("export and import", () => {
+  it("round-trips a workspace and the whole instance unchanged, secrets only by name", () => {
+    const r = new StaticRegistry(secrets({}), workspaces);
+    const once = r.export("livedu");
+    r.import(once);
+    expect(r.export("livedu")).toEqual(once);
+    expect(once).toEqual(livedu);
+    const all = r.exportAll();
+    expect(all).toEqual(workspaces);
+    const r2 = new StaticRegistry(secrets({}), all);
+    expect(r2.exportAll()).toEqual(all);
+    expect(JSON.stringify(all)).not.toMatch(/gh-test|hook-test|999:tg|paste-test/);
+  });
+
+  it("an invalid import changes nothing and says why", () => {
+    const r = new StaticRegistry(secrets({}), workspaces);
+    const bad = { ...livedu, roles: [] };
+    expect(() => r.import(bad)).toThrow("$.roles: must have at least 1 item(s).");
+    expect(r.export("livedu")).toEqual(livedu);
+    const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
+    expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
+    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other"]);
+    expect(() => r.importAll({ flowee: 1, workspaces: [livedu, livedu] })).toThrow("$.workspaces[1].id: 'livedu' is used twice.");
+    expect(r.list()).toHaveLength(2);
+  });
+
+  it("an import needs no secret to validate and names the missing ones", () => {
+    const r = new StaticRegistry(secrets({}));
+    expect(r.import(livedu).id).toBe("livedu");
+    expect(missingSecrets(livedu, secrets({ GITHUB_TOKEN: "x", TOKEN_BOARD: "y" }))).toEqual([
+      "TOKEN_DEV1",
+      "TOKEN_DEV2",
+      "TOKEN_TESTER",
+      "TOKEN_OWNER",
+      "TELEGRAM_BOT_TOKEN",
+      "TG_WEBHOOK_SECRET",
+      "PASTE_TOKEN",
+    ]);
+  });
+
+  it("finds a workspace by token digest and by chat binding (a topic binds only that topic)", () => {
+    const r = new StaticRegistry(secrets({ TOKEN_DEV1: "AB12" }), workspaces);
+    expect(r.byDigest("ab12")).toMatchObject({ instance: "dev1", role: "developer", doc: { id: "livedu" } });
+    expect(r.byChat({ chat: "555" })?.id).toBe("other");
+    const t = { ...livedu, id: "topic", chat: { ...livedu.chat, chatId: "-100", topicId: 3 } } as WorkspaceDoc;
+    r.import(t);
+    expect(r.byChat({ chat: "-100", topic: 3 })?.id).toBe("topic");
+    expect(r.byChat({ chat: "-100", topic: 4 })).toBeUndefined();
+  });
+});
+
+describe("plain chat fallback", () => {
+  it("turns a rich view into text and a keyboard", () => {
+    const v = plain([
+      { html: "<p><b>2 open</b></p>" },
+      { table: { head: ["#"], rows: [{ cells: ["7", "Test", "1 h", "A &amp; B"], button: { label: "Open", data: "o:7:1" } }] } },
+      { buttons: [{ label: "« Back", data: "b" }] },
+    ]);
+    expect(v).toEqual({
+      text: "2 open\n7 · Test · 1 h · A & B",
+      buttons: [[{ label: "Open #7", data: "o:7:1" }], [{ label: "« Back", data: "b" }]],
+    });
+  });
+});

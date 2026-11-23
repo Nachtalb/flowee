@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nachtalb/flowee/schema/workspace.schema.json",
+  "title": "Flowee workspace",
+  "type": "object",
+  "description": "A Flowee workspace: one flow over a repository, its roles, owners and chat.",
+  "additionalProperties": false,
+  "required": [
+    "flowee",
+    "id",
+    "flow",
+    "tracker",
+    "roles",
+    "owners"
+  ],
+  "properties": {
+    "flowee": {
+      "const": 1,
+      "description": "Schema version of this document."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Workspace id: lowercase letters, digits and dashes; part of the API URL /w/<id>/v1/.",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name."
+    },
+    "flow": {
+      "description": "A preset by name, or an inline XState statechart with its options.",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "A flow preset.",
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ],
+          "properties": {
+            "preset": {
+              "enum": [
+                "trunk"
+              ],
+              "description": "A preset in flows/."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "An inline flow.",
+          "additionalProperties": false,
+          "required": [
+            "chart",
+            "options"
+          ],
+          "properties": {
+            "chart": {
+              "type": "object",
+              "description": "XState v5 statechart JSON (see docs/flows.md)."
+            },
+            "options": {
+              "type": "object",
+              "description": "Flow options (see docs/flows.md)."
+            }
+          }
+        }
+      ]
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature switches of the flow.",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "tracker": {
+      "type": "object",
+      "description": "The issue tracker that keeps the record.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "repos",
+        "token"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "github"
+          ],
+          "description": "The tracker adapter."
+        },
+        "repos": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "owner/name",
+            "pattern": "^[\\w.-]+/[\\w.-]+$"
+          },
+          "description": "Repositories (one for now)."
+        },
+        "mainBranch": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The branch commits land on.",
+          "default": "main"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the secret holding the tracker token (never the value).",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "project": {
+          "type": "object",
+          "description": "A GitHub Projects (v2) board whose Status follows the state.",
+          "additionalProperties": false,
+          "required": [
+            "owner",
+            "number"
+          ],
+          "properties": {
+            "owner": {
+              "type": "string",
+              "minLength": 1,
+              "description": "User login owning the project."
+            },
+            "number": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Project number."
+            }
+          }
+        }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The agents (and the owner) that call the API, one secret each.",
+      "items": {
+        "type": "object",
+        "description": "One role instance.",
+        "additionalProperties": false,
+        "required": [
+          "instance",
+          "role",
+          "secret"
+        ],
+        "properties": {
+          "instance": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Instance name (claims belong to it), e.g. dev1.",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A role of the flow."
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the secret holding the SHA-256 hex of this instance's API secret (never the value).",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        }
+      }
+    },
+    "owners": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The humans in the loop.",
+      "items": {
+        "type": "object",
+        "description": "One owner.",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name."
+          },
+          "tracker": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Tracker login (assigned in the inbox state)."
+          },
+          "chat": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Chat user id.",
+            "pattern": "^-?\\d+$"
+          }
+        }
+      }
+    },
+    "chat": {
+      "type": "object",
+      "description": "The owner's chat (the envoy).",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "token",
+        "webhookSecret",
+        "chatId"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "telegram"
+          ],
+          "description": "The chat adapter."
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the secret holding the bot token (never the value).",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "webhookSecret": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the secret holding the webhook's secret token (never the value).",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bot's username (for /cmd@bot)."
+        },
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bound chat.",
+          "pattern": "^-?\\d+$"
+        },
+        "topicId": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "A forum topic in the chat."
+        },
+        "publicUrl": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The instance's public base URL (webhook and profile are set from it).",
+          "pattern": "^https://"
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "description": "Where files the owner sends are stored.",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "token"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Upload endpoint (rustypaste compatible).",
+          "pattern": "^https?://"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the secret holding the upload token (never the value).",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "expire": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expiry header value.",
+          "default": "90d"
+        }
+      }
+    },
+    "texts": {
+      "type": "object",
+      "description": "Texts the envoy and the flow show.",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The owner's name: comment signature (`Owner:`) and filing note.",
+          "default": "Owner"
+        },
+        "cardHeading": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Heading of the owner card in a comment (`### For the owner`).",
+          "default": "For the owner"
+        },
+        "botName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bot's display name.",
+          "default": "Flowee Envoy"
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The project's name in the welcome and profile texts.",
+          "default": "the workspace id"
+        },
+        "welcome": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The welcome message (Telegram HTML)."
+        },
+        "about": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bot description."
+        },
+        "shortAbout": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bot short description."
+        },
+        "filedBody": {
+          "type": "string",
+          "minLength": 1,
+          "description": "First line of a ticket the owner files from the chat."
+        },
+        "untitled": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Title of a ticket filed with an empty first line."
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "description": "Times.",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "IANA time zone of the digest and 'answered today'.",
+          "default": "UTC"
+        },
+        "digestFrom": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 23,
+          "default": 9,
+          "description": "First hour of the morning digest."
+        },
+        "digestTo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24,
+          "default": 12,
+          "description": "The digest is sent before this hour."
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "description": "The bot's profile.",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "photo": {
+          "type": "string",
+          "minLength": 1,
+          "description": "URL of the bot's profile photo (PNG).",
+          "pattern": "^https://"
+        }
+      }
+    }
+  }
+}

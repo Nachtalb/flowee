@@ -1,0 +1,224 @@
+// The JSON Schema of a workspace document (committed as schema/workspace.schema.json by `bun run schema`) and a
+// validator of the schema subset it uses. Every problem is one sentence starting with its JSON path.
+import { loadFlow } from "../core/chart";
+import { ACTIONS } from "../core/actions";
+import { GUARDS } from "../core/guards";
+import type { InstanceDoc, WorkspaceDoc } from "./document";
+import { PRESETS } from "./presets";
+
+type S = Record<string, unknown>;
+const str = (description: string, extra: S = {}): S => ({ type: "string", minLength: 1, description, ...extra });
+const secret = (what: string) => str(`Name of the secret holding ${what} (never the value).`, { pattern: "^[A-Z][A-Z0-9_]*$" });
+const obj = (properties: S, required: string[], description: string): S => ({ type: "object", description, additionalProperties: false, required, properties });
+
+const TEXTS = {
+  owner: str("The owner's name: comment signature (`Owner:`) and filing note.", { default: "Owner" }),
+  cardHeading: str("Heading of the owner card in a comment (`### For the owner`).", { default: "For the owner" }),
+  botName: str("The bot's display name.", { default: "Flowee Envoy" }),
+  project: str("The project's name in the welcome and profile texts.", { default: "the workspace id" }),
+  welcome: str("The welcome message (Telegram HTML)."),
+  about: str("The bot description."),
+  shortAbout: str("The bot short description."),
+  filedBody: str("First line of a ticket the owner files from the chat."),
+  untitled: str("Title of a ticket filed with an empty first line."),
+};
+
+export const SCHEMA: S = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://github.com/Nachtalb/flowee/schema/workspace.schema.json",
+  title: "Flowee workspace",
+  ...obj(
+    {
+      flowee: { const: 1, description: "Schema version of this document." },
+      id: str("Workspace id: lowercase letters, digits and dashes; part of the API URL /w/<id>/v1/.", { pattern: "^[a-z0-9][a-z0-9-]{0,62}$" }),
+      name: str("Display name."),
+      flow: {
+        description: "A preset by name, or an inline XState statechart with its options.",
+        oneOf: [
+          obj({ preset: { enum: Object.keys(PRESETS), description: "A preset in flows/." } }, ["preset"], "A flow preset."),
+          obj(
+            {
+              chart: { type: "object", description: "XState v5 statechart JSON (see docs/flows.md)." },
+              options: { type: "object", description: "Flow options (see docs/flows.md)." },
+            },
+            ["chart", "options"],
+            "An inline flow.",
+          ),
+        ],
+      },
+      features: { type: "object", description: "Feature switches of the flow.", additionalProperties: { type: "boolean" } },
+      tracker: obj(
+        {
+          type: { enum: ["github"], description: "The tracker adapter." },
+          repos: { type: "array", minItems: 1, maxItems: 1, items: str("owner/name", { pattern: "^[\\w.-]+/[\\w.-]+$" }), description: "Repositories (one for now)." },
+          mainBranch: str("The branch commits land on.", { default: "main" }),
+          token: secret("the tracker token"),
+          project: obj(
+            { owner: str("User login owning the project."), number: { type: "integer", minimum: 1, description: "Project number." } },
+            ["owner", "number"],
+            "A GitHub Projects (v2) board whose Status follows the state.",
+          ),
+        },
+        ["type", "repos", "token"],
+        "The issue tracker that keeps the record.",
+      ),
+      roles: {
+        type: "array",
+        minItems: 1,
+        description: "The agents (and the owner) that call the API, one secret each.",
+        items: obj(
+          {
+            instance: str("Instance name (claims belong to it), e.g. dev1.", { pattern: "^[a-z0-9][a-z0-9-]*$" }),
+            role: str("A role of the flow."),
+            secret: secret("the SHA-256 hex of this instance's API secret"),
+          },
+          ["instance", "role", "secret"],
+          "One role instance.",
+        ),
+      },
+      owners: {
+        type: "array",
+        minItems: 1,
+        description: "The humans in the loop.",
+        items: obj(
+          { name: str("Name."), tracker: str("Tracker login (assigned in the inbox state)."), chat: str("Chat user id.", { pattern: "^-?\\d+$" }) },
+          [],
+          "One owner.",
+        ),
+      },
+      chat: obj(
+        {
+          type: { enum: ["telegram"], description: "The chat adapter." },
+          token: secret("the bot token"),
+          webhookSecret: secret("the webhook's secret token"),
+          username: str("The bot's username (for /cmd@bot)."),
+          chatId: str("The bound chat.", { pattern: "^-?\\d+$" }),
+          topicId: { type: "integer", minimum: 1, description: "A forum topic in the chat." },
+          publicUrl: str("The instance's public base URL (webhook and profile are set from it).", { pattern: "^https://" }),
+        },
+        ["type", "token", "webhookSecret", "chatId"],
+        "The owner's chat (the envoy).",
+      ),
+      files: obj(
+        { url: str("Upload endpoint (rustypaste compatible).", { pattern: "^https?://" }), token: secret("the upload token"), expire: str("Expiry header value.", { default: "90d" }) },
+        ["url", "token"],
+        "Where files the owner sends are stored.",
+      ),
+      texts: obj(TEXTS, [], "Texts the envoy and the flow show."),
+      schedule: obj(
+        {
+          timezone: str("IANA time zone of the digest and 'answered today'.", { default: "UTC" }),
+          digestFrom: { type: "integer", minimum: 0, maximum: 23, default: 9, description: "First hour of the morning digest." },
+          digestTo: { type: "integer", minimum: 1, maximum: 24, default: 12, description: "The digest is sent before this hour." },
+        },
+        [],
+        "Times.",
+      ),
+      profile: obj({ photo: str("URL of the bot's profile photo (PNG).", { pattern: "^https://" }) }, [], "The bot's profile."),
+    },
+    ["flowee", "id", "flow", "tracker", "roles", "owners"],
+    "A Flowee workspace: one flow over a repository, its roles, owners and chat.",
+  ),
+};
+
+const kind = (v: unknown) => (v === null ? "null" : Array.isArray(v) ? "array" : Number.isInteger(v) ? "integer" : typeof v);
+
+/** Problems of `v` against the schema subset (type, const, enum, pattern, ranges, items, properties, oneOf). */
+export function check(schema: S, v: unknown, path = "$"): string[] {
+  if ("const" in schema && v !== schema.const) return [`${path}: must be ${JSON.stringify(schema.const)}.`];
+  if (schema.enum && !(schema.enum as unknown[]).includes(v)) return [`${path}: must be one of ${(schema.enum as unknown[]).map((x) => JSON.stringify(x)).join(", ")}.`];
+  if (schema.oneOf) {
+    const runs = (schema.oneOf as S[]).map((s) => check(s, v, path));
+    const ok = runs.filter((r) => !r.length).length;
+    if (ok === 1) return [];
+    if (ok > 1) return [`${path}: matches more than one form.`];
+    return runs.sort((a, b) => a.length - b.length)[0];
+  }
+  const t = schema.type as string | undefined;
+  const k = kind(v);
+  if (t && !(k === t || (t === "number" && k === "integer"))) return [`${path}: must be ${t === "integer" ? "an integer" : t === "array" || t === "object" ? `an ${t}` : `a ${t}`}.`];
+  const out: string[] = [];
+  if (t === "string") {
+    const s = v as string;
+    if (schema.minLength && s.length < (schema.minLength as number)) out.push(`${path}: must not be empty.`);
+    else if (schema.pattern && !new RegExp(schema.pattern as string).test(s)) out.push(`${path}: must match ${schema.pattern}.`);
+  }
+  if (t === "integer" || t === "number") {
+    if (schema.minimum !== undefined && (v as number) < (schema.minimum as number)) out.push(`${path}: must be at least ${schema.minimum}.`);
+    if (schema.maximum !== undefined && (v as number) > (schema.maximum as number)) out.push(`${path}: must be at most ${schema.maximum}.`);
+  }
+  if (t === "array") {
+    const a = v as unknown[];
+    if (schema.minItems && a.length < (schema.minItems as number)) out.push(`${path}: must have at least ${schema.minItems} item(s).`);
+    if (schema.maxItems && a.length > (schema.maxItems as number)) out.push(`${path}: must have at most ${schema.maxItems} item(s).`);
+    a.forEach((x, i) => out.push(...check(schema.items as S, x, `${path}[${i}]`)));
+  }
+  if (t === "object") {
+    const o = v as Record<string, unknown>;
+    const props = (schema.properties ?? {}) as Record<string, S>;
+    for (const r of (schema.required as string[]) ?? []) if (!(r in o)) out.push(`${path}.${r}: is required.`);
+    for (const [key, val] of Object.entries(o)) {
+      if (props[key]) out.push(...check(props[key], val, `${path}.${key}`));
+      else if (schema.additionalProperties === false) out.push(`${path}.${key}: is not a known field.`);
+      else if (typeof schema.additionalProperties === "object") out.push(...check(schema.additionalProperties as S, val, `${path}.${key}`));
+    }
+  }
+  return out;
+}
+
+/** Every problem of a workspace document, schema first, then the cross-field rules. Empty when valid. */
+export function validate(doc: unknown): string[] {
+  const errs = check(SCHEMA, doc);
+  if (errs.length) return errs;
+  const d = doc as WorkspaceDoc;
+  const flow = "preset" in d.flow ? PRESETS[d.flow.preset] : d.flow;
+  try {
+    loadFlow(flow.chart, flow.options, Object.keys(GUARDS), Object.keys(ACTIONS));
+  } catch (e) {
+    return [`$.flow: ${(e as Error).message}`];
+  }
+  const roles = Object.keys(flow.options.roles);
+  const seen = new Set<string>();
+  d.roles.forEach((r, i) => {
+    if (!roles.includes(r.role)) errs.push(`$.roles[${i}].role: '${r.role}' is no role of the flow (${roles.join(", ")}).`);
+    if (seen.has(r.instance)) errs.push(`$.roles[${i}].instance: '${r.instance}' is used twice.`);
+    seen.add(r.instance);
+  });
+  if (!d.roles.some((r) => r.role === flow.options.ownerRole))
+    errs.push(`$.roles: no instance has the owner role '${flow.options.ownerRole}', so the owner cannot answer through the API.`);
+  if (d.chat && !d.owners.some((o) => o.chat)) errs.push("$.owners: with a chat, at least one owner needs a chat user id.");
+  if (d.files && !d.chat) errs.push("$.files: files come from the chat, so they need $.chat.");
+  if (d.profile && !d.chat?.publicUrl) errs.push("$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.");
+  const sc = d.schedule;
+  if (sc && (sc.digestFrom ?? 9) >= (sc.digestTo ?? 12)) errs.push("$.schedule: digestFrom must be before digestTo.");
+  if (sc?.timezone) {
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: sc.timezone });
+    } catch {
+      errs.push(`$.schedule.timezone: '${sc.timezone}' is no IANA time zone.`);
+    }
+  }
+  return errs;
+}
+
+/** Every problem of an instance document (all workspaces); ids and chat bindings must be unique. */
+export function validateInstance(doc: unknown): string[] {
+  const d = doc as InstanceDoc;
+  if (kind(d) !== "object" || d.flowee !== 1 || !Array.isArray(d.workspaces)) return ["$: must be {\"flowee\": 1, \"workspaces\": [...]}."];
+  const errs = d.workspaces.flatMap((w, i) => validate(w).map((e) => e.replace(/^\$/, `$.workspaces[${i}]`)));
+  const ids = new Set<string>();
+  const chats = new Set<string>();
+  d.workspaces.forEach((w, i) => {
+    if (ids.has(w.id)) errs.push(`$.workspaces[${i}].id: '${w.id}' is used twice.`);
+    ids.add(w.id);
+    const c = w.chat && `${w.chat.chatId}/${w.chat.topicId ?? ""}`;
+    if (c && chats.has(c)) errs.push(`$.workspaces[${i}].chat: another workspace is bound to the same chat and topic.`);
+    if (c) chats.add(c);
+  });
+  return errs;
+}
+
+/** Secret names a document references. */
+export function secretNames(d: WorkspaceDoc): string[] {
+  return [...new Set([d.tracker.token, ...d.roles.map((r) => r.secret), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
+}

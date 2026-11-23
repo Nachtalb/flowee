@@ -1,0 +1,142 @@
+{
+  "flowee": 1,
+  "workspaces": [
+    {
+      "flowee": 1,
+      "id": "livedu",
+      "name": "livedu",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "Nachtalb/livedu"
+        ],
+        "mainBranch": "main",
+        "token": "GITHUB_TOKEN",
+        "project": {
+          "owner": "Nachtalb",
+          "number": 9
+        }
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "TOKEN_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "TOKEN_DEV1"
+        },
+        {
+          "instance": "dev2",
+          "role": "developer",
+          "secret": "TOKEN_DEV2"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "TOKEN_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "TOKEN_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Nick",
+          "tracker": "Nachtalb",
+          "chat": "713276361"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "username": "LiveDuEnvoyBot",
+        "chatId": "713276361",
+        "publicUrl": "https://livedu-envoy.na-4e9.workers.dev"
+      },
+      "files": {
+        "url": "https://f.naa.gg/",
+        "token": "PASTE_TOKEN",
+        "expire": "90d"
+      },
+      "texts": {
+        "owner": "Nick",
+        "cardHeading": "For Nick",
+        "botName": "LiveDu Envoy",
+        "project": "livedu",
+        "filedBody": "Filed by Nick through Envoy; the Board writes the spec from his words.",
+        "untitled": "Request from Nick"
+      },
+      "schedule": {
+        "timezone": "Europe/Zurich",
+        "digestFrom": 9,
+        "digestTo": 12
+      },
+      "profile": {
+        "photo": "https://assets.test/profile.png"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "other",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/widget"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "OTHER_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "OTHER_DEV1"
+        },
+        {
+          "instance": "dev2",
+          "role": "developer",
+          "secret": "OTHER_DEV2"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "OTHER_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "OTHER_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "555"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "555"
+      }
+    }
+  ]
+}
