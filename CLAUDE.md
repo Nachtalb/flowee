@@ -15,6 +15,7 @@ bun run schema                    # regenerate schema/*.schema.json after changi
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
 python3 test/e2e/wire.py          # flowee.py against `wrangler dev` and a stand-in GitHub and GitLab, trunk and pr-release
 #   --flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]: also an external client with the same wire contract
+bun test/e2e/gitlab-live.ts       # the GitLab adapter's reads against gitlab.com, anonymous and read-only (network)
 bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFIG in .dev.vars (git-ignored)
 ```
 
