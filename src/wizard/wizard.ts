@@ -83,7 +83,8 @@ export interface WizardHost {
   /** The managed bot just created: its token stored for the draft, its webhook set. */
   adoptBot(s: Session, botId: string): Promise<void>;
   /** Creates or replaces the workspace; returns the role secrets to hand over once. */
-  commit(s: Session): Promise<{ id: string; secrets: Record<string, string>; doc: WorkspaceDoc }>;
+  /** `warning`: the workspace was made, but its bot's profile was not (one sentence). */
+  commit(s: Session): Promise<{ id: string; secrets: Record<string, string>; doc: WorkspaceDoc; warning?: string }>;
   load(user: string): Session | undefined;
   /** A draft over an imported document, with what the instance already holds for it filled in. */
   draftOf(doc: WorkspaceDoc): Draft;
@@ -511,7 +512,7 @@ export class Wizard {
     const names = Object.keys(r.secrets);
     await this.say(
       s.at,
-      `✅ Workspace <code>${esc(r.id)}</code> is ${s.draft.replaces ? "updated" : "ready"}.${names.length ? " The file below holds each agent's secret: <b>shown this once</b>, only their digests are stored. Put each next to its agent and delete the file." : ""}\n/workspaces manages it.`,
+      `✅ Workspace <code>${esc(r.id)}</code> is ${s.draft.replaces ? "updated" : "ready"}.${r.warning ? ` ⚠️ ${esc(r.warning)}` : ""}${names.length ? " The file below holds each agent's secret: <b>shown this once</b>, only their digests are stored. Put each next to its agent and delete the file." : ""}\n/workspaces manages it.`,
     );
     if (names.length) await this.handOver(s.at, r.id, r.secrets);
     const [next, ...rest] = s.queue ?? [];

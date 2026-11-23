@@ -272,6 +272,24 @@ describe("the setup wizard", () => {
     );
   });
 
+  it("a refused profile of the own bot: the workspace is made, the user told, the secrets handed over", async () => {
+    await dm(200, "/setup");
+    await tap(200, "w:bot:own");
+    await dm(200, "acme/web");
+    await post("/telegram", { update_id: ++uid, managed_bot: { user: { id: 200 }, bot: { id: 777, is_bot: true, first_name: "Widget", username: "WidgetEnvoyBot" } } });
+    await tap(200, "w:flow:trunk");
+    await tap(200, "w:flow:done");
+    await tap(200, "w:bind:here");
+    await dm(200, TOKEN);
+    await tap(200, "w:role:developer:1");
+    await tap(200, "w:roles:done");
+    tg.refuse = { setMySettings: "Bad Request: not enough rights" };
+    await tap(200, "w:confirm");
+    expect(said()).toContain("✅ Workspace <code>web</code> is ready. ⚠️ The bot's profile was not set (Telegram refused setMySettings: Bad Request: not enough rights.); the next deploy tries again.");
+    expect(Object.keys(await handed())).toEqual(["dev1", "owner"]);
+    expect((await admin("GET", "/admin/workspaces/web")).status).toBe(200);
+  });
+
   it("agents' secrets the chat refuses as a file come as a message: they are shown once", async () => {
     tg.refuse = { sendDocument: "Bad Request: file is too big" };
     await sharedSetup(100);

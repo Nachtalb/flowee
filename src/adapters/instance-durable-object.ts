@@ -194,8 +194,14 @@ export class Instance extends DurableObject<Env> {
         for (const n of before ? secretNames(before) : []) if (!keep.has(n)) self.dropSecret(n);
         reg.reindex();
         await self.push(doc.id);
-        await self.stub(doc.id).fetch(new Request("https://flowee/setup", { method: "POST", headers: { [WORKSPACE_HEADER]: doc.id } }));
-        return { id: doc.id, secrets, doc };
+        // the workspace exists now: a refused profile must not undo it or hide the agents' secrets
+        const warning = await self.stub(doc.id)
+          .fetch(new Request("https://flowee/setup", { method: "POST", headers: { [WORKSPACE_HEADER]: doc.id } }))
+          .then(
+            () => undefined,
+            (e: unknown) => `The bot's profile was not set (${e instanceof Error ? e.message : e}); the next deploy tries again.`,
+          );
+        return { id: doc.id, secrets, doc, warning };
       },
       load: (user) => {
         const r = self.store.rows<{ data: string }>("SELECT data FROM sessions WHERE user = ?", user)[0];
