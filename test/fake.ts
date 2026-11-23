@@ -262,13 +262,14 @@ export function install() {
   const glmix = new FakeGitLab("acme/backend/api", 501);
   const glrel = new FakeGitLab("acme/backend/svc", 502);
   const glself = new FakeGitLab("team/tools/lib", 777);
+  const glhk = new FakeGitLab("acme/backend/hooks", 503);
   const tg = new FakeTelegram();
   const paste = new FakePaste();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init);
     const host = new URL(req.url).host;
     if (host === "api.github.com") return (repos.find((r) => r.owns(new URL(req.url).pathname)) ?? gh).handle(req);
-    if (host === "gitlab.com") return ([glmix, glrel].find((r) => r.owns(new URL(req.url).pathname)) ?? gl).handle(req);
+    if (host === "gitlab.com") return ([glmix, glrel, glhk].find((r) => r.owns(new URL(req.url).pathname)) ?? gl).handle(req);
     if (host === "gitlab.example.com") return glself.handle(req);
     if (host === "assets.test") return new Response(new Uint8Array([137, 80, 78, 71]));
     if (host === "api.telegram.org" && new URL(req.url).pathname.startsWith("/file/"))
@@ -277,5 +278,5 @@ export function install() {
     if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, gl, glmix, glrel, glself, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, gl, glmix, glrel, glself, glhk, tg, paste };
 }

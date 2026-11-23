@@ -30,6 +30,8 @@ export default defineConfig({
           ...Object.fromEntries(who.map((w) => [`HOOKS_${w.toUpperCase()}`, hash(`h-${w}`)])),
           HOOKS2_BOARD: hash("k-board"),
           HOOKS2_OWNER: hash("k-owner"),
+          HOOKSGL_BOARD: hash("g-board"),
+          HOOKSGL_OWNER: hash("g-owner"),
           FLOWEE_KEY: "key-test",
         },
       },

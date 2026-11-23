@@ -19,6 +19,8 @@
 // request files stop at 3000 like GitHub's); a 429 is waited out once when its
 // Retry-After is short, else answered `503 rate_limited`.
 import { Fail } from "../core/errors";
+import type { Hooks } from "../ports/hooks";
+import { GitLabHooks } from "./hooks-gitlab";
 import type {
   Branches,
   Change,
@@ -163,6 +165,7 @@ export class GitLab implements Tracker {
   checks: Checks = new GitLabChecks(this);
   releases: Releases = new GitLabReleases(this);
   tags: Tags = new GitLabTags(this);
+  hooks: Hooks = new GitLabHooks(this);
   private users = new Map<string, number>();
 
   constructor(private c: GitLabConfig) {}

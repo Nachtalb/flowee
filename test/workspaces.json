@@ -665,6 +665,45 @@
       "sync": {
         "webhooks": "off"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "hooksgl",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "gitlab",
+        "repos": [
+          "acme/backend/hooks"
+        ],
+        "token": "GITLAB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "HOOKSGL_BOARD"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "HOOKSGL_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Cy",
+          "chat": "702"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "702",
+        "publicUrl": "https://flow.test"
+      }
     }
   ]
 }
