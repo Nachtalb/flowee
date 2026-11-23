@@ -11,7 +11,7 @@ validation) and reaches the chat through the `Chat` port; the Telegram adapter m
 | Step | Asks | Notes |
 |---|---|---|
 | 1 Bot | 🤖 Own bot or 💬 This bot | Own: a new bot just for the workspace (its own name, photo, commands). |
-| 2 Repositories | `owner/name`, one or several | The workspace id comes from the first repository's name (unique: `-2`, `-3`). With several, tickets are `alias#n`, the alias being the repository's name. |
+| 2 Repositories | the repository's link or `owner/name`, one or several (`https://github.com/o/n/issues/3`, `github.com/o/n`, `git@github.com:o/n.git` all work; the tracker adapter reads them) | The workspace id comes from the first repository's name (unique: `-2`, `-3`). With several, tickets are `alias#n`, the alias being the repository's name. |
 | Own bot | 🤖 Create the bot (`KeyboardButtonRequestManagedBot`, name and username suggested from the repository) | The `managed_bot` update hands the bot over: its token is fetched (`getManagedBotToken`), sealed, and its webhook set to `<publicUrl>/telegram/w/<id>` with its own secret. |
 | 3 Flow | The presets found in `flows/` (`src/config/presets.ts`), then the feature switches the preset's options list, as toggles | |
 | 4 Where | 💬 This private chat; or a group: add the bot, send `/bind <id>` in the group (inside a topic to bind only that topic); the instance bot also offers 👥 Pick a group (`KeyboardButtonRequestChat`) | Only the user running the setup can bind. The binding stores chat id + topic id; everything the workspace sends goes there. |

@@ -18,7 +18,7 @@ import { Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
 import { envSecrets, SqlStore, WORKSPACE_HEADER } from "./store-durable-object";
-import { GitHub } from "./tracker-github";
+import { GitHub, githubRepo } from "./tracker-github";
 import { randomSecret, seal, unseal, vaultKey } from "./vault";
 
 export const PRIVATE_COMMANDS: Command[] = [
@@ -135,6 +135,7 @@ export class Instance extends DurableObject<Env> {
       botUsername: cfg.bot.username,
       publicUrl: cfg.publicUrl,
       presets: () => presets,
+      parseRepo: githubRepo(cfg.trackerApi),
       refusal(user, replacing) {
         const creators = cfg.creators ?? [cfg.owner];
         if (!creators.includes(user) && user !== cfg.owner) return "Only the people this instance allows may set up workspaces; ask its owner.";

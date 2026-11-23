@@ -114,7 +114,7 @@ describe("the setup wizard", () => {
     await tap(100, "w:bot:shared");
     expect(said()).toContain("2 Repositories");
     await dm(100, "acme");
-    expect(said()).toContain("⚠️ 'acme' is not owner/name.");
+    expect(said()).toContain("⚠️ 'acme' is not a GitHub repository; send its link, for example https://github.com/octo/app.");
     await dm(100, "acme/app");
     expect(said()).toContain("3 Flow");
     await tap(100, "w:flow:trunk");
@@ -167,7 +167,7 @@ describe("the setup wizard", () => {
   it("own managed bot, several repositories, one topic of a group: bot created, bound by /bind in the topic", async () => {
     await dm(200, "/setup");
     await tap(200, "w:bot:own");
-    await dm(200, "acme/widget acme/lib");
+    await dm(200, "https://github.com/acme/widget/issues/3,\n<git@github.com:acme/lib.git>");
     const req = tg.of("sendMessage").at(-2);
     expect(req?.reply_markup.keyboard[0][0]).toEqual({
       text: "🤖 Create the bot",

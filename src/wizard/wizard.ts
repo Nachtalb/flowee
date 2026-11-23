@@ -5,6 +5,7 @@
 import type { RepoDoc, WorkspaceDoc } from "../config/document";
 import { esc } from "../envoy/render";
 import type { Button, Chat, ChatRef, ChatRequest } from "../ports/chat";
+import type { RepoReference } from "../ports/tracker";
 
 export const TTL = 24 * 3600e3;
 
@@ -72,6 +73,8 @@ export interface WizardHost {
   /** Why the user may not create another workspace, or null. */
   refusal(user: string, replacing?: string): string | null;
   freeId(base: string): string;
+  /** `owner/name` of a pasted repository link or name (the tracker adapter knows the shapes). */
+  parseRepo: RepoReference;
   /** Does the shared bot / own bots exist in this chat (managed-bot support)? */
   ownBots: boolean;
   botUsername?: string;
@@ -97,7 +100,6 @@ export interface WizardHost {
 const b = (label: string, data: string): Button => ({ label, data: `w:${data}` });
 const nav = (s: Session): Button[] => [...(s.back.length ? [b("◀ Back", "back")] : []), b("✖ Cancel", "cancel")];
 export const aliasOf = (repo: string) => repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
-const REPO = /^[\w.-]+\/[\w.-]+$/;
 
 export interface View {
   html: string;
@@ -472,10 +474,11 @@ export class Wizard {
       return true;
     }
     if (s.step === "repos") {
-      const repos = [...new Set(text.split(/[\s,]+/).filter(Boolean))];
-      const bad = repos.filter((r) => !REPO.test(r));
+      const refs = text.split(/[\s,]+/).filter(Boolean);
+      const bad = refs.filter((r) => !this.host.parseRepo(r));
+      const repos = [...new Set(refs.flatMap((r) => this.host.parseRepo(r) ?? []))];
       if (!repos.length || bad.length) {
-        await this.show(s, `${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are" : "is"} not owner/name.`);
+        await this.show(s, `${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not GitHub repositories" : "is not a GitHub repository"}; send its link, for example https://github.com/octo/app.`);
         return true;
       }
       const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));

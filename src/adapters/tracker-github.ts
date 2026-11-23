@@ -1,7 +1,7 @@
 // The Tracker port over the GitHub REST API (issues, labels, comments, commits, compare) and, for the optional
 // board, a user's Projects (v2) board over GraphQL. Plain fetch, no SDK.
 import { Fail } from "../core/errors";
-import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, Tags, Tracker } from "../ports/tracker";
+import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, RepoReference, Tags, Tracker } from "../ports/tracker";
 import { GitHubBranches, GitHubChecks, GitHubPulls, GitHubReleases, GitHubTags } from "./tracker-github-code";
 
 interface GhIssue {
@@ -32,6 +32,33 @@ const issue = (i: GhIssue): Issue => ({
   url: i.html_url,
   ref: i.node_id,
 });
+
+const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+const NAME = /^[\w.-]{1,100}$/;
+
+/**
+ * `owner/name` from what a user pastes: `owner/name`, `https://github.com/owner/name` (with `www.`, `.git`, a trailing
+ * slash or a deeper link like `/issues/12`), `github.com/owner/name`, `git@github.com:owner/name.git`; `api` (an
+ * Enterprise API URL) adds its host.
+ */
+export function githubRepo(api?: string): RepoReference {
+  const hosts = new Set(["github.com"]);
+  if (api) hosts.add(new URL(api).host.toLowerCase().replace(/^api\./, ""));
+  return (raw) => {
+    const s = raw.trim().replace(/^<+|>+$/g, "").trim();
+    let path = s;
+    const ssh = /^(?:ssh:\/\/)?git@([^:/\s]+)[:/](.+)$/i.exec(s);
+    const web = /^(?:(?:https?|git):\/\/)?([^/\s]+\.[^/\s]+)\/(.*)$/i.exec(s);
+    const m = ssh ?? web;
+    if (m) {
+      if (!hosts.has(m[1].toLowerCase().replace(/^www\./, ""))) return undefined;
+      path = m[2];
+    }
+    const [owner, name0] = path.split(/[?#]/)[0].split("/");
+    const name = (name0 ?? "").replace(/\.git$/i, "");
+    return OWNER.test(owner) && NAME.test(name) && !/^\.+$/.test(name) ? `${owner}/${name}` : undefined;
+  };
+}
 
 export interface GitHubConfig {
   repo: string;

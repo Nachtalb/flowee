@@ -3,6 +3,12 @@
 // offer one leaves it undefined, and `capability()` turns that into a clear 501 refusal.
 import { Fail } from "../core/errors";
 
+/**
+ * What a user pastes for a repository (a link, `owner/name`, a git remote) as `owner/name`; undefined when it names
+ * none of the tracker's repositories. The adapter knows its link shapes and hosts.
+ */
+export type RepoReference = (ref: string) => string | undefined;
+
 export interface Issue {
   n: number;
   title: string;
