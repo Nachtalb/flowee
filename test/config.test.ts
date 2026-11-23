@@ -207,12 +207,12 @@ describe("plain chat fallback", () => {
   it("turns a rich view into text and a keyboard", () => {
     const v = plain([
       { html: "<p><b>2 open</b></p>" },
-      { table: { head: ["#"], rows: [{ cells: ["7", "Test", "1 h", "A &amp; B"], button: { label: "Open", data: "o:7:1" } }] } },
+      { table: { head: ["#"], rows: [{ cells: ["7", "Test", "1 h", "A &amp; B"], buttons: [{ label: "Open", data: "o:7:1" }] }] } },
       { buttons: [{ label: "« Back", data: "b" }] },
     ]);
     expect(v).toEqual({
       text: "2 open\n7 · Test · 1 h · A & B",
-      buttons: [[{ label: "Open #7", data: "o:7:1" }], [{ label: "« Back", data: "b" }]],
+      buttons: [[{ label: "Open · 7", data: "o:7:1" }], [{ label: "« Back", data: "b" }]],
     });
   });
 });

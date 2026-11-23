@@ -37,6 +37,20 @@ describe("chat style guard", () => {
     }
   });
 
+  it("no screen shows a list: lists exist only where a ticket's own text has one (md() in the envoy's render)", () => {
+    // the plain fallback of ports/chat.ts turns a ticket's list into lines for chats without rich messages; the
+    // served material (adapters/served.ts) is a web page for a browser, not a chat screen
+    expect(where(/<ul>|<ol>|<li>/).filter((f) => f !== "adapters/served.ts")).toEqual(["envoy/render.ts", "ports/chat.ts"]);
+    const render = files["../src/envoy/render.ts"];
+    expect(render.match(/<ul>|<li>/g)?.length).toBe(2);
+    expect(render.slice(render.indexOf("function lines("), render.indexOf("function inline("))).toMatch(/<ul>/);
+    expect(where(/\bbullets\(/)).toEqual([]);
+  });
+
+  it("choices are table rows built by option(): the wizard and the menu never put described choices in a button row", () => {
+    for (const f of ["wizard/wizard.ts", "wizard/manage.ts"]) expect(files[`../src/${f}`], f).toMatch(/\boptions\(/);
+  });
+
   it("the instance never writes a screen itself", () => {
     expect(files["../src/adapters/instance-host.ts"]).not.toMatch(/<p>|<b>|\{ html: /);
   });

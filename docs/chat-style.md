@@ -13,16 +13,37 @@ follow them. The building blocks are written once, in `src/envoy/render.ts`; no 
 | First line, always | `heading(emoji, name, ...facts)` | `<p>❓ <b>Question</b> · #12 · ⏳ 5 min</p>`, `<p>🆕 <b>New workspace</b> · Step 2 of 6</p>` |
 | What the screen asks or shows | `question(html)` | `<p><b>Which bot should bring you the tickets?</b></p>` (a card: the ticket's title) |
 | One line of help | `text(html)` | a full sentence; at most two per screen |
-| Choices explained | `bullets([...])` | `<li><b>This bot</b>: I bring them myself…</li>`, one line per choice |
+| Choices and toggles | `options(option(name, description, ...buttons), …)` | a one-column table: `<tr><td><b>🌿 Single branch</b> · The agents commit straight to…</td><td>[🌿 Choose]</td></tr>`, one row per choice |
+| What something is (a summary, problems, permissions) | `facts([[label, value], …])`; a row may carry its own button (`{cells, buttons}`) | a two-column (or one-column) table: `<tr><td>📦 Repositories</td><td>acme/app</td><td>[✏️ Change]</td></tr>` |
 | Detail most people skip | `details(summary, html)` | folded, like a card's Details |
 | What was wrong | `warning(sentence)` | `<p>⚠️ That does not look like a GitHub token; paste just the token.</p>`, under the text, above the buttons |
 | A list of things | `{table}` | head row, one blue `Open` button per row, like the envoy's 📋 List |
 | Buttons | `row(...)` of `btn(label, data)`, `linkBtn(label, url)`, `copyBtn(label, text)` | centred rows in the message body |
 
+## Layout (the owner's rules)
+
+- **No list items anywhere**: no `<ul>`, `<ol>`, `<li>`, no line starting with a bullet or a dash. A set of things is
+  a table: choices and toggles a one-column table of `option()` rows, a summary a two-column `facts()` table, a set of
+  lines (problems, permissions, snippets) a one-column `facts()` table. The one exception is a ticket's own text on a
+  card (`Changed:`, `Check:` as its author wrote them, `md()`).
+- **Each choice is one row: its name, its one-line description and its own button**, in that order, in the same
+  table row (`option()`). Never a block of descriptions followed by a block of buttons: a button row (`row()`) may
+  come only after the screen's last table. Telegram's rich-message table cells take inline formatting only
+  (Bot API 10.5, "Rich HTML style"), and a `tg-button` is inline, so the button sits in the row's last cell; the
+  reference states no limit of rows or buttons per message, and a screen keeps to a handful of rows.
+- **A toggle is a row too**: state (✅/⬜), name, description, and its `Switch on` / `Switch off` button.
+- **The current choice** is marked on its own row's button: `● Chosen`.
+- **Navigation stays in the bottom button row**: `◀ Back`, `▶ Next` (where a screen has toggles or counters),
+  `✖ Cancel` in one row; `« Back` / `« All workspaces` in the menu. A screen's main action (`✅ Create the
+  workspace`, `🔑 Create a token`) is the one row above it.
+- `test/chat-style.test.ts` fails on list markup in the source and on described choices outside `option()`;
+  `test/managed.test.ts` checks every payload the wizard and the menu send (no list, every option row with its own
+  button, no button row between tables) and walks each choice screen asserting its rows.
+
 Buttons: an emoji then a verb or the thing it opens (`✅ Create the workspace`, `👥 In a group`, `🔑 Create a
 token`, `« All workspaces`); the main action alone on its row, navigation last: `◀ Back` (when there is a way back)
 and `✖ Cancel` on one row, `« Back` / `« All workspaces` in the menu. Counters and states are disabled buttons
-(`🛠 Developers: 1`). A toggle reads `✅ Name` / `⬜ Name`, the current choice `● Name`.
+(the count in an agent's row). A toggle's row reads `✅ Name` / `⬜ Name`, the current choice's button `● Chosen`.
 
 Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 import, 📤 export, 🔑 secrets and tokens, 🤖 a bot,
 💬 a chat, 👥 a group, 🔀 way of working, 📦 repositories, ⏸ / ▶ paused / running, 🗑 delete, ✅ done or confirm,

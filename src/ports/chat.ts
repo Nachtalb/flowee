@@ -17,12 +17,19 @@ export interface Button {
   style?: "primary";
 }
 
-export interface Table {
-  head: string[];
-  rows: { cells: string[]; button: Button }[];
+/** A row: its cells, then its own buttons in the same row (none: a row of facts). */
+export interface TableRow {
+  cells: string[];
+  buttons?: Button[];
 }
 
-/** `html` uses p, b, i, a, code, pre, ul, li, details, summary only. */
+export interface Table {
+  /** Column names; none for a table of choices or facts. */
+  head?: string[];
+  rows: TableRow[];
+}
+
+/** `html` uses p, b, i, a, code, pre, details, summary only (lists only inside a ticket's own text, docs/chat-style.md). */
 export type Block = { html: string } | { buttons: Button[] } | { table: Table };
 export type View = Block[];
 
@@ -187,8 +194,8 @@ export function plain(view: View): { text: string; buttons: Button[][] } {
     else if ("buttons" in b) buttons.push(b.buttons);
     else {
       for (const r of b.table.rows) {
-        lines.push(decode(r.cells.join(" · ")));
-        buttons.push([{ ...r.button, label: `${r.button.label} #${r.cells[0]}` }]);
+        lines.push(decode(r.cells.join(" · ").replace(/<[^>]+>/g, "")));
+        if (r.buttons?.length) buttons.push(r.buttons.map((x) => ({ ...x, label: `${x.label} · ${decode(r.cells[0].replace(/<[^>]+>/g, ""))}` })));
       }
     }
   }

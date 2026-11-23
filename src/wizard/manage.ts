@@ -3,10 +3,10 @@
 // to the workspaces the user owns.
 import type { WorkspaceDoc } from "../config/document";
 import type { SyncStatus } from "../core/events";
-import { btn, bullets, esc, heading, question, row, text } from "../envoy/render";
+import { btn, esc, facts, heading, option, options, question, row, text } from "../envoy/render";
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
-import { chatLabel, featureName, presetName, type Step, Wizard, type WizardHost } from "./wizard";
+import { chatLabel, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
   owned(user: string): WorkspaceDoc[];
@@ -44,13 +44,6 @@ export function instantUpdates(s: SyncStatus) {
 
 const b = (label: string, data: string) => btn(label, `m:${data}`);
 const code = (s: string) => `<code>${esc(s)}</code>`;
-const parts: [Step, string][] = [
-  ["repos", "Repositories"],
-  ["flow", "Way of working"],
-  ["bind", "Where tickets appear"],
-  ["credential", "GitHub token"],
-  ["roles", "Agents"],
-];
 const back = (id: string) => b("« Back", `ws:${id}`);
 const mine = (): Block => row(b("📂 My workspaces", "list"));
 
@@ -112,7 +105,7 @@ export class Manager {
             head: ["Workspace", "Repositories", "State", ""],
             rows: ws.map((w) => ({
               cells: [esc(w.id), esc(w.tracker.repos.map((r) => (typeof r === "string" ? r : r.repo)).join(", ")), this.host.paused(w.id) ? "⏸ paused" : "▶ running"],
-              button: { label: "Open", data: `m:ws:${w.id}`, style: "primary" as const },
+              buttons: [{ label: "Open", data: `m:ws:${w.id}`, style: "primary" as const }],
             })),
           },
         },
@@ -140,24 +133,33 @@ export class Manager {
     const hooks = sync && instantUpdates(sync);
     const own = !!d.chat?.managed;
     const paused = this.host.paused(d.id);
-    const on = Object.entries(d.features ?? {}).filter(([, v]) => v).map(([k]) => featureName(k));
+    const edit = (step: Step) => b("✏️ Change", `edit:${d.id}:${step}`);
     return this.show(user, at, [
       heading("📂", code(d.id), paused ? "⏸ paused" : "▶ running"),
-      bullets([
-        `📦 Repositories: ${d.tracker.repos.map((r) => code(typeof r === "string" ? r : r.repo)).join(", ")}`,
-        `🤖 Bot: ${own ? `its own${d.chat?.username ? `, @${esc(d.chat.username)}` : ""}` : "this bot"}`,
-        `🔀 Way of working: ${presetName("preset" in d.flow ? d.flow.preset : undefined)}${on.length ? `, with ${on.join(", ")}` : ""}`,
-        `💬 Tickets appear: ${this.where(user, d)}`,
-        `👥 Agents: ${d.roles.filter((r) => !this.host.presets().some((p) => p.ownerRole === r.role)).map((r) => esc(r.instance)).join(", ") || "none"}`,
-        ...(hooks ? [hooks.line] : []),
-      ]),
       ...(note ? [text(note)] : []),
-      row(...parts.slice(0, 2).map(([s, l]) => b(`✏️ ${l}`, `edit:${d.id}:${s}`))),
-      row(...parts.slice(2, 4).map(([s, l]) => b(`✏️ ${l}`, `edit:${d.id}:${s}`))),
-      row(b(`✏️ ${parts[4][1]}`, `edit:${d.id}:${parts[4][0]}`), b("🔑 New agent secret", `rot:${d.id}`)),
-      ...(own ? [row(b("♻️ New bot token", `tok:${d.id}`), b("🔐 Who may use the bot", `acc:${d.id}`))] : []),
-      ...(hooks?.offer ? [row(b("⚡ Turn on instant updates", `hook:${d.id}`))] : []),
-      row(b("📤 Export", `exp:${d.id}`), b(paused ? "▶ Resume" : "⏸ Pause", `${paused ? "resume" : "pause"}:${d.id}`), b("🗑 Delete", `del:${d.id}`)),
+      facts([
+        { cells: ["📦 Repositories", d.tracker.repos.map((r) => code(typeof r === "string" ? r : r.repo)).join(", ")], buttons: [edit("repos")] },
+        ["🤖 Bot", own ? `its own${d.chat?.username ? `, @${esc(d.chat.username)}` : ""}` : "this bot"],
+        { cells: ["🔀 Way of working", wayOf(d.features)], buttons: [edit("flow")] },
+        { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] },
+        { cells: ["🔑 GitHub token", "never shown"], buttons: [edit("credential")] },
+        { cells: ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"], buttons: [edit("roles")] },
+        ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
+      ]),
+      options(
+        option("🔑 New agent secret", "One agent gets a new secret; its old one stops working.", b("🔑 New secret", `rot:${d.id}`)),
+        ...(own
+          ? [
+              option("♻️ New bot token", "The bot gets a new token; the old one stops working.", b("♻️ New token", `tok:${d.id}`)),
+              option("🔐 Who may use the bot", "Anyone, or only the people you allow.", b("🔐 Open", `acc:${d.id}`)),
+            ]
+          : []),
+        option("📤 Export", "The configuration without secrets, as a file to edit and import again.", b("📤 Export", `exp:${d.id}`)),
+        paused
+          ? option("▶ Resume", "The agents' API and the chat work again.", b("▶ Resume", `resume:${d.id}`))
+          : option("⏸ Pause", "The agents' API answers that it is paused, and the chat stays quiet.", b("⏸ Pause", `pause:${d.id}`)),
+        option("🗑 Delete", "Its configuration, secrets and state go; the repositories stay.", b("🗑 Delete", `del:${d.id}`)),
+      ),
       row(b("« All workspaces", "list")),
     ]);
   }
@@ -200,7 +202,7 @@ export class Manager {
             heading("🔑", "New agent secret", code(id)),
             question("Which agent gets a new secret?"),
             text("Its old secret stops working at once."),
-            ...chunk(d.roles.map((r) => b(esc(r.instance), `rot:${id}:${r.instance}`)), 3).map((r) => row(...r)),
+            options(...d.roles.map((r) => option(esc(r.instance), esc(r.role), b("🔑 New secret", `rot:${id}:${r.instance}`)))),
             row(back(id)),
           ]);
           return;
@@ -223,8 +225,13 @@ export class Manager {
         }
         await this.show(user, at, [
           heading("🔐", "Who may use the bot", code(id)),
-          text(a.restricted ? `Only you${a.users.length ? ` and ${a.users.length} more people` : ""} can start the bot.` : "Anyone can start the bot; it answers only the workspace's owners."),
-          row(b(a.restricted ? "🔓 Open it to everyone" : "🔒 Only me", `acc:${id}:toggle`)),
+          options(
+            option(
+              `${a.restricted ? "✅" : "⬜"} Only me`,
+              a.restricted ? `Only you${a.users.length ? ` and ${a.users.length} more people` : ""} can start the bot.` : "Anyone can start the bot; it answers only the workspace's owners.",
+              b(a.restricted ? "Switch off" : "Switch on", `acc:${id}:toggle`),
+            ),
+          ),
           row(back(id)),
         ]);
         return;
@@ -239,11 +246,11 @@ export class Manager {
             heading("⚡", "Turn on instant updates", code(id)),
             text(
               need
-                ? `Flowee sets up the tracker's webhook itself when its token has ${esc(need)}. Give the token that permission (✏️ ${parts[3][1]}) and it switches on within half an hour.`
+                ? `Flowee sets up the tracker's webhook itself when its token has ${esc(need)}. Give the token that permission (✏️ Change beside the token) and it switches on within half an hour.`
                 : "Flowee could not set up the tracker's webhook itself; it checks the tracker every minute until it can.",
             ),
             text("Or add the webhook by hand: pick the repository, paste the address and the secret it shows into the tracker."),
-            ...chunk(off.map((x) => b(`🔗 ${esc(x.alias)}`, `hook:${id}:${x.alias}`)), 3).map((x) => row(...x)),
+            options(...off.map((x) => option(`🔗 ${esc(x.alias)}`, code(x.repo), b("🔗 By hand", `hook:${id}:${x.alias}`)))),
             row(back(id)),
           ]);
           return;
@@ -252,7 +259,11 @@ export class Manager {
         await this.show(user, at, [
           heading("⚡", `Webhook for ${code(r.repo)}`),
           text(`In ${esc(m.where)}, add a webhook with:`),
-          bullets([`Address: ${code(m.url)}`, `Secret: ${code(m.secret)} (<b>shown only this once</b>)`, "Events: issues, comments, pushes, pull or merge requests, checks or pipelines, releases"]),
+          facts([
+            ["Address", code(m.url)],
+            ["Secret", `${code(m.secret)} (<b>shown only this once</b>)`],
+            ["Events", "issues, comments, pushes, pull or merge requests, checks or pipelines, releases"],
+          ]),
           text("Instant updates switch on with its first delivery; until then the tracker is checked every minute."),
           row(back(id)),
         ]);
@@ -301,7 +312,7 @@ export class Manager {
       return this.show(user, at, [
         heading("⚠️", "Not imported"),
         text(problems.length > 1 ? `The configuration has ${problems.length} problems:` : "The configuration has a problem:"),
-        bullets(problems.map(esc)),
+        facts(problems.map((x) => [esc(x)])),
         text("Fix it and send it again; nothing was changed."),
         row(b("✖ Cancel", "noimport")),
       ]);
@@ -335,5 +346,3 @@ export class Manager {
     });
   }
 }
-
-const chunk = <T>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));

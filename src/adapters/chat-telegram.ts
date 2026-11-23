@@ -45,8 +45,8 @@ const button = (b: Button) => {
 function block(b: Block): string {
   if ("html" in b) return b.html;
   if ("buttons" in b) return `<tg-button-row align="center">${b.buttons.map(button).join("")}</tg-button-row>`;
-  let s = `<table bordered striped compact><tr>${b.table.head.map((h) => `<th>${h}</th>`).join("")}</tr>`;
-  for (const r of b.table.rows) s += `<tr>${r.cells.map((c) => `<td>${c}</td>`).join("")}<td>${button(r.button)}</td></tr>`;
+  let s = `<table bordered striped compact>${b.table.head ? `<tr>${b.table.head.map((h) => `<th>${h}</th>`).join("")}</tr>` : ""}`;
+  for (const r of b.table.rows) s += `<tr>${r.cells.map((c) => `<td>${c}</td>`).join("")}${r.buttons?.length ? `<td>${r.buttons.map(button).join("")}</td>` : ""}</tr>`;
   return `${s}</table>`;
 }
 

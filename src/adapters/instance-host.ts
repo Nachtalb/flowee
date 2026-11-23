@@ -3,11 +3,12 @@
 // bots passes through here first: the wizard and the management menu take theirs, the rest is forwarded to the
 // workspace bound to the update's bot, chat and topic.
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
-import { PRESETS } from "../config/presets";
+import { FLOW } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
 import { repoClashes, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
-import { DEFAULTS } from "../core/features";
+import { list } from "../core/chart";
+import { featuresOf } from "../core/features";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
 import type { ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
@@ -15,7 +16,7 @@ import type { Secrets } from "../ports/secrets";
 import type { Store } from "../ports/store";
 import type { InstanceApi, Platform, Room, Routed } from "../runtime/platform";
 import { Manager, type ManageHost } from "../wizard/manage";
-import { boundView, chatLabel, type Draft, failedView, fromDoc, type Preset, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
+import { boundView, chatLabel, type Draft, failedView, fromDoc, type FlowInfo, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
 import { Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
@@ -108,15 +109,14 @@ export class InstanceHost implements InstanceApi {
     return new Telegram(this.secrets.get(this.cfg.bot.token), this.cfg.bot.token);
   }
 
-  private presets(): Preset[] {
-    return Object.entries(PRESETS).map(([name, p]) => ({
-      name,
-      roles: Object.keys(p.options.roles),
-      ownerRole: p.options.ownerRole,
-      // the switches a preset offers: every feature its chart or options name
-      features: name === "trunk" ? [] : [...new Set([...JSON.stringify(p).matchAll(/"features":(?:"(\w+)"|\[([^\]]*)\])/g)].flatMap((m) => (m[1] ? [m[1]] : m[2].match(/\w+/g) ?? [])))].filter((f) => f in DEFAULTS),
-      roleFeatures: Object.fromEntries(Object.entries(p.options.roles).flatMap(([r, o]) => ((o as { features?: string[] }).features ? [[r, (o as { features: string[] }).features]] : []))),
-    }));
+  private flowInfo(): FlowInfo {
+    const { chart, options } = FLOW;
+    return {
+      roles: Object.keys(options.roles),
+      ownerRole: options.ownerRole as string,
+      features: [...featuresOf(chart, options)],
+      roleFeatures: Object.fromEntries(Object.entries(options.roles).flatMap(([r, o]) => (o.features ? [[r, list(o.features)]] : []))),
+    };
   }
 
   // ---- the wizard's host ----
@@ -128,13 +128,13 @@ export class InstanceHost implements InstanceApi {
     const bots = new TelegramBots(tg);
     const key = this.key;
     const self = this;
-    const presets = this.presets();
+    const flow = this.flowInfo();
     const botOf = (id: string) => this.kv(`bot:${id}`);
     const host: ManageHost = {
       ownBots: true,
       botUsername: cfg.bot.username,
       publicUrl: cfg.publicUrl,
-      presets: () => presets,
+      flow: () => flow,
       parseRepo: githubRepo(cfg.trackerApi),
       tokenHelp: githubToken(cfg.trackerApi),
       live: (user) => {
@@ -177,8 +177,7 @@ export class InstanceHost implements InstanceApi {
       },
       async commit(s) {
         const d = s.draft;
-        const p = presets.find((x) => x.name === d.preset) ?? presets[0];
-        const doc = toDoc(d, s.user, p, cfg.bot, cfg.publicUrl, cfg.trackerApi);
+        const doc = toDoc(d, s.user, flow, cfg.bot, cfg.publicUrl, cfg.trackerApi);
         const before = d.replaces ? reg.get(d.replaces) : undefined;
         const errs = validate(doc);
         if (errs.length) throw new Error(errs.join(" "));
@@ -218,7 +217,7 @@ export class InstanceHost implements InstanceApi {
       save: (s) => void self.store.exec("INSERT OR REPLACE INTO sessions VALUES (?, ?, ?)", s.user, JSON.stringify(s), s.ts),
       drop: (user) => void self.store.exec("DELETE FROM sessions WHERE user = ?", user),
       draftOf(doc) {
-        const d: Draft = fromDoc(doc, presets);
+        const d: Draft = fromDoc(doc, flow);
         if (reg.get(doc.id)) d.replaces = doc.id;
         // only the workspace's own slots count: an imported document never reaches another workspace's secrets
         d.tokenStored = !!d.replaces && reg.owner(doc.id) !== undefined && !!self.secrets.get(slot(doc.id, "tracker"));

@@ -139,7 +139,7 @@ describe("bar and lists", () => {
     const b = mk({ n: 978 });
     const r = results([{ item: a }, { item: b, snippet: "… big <b>thumb</b> &lt;x&gt;" }], 9, "thumb <x>", 0, 2, NOW);
     expect(r.startsWith("<p>🔎 <b>thumb &lt;x&gt;</b> · 9 found</p><table bordered striped compact>")).toBe(true);
-    expect(r).toContain("</table><ul><li><b>#978</b> … big <b>thumb</b> &lt;x&gt;</li></ul>");
+    expect(r).toContain("</table><table bordered striped compact><tr><td><b>#978</b> … big <b>thumb</b> &lt;x&gt;</td></tr></table>");
     expect(r).not.toContain("<b>#977</b>");
     expect(results([], 0, "zzz", 0, 1, NOW)).toBe(
       '<p>No open item matches <b>zzz</b></p><tg-button-row align="center"><tg-button type="callback_data" data="f">🔎 Search</tg-button><tg-button type="callback_data" data="b">« Back</tg-button></tg-button-row>',

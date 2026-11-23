@@ -1,7 +1,7 @@
 // Message views and the pure parts of navigation and search (docs/envoy.md): chat-agnostic views (rich HTML blocks, button rows, tables) for cards, the bar and the lists, and
 // HTML text for plain messages.
 import type { Card } from "../core/card";
-import type { Block, Button, View } from "../ports/chat";
+import type { Block, Button, TableRow, View } from "../ports/chat";
 
 export type Content = Card | { kind: "excerpt"; text: string } | { kind: "none" };
 export type Status = "open" | "answered" | "gone";
@@ -128,7 +128,12 @@ export const heading = (emoji: string, name: string, ...facts: string[]): Block 
 /** The second line: what the screen asks or shows, bold (a card's title). */
 export const question = (html: string): Block => ({ html: `<p><b>${html}</b></p>` });
 export const text = (html: string): Block => ({ html: `<p>${html}</p>` });
-export const bullets = (items: string[]): Block => ({ html: `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>` });
+/** One choice or toggle: its name and one-line description in one cell, its own buttons in the same row. */
+export const option = (name: string, description: string, ...buttons: Button[]): TableRow => ({ cells: [`<b>${name}</b> · ${description}`], buttons });
+/** Choices as a single-column table, a button per row (docs/chat-style.md: never a list, never buttons apart). */
+export const options = (...rows: TableRow[]): Block => ({ table: { rows } });
+/** What something is, as a two-column table (a summary), or lines as a one-column table; a row may carry its button. */
+export const facts = (rows: (string[] | TableRow)[]): Block => ({ table: { rows: rows.map((r) => (Array.isArray(r) ? { cells: r } : r)) } });
 /** Help that most readers skip, folded like a card's details. */
 export const details = (summary: string, html: string): Block => ({ html: `<details><summary>${summary}</summary>${html}</details>` });
 /** One sentence under the prompt saying what was wrong with the last answer. */
@@ -180,7 +185,7 @@ function table(rows: Item[], open: string, now: number): Block {
       head: ["#", "Kind", "Waiting", "Title", ""],
       rows: rows.map((it) => ({
         cells: [label(it).replace(/^#/, ""), kind(it)[1], waited(it.since, now), esc(cut(it.title, 40))],
-        button: { label: "Open", data: `${open}:${it.n}:${it.cid}`, style: "primary" },
+        buttons: [{ label: "Open", data: `${open}:${it.n}:${it.cid}`, style: "primary" }],
       })),
     },
   };
@@ -222,11 +227,8 @@ export function results(hits: Hit[], found: number, query: string, page: number,
       now,
     ),
   ];
-  const snippets = hits
-    .filter((h) => h.snippet)
-    .map((h) => `<li><b>${label(h.item)}</b> ${h.snippet}</li>`)
-    .join("");
-  if (snippets) v.push({ html: `<ul>${snippets}</ul>` });
+  const snippets = hits.filter((h) => h.snippet).map((h) => [`<b>${label(h.item)}</b> ${h.snippet}`]);
+  if (snippets.length) v.push(facts(snippets));
   return [...v, listButtons("S", page, pages, true)];
 }
 

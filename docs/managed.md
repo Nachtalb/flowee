@@ -9,19 +9,20 @@ validation) and reaches the chat through the `Chat` port; the Telegram adapter m
 ## The wizard (`/setup`, or `/start` → 🚀 Set up a workspace, in a private chat with the instance bot)
 
 The whole setup is one message that each step edits (docs/chat-style.md): the heading `🆕 New workspace · Step k of
-n`, the step's question in bold, one line of help, the choices as buttons. A typed answer (a repository, the token) is
+n`, the step's question in bold, one line of help, the choices as table rows: each row an option's name, its one-line
+description and its own button; Back, Next and Cancel in the bottom row. A typed answer (a repository, the token) is
 deleted right after it is read, and the result shows in the same message, a mistake as one `⚠️` sentence under the
 question.
 
 | Step | Asks | Notes |
 |---|---|---|
 | 1 Repository | "Which GitHub repository is this workspace for?": the link as pasted, or `owner/name`; several at once | `https://github.com/o/n/issues/3`, `github.com/o/n`, `git@github.com:o/n.git`, `<…>` all work (the tracker adapter reads them, an Enterprise host too). The workspace id comes from the first repository's name (unique: `-2`, `-3`). With several, tickets are `alias#n`, the alias being the repository's name. Back offers ✅ Keep. |
-| 2 Bot | 💬 This bot or 🤖 A new bot | A new bot: its own name, picture and commands. 🤖 Create the bot is the one reply keyboard (`KeyboardButtonRequestManagedBot`, name and username suggested from the repository; docs/telegram.md); the `managed_bot` update hands the bot over: its token is fetched (`getManagedBotToken`), sealed, its webhook set to `<publicUrl>/telegram/w/<id>` with its own secret; the keyboard and its helper message go, and so does Telegram's note about the new bot. |
-| 3 Way of working | 🌳 Simple (`trunk`) or 🧰 Simple with extras (`pr-release`), then the extras that preset offers as ✅/⬜ toggles with one line each | A preset without extras goes on with one tap. Presets: `src/config/presets.ts`. |
-| 4 Where tickets appear | 💬 Here, in this chat (own bot: 💬 In my private chat, with ↗ Open @bot); 👥 In a group | The group screen: 👥 Choose a group (the link `t.me/<bot>?startgroup=<id>`: Telegram adds the bot and sends `/start <id>` in the group, which binds it) or, for one topic of a forum group, 📋 Copy `/bind <id>` and send it inside the topic. Only the user running the setup can bind; the group gets `✅ Tickets of <id> appear here`. |
-| 5 GitHub token | The token as a message | 🔑 Create a token opens GitHub's form with the permissions filled in (`githubToken` in the GitHub adapter; the permissions are listed folded). The message is deleted at once (if Telegram refuses, the screen asks the user to delete it); the token is checked against every repository (`GET /repos/<repo>` → 200), sealed, never shown again or exported. |
-| 6 Agents | − / + per role of the flow, one agent of each to start | The owner role instance is always added; roles that need an extra (the sampler) only with it. |
-| Last check | ✅ Create the workspace | Creates the workspace, sets the own bot's profile, settings and webhook, then the screen says `✅ Workspace ready` and the agents' secrets come **once** as a file (a new message: it must stay) with a ready `.flowee.toml`; only their SHA-256 is stored. |
+| 2 Bot | Rows: 💬 This bot · 🤖 A new bot, each with its Choose button | A new bot: its own name, picture and commands. 🤖 Create the bot is the one reply keyboard (`KeyboardButtonRequestManagedBot`, name and username suggested from the repository; docs/telegram.md); the `managed_bot` update hands the bot over: its token is fetched (`getManagedBotToken`), sealed, its webhook set to `<publicUrl>/telegram/w/<id>` with its own secret; the keyboard and its helper message go, and so does Telegram's note about the new bot. |
+| 3 Way of working | First the branching, exactly one row: 🌿 Single branch · 🔀 Feature branches. Then the toggles, each a row with its state, name, description and Switch on/off button: Versioning, and under **More options** Samples, UI review, Dependency updates, Outside reports | Versioning and the options stay as set when the branching changes. UI review is refused in one sentence unless the configuration names its paths. The document gets `flow.preset` `trunk` (Single branch) or `pr-release` (Feature branches) and every switch in `features` (docs/flow-features.md). |
+| 4 Where tickets appear | Rows: 💬 Here (own bot: 💬 In my private chat, with ↗ Open in the same row); 👥 In a group | The group screen, two rows: 👥 A whole group with 👥 Choose a group (the link `t.me/<bot>?startgroup=<id>`: Telegram adds the bot and sends `/start <id>` in the group, which binds it) and 🧵 One topic of a forum group with 📋 Copy (`/bind <id>`, sent inside the topic). Only the user running the setup can bind; the group gets `✅ Tickets of <id> appear here`. |
+| 5 GitHub token | The token as a message | 🔑 Create a token opens GitHub's form with the permissions filled in (`githubToken` in the GitHub adapter; the permissions as a one-column table). The message is deleted at once (if Telegram refuses, the screen asks the user to delete it); the token is checked against every repository (`GET /repos/<repo>` → 200), sealed, never shown again or exported. |
+| 6 Agents | A row per role of the flow: name, what it does, − count + in the same row; one agent of each to start | The owner role instance is always added; roles that need an extra (the sampler) only with it. |
+| Last check | What it will be as a two-column table, then ✅ Create the workspace | Creates the workspace, sets the own bot's profile, settings and webhook, then the screen says `✅ Workspace ready` and the agents' secrets come **once** as a file (a new message: it must stay) with a ready `.flowee.toml`; only their SHA-256 is stored. |
 
 Every step has ◀ Back and ✖ Cancel. An unfinished setup is kept: `/setup` again offers ▶ Continue or 🆕 Start
 over; after a day without an answer it expires (the next touch says so; nothing was created). Who may create
@@ -30,7 +31,8 @@ workspaces: `instance.creators` (default: the instance owner), at most `instance
 ## Management (`/workspaces`)
 
 The same living message: `📂 Your workspaces` as a table with an `Open` button per workspace; a workspace's screen
-lists what it is and edits in place into each sub-screen, with a toast for done actions. Only the workspaces the
+shows what it is as a two-column table with ✏️ Change in the row of each editable part, then its actions as rows
+(name, what it does, its button), and edits in place into each sub-screen, with a toast for done actions. Only the workspaces the
 user owns. Per workspace: show; ✏️ edit the repositories, the way of working, where tickets appear, the GitHub
 token or the agents (the same wizard steps under `✏️ Change <id>`, then ✅ Save the changes); 🔑 a new secret for one agent (the old
 one stops at once; the new one is shown once); 📤 export; own bot: ♻️ a new token (`replaceManagedBotToken`,

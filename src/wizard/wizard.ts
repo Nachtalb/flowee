@@ -2,7 +2,7 @@
 // the envoy's blocks (docs/chat-style.md) shown in one living message that each step edits; typed answers are
 // deleted after reading. It reaches the instance through `WizardHost`; docs/managed.md walks through it.
 import type { RepoDoc, WorkspaceDoc } from "../config/document";
-import { bullets, btn, copyBtn, details, esc, heading, linkBtn, question, row, text, warning } from "../envoy/render";
+import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
 import type { RepoReference, TokenHelp } from "../ports/tracker";
 
@@ -25,7 +25,9 @@ export interface Draft {
   /** The name the user gave the own bot when creating it (its profile keeps it). */
   botName?: string;
   repos: string[];
-  preset?: string;
+  /** Single branch or feature branches (`features.pullRequests`); chosen in the flow step. */
+  branching?: "single" | "feature";
+  /** The other switches: versioning (`releases`) and the more options. */
   features: Record<string, boolean>;
   bind?: { chat: string; topic?: number; label: string };
   bindCode?: string;
@@ -50,8 +52,8 @@ export interface Session {
   ts: number;
   /** The steps this setup asks, for "Step k of n". */
   plan?: Step[];
-  /** A second screen of the step: the group instructions of the bind step, the flow list over the extras. */
-  sub?: "group" | "presets";
+  /** A second screen of the step: the group instructions of the bind step, the options after the branching. */
+  sub?: "group" | "options";
   /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
   helper?: number;
   /** Edit one part: the summary follows that step. */
@@ -66,8 +68,8 @@ export type Input =
   | { kind: "managed"; botId: string; username?: string; name?: string }
   | { kind: "bound"; chat: string; topic?: number; label: string };
 
-export interface Preset {
-  name: string;
+/** The flow the wizard sets up: its roles and the switches its chart has. */
+export interface FlowInfo {
   roles: string[];
   ownerRole: string;
   features: string[];
@@ -76,7 +78,7 @@ export interface Preset {
 }
 
 export interface WizardHost {
-  presets(): Preset[];
+  flow(): FlowInfo;
   /** Why the user may not create another workspace, or null. */
   refusal(user: string, replacing?: string): string | null;
   freeId(base: string): string;
@@ -113,27 +115,27 @@ const b = (label: string, data: string) => btn(label, `w:${data}`);
 export const aliasOf = (repo: string) => repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
 const code = (s: string) => `<code>${esc(s)}</code>`;
 
-const PRESETS: Record<string, [string, string]> = {
-  trunk: ["🌳 Simple", "developers commit to the main branch, testers test each ticket, the board plans and asks you."],
-  "pr-release": ["🧰 Simple with extras", "the same, plus what you switch on next: pull requests, releases, samples and more."],
+const BRANCHING: Record<"single" | "feature", [string, string, string]> = {
+  single: ["🌿", "Single branch", "The agents commit straight to the main branch; the tester tests the main branch."],
+  feature: ["🔀", "Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it."],
 };
-const FEATURES: Record<string, [string, string]> = {
-  pullRequests: ["Pull requests", "each ticket on its own branch, merged after the test"],
-  releases: ["Releases", "tests wait until the published build has the change"],
-  samples: ["Samples", "testers ask for sample files to test with"],
-  uiReview: ["UI review", "you look at screen changes before they ship"],
-  dependencyTickets: ["Dependency updates", "update pull requests become tickets"],
-  untrustedReports: ["Outside reports", "reports written by users are checked first"],
+/** Versioning first, then the more options; each works with either branching. */
+const OPTIONS: Record<string, [string, string]> = {
+  releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
+  samples: ["Samples", "A sampler finds a real sample file before development starts."],
+  uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
+  dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
+  untrustedReports: ["Outside reports", "Tickets with text from users go to the board first, until it has checked them."],
 };
 const ROLES: Record<string, [string, string]> = {
-  board: ["🧭 Board", "plans and sorts the tickets"],
-  developer: ["🛠 Developers", "build them"],
-  tester: ["🧪 Testers", "test them"],
-  sampler: ["📎 Samplers", "find sample files"],
+  board: ["🧭 Board", "Plans and sorts the tickets, and asks you."],
+  developer: ["🛠 Developers", "Build what the tickets ask for."],
+  tester: ["🧪 Testers", "Test each ticket before it closes."],
+  sampler: ["📎 Samplers", "Find real sample files to test with."],
 };
-const presetButton = (p: string) => PRESETS[p]?.[0] ?? esc(p);
-export const presetName = (p?: string) => (p ? presetButton(p).replace(/^\S+ /, "") : "from the configuration");
-export const featureName = (f: string) => FEATURES[f]?.[0] ?? esc(f);
+/** The way of working in words: the branching, then every option switched on. */
+export const wayOf = (features: Record<string, unknown> = {}) =>
+  [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f]).map((f) => OPTIONS[f][0])].join(", ");
 const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
 
 /** The parts of a screen: text blocks, then button rows; a warning goes between them. */
@@ -185,18 +187,17 @@ export function fresh(user: string, at: ChatRef, now: number): Session {
 export const chatLabel = (chat: string, topic?: number) => (!chat.startsWith("-") ? "a private chat" : topic ? "one topic of your group" : "your group");
 
 /** A draft from an existing or imported document. */
-export function fromDoc(d: WorkspaceDoc, presets: Preset[]): Draft {
-  const preset = "preset" in d.flow ? d.flow.preset : undefined;
-  const p = presets.find((x) => x.name === preset);
+export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
   const roles: Record<string, number> = {};
-  for (const r of d.roles) if (r.role !== p?.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
+  for (const r of d.roles) if (r.role !== flow.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
+  const { pullRequests, ...features } = d.features ?? {};
   return {
     id: d.id,
     base: d,
     bot: d.chat?.managed ? "own" : "shared",
     repos: d.tracker.repos.map((r) => (typeof r === "string" ? r : r.repo)),
-    preset,
-    features: Object.fromEntries(Object.entries(d.features ?? {}).map(([k, v]) => [k, v !== false])),
+    branching: pullRequests ? "feature" : "single",
+    features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false])),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
     roles,
   };
@@ -206,7 +207,7 @@ export function fromDoc(d: WorkspaceDoc, presets: Preset[]): Draft {
 export const slot = (id: string, what: string) => `W_${id.toUpperCase().replace(/-/g, "_")}_${what.toUpperCase().replace(/-/g, "_")}`;
 
 /** Role instance names for the chosen counts: board, dev1…, tester or tester1…, and the owner. */
-export function instances(roles: Record<string, number>, preset: Preset): { instance: string; role: string }[] {
+export function instances(roles: Record<string, number>, preset: FlowInfo): { instance: string; role: string }[] {
   const out: { instance: string; role: string }[] = [];
   for (const role of preset.roles.filter((r) => r !== preset.ownerRole)) {
     const n = roles[role] ?? 0;
@@ -218,7 +219,7 @@ export function instances(roles: Record<string, number>, preset: Preset): { inst
 }
 
 /** The workspace document of a finished draft; fields of an imported or existing document are kept. */
-export function toDoc(d: Draft, user: string, preset: Preset, shared: { token: string; webhookSecret: string; username?: string }, publicUrl: string, api?: string): WorkspaceDoc {
+export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token: string; webhookSecret: string; username?: string }, publicUrl: string, api?: string): WorkspaceDoc {
   const id = d.id as string;
   const base: Partial<WorkspaceDoc> = d.base ? JSON.parse(JSON.stringify(d.base)) : {};
   // every secret a workspace made here names is its own slot: a document cannot borrow another workspace's token
@@ -231,16 +232,19 @@ export function toDoc(d: Draft, user: string, preset: Preset, shared: { token: s
     ...base,
     flowee: 1,
     id,
-    flow: d.preset ? { preset: d.preset } : (base.flow as WorkspaceDoc["flow"]),
+    // the starting point that matches the branching; an inline chart stays
+    flow: base.flow && "chart" in base.flow ? base.flow : { preset: d.branching === "feature" ? "pr-release" : "trunk" },
     // a feature switched on keeps the options the document gave it
-    ...(Object.keys(d.features).length
-      ? { features: Object.fromEntries(Object.entries(d.features).map(([k, on]) => [k, on && typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on])) }
-      : {}),
+    features: Object.fromEntries(
+      Object.entries({ ...d.features, pullRequests: d.branching === "feature" })
+        .filter(([, on]) => on)
+        .map(([k, on]) => [k, typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on]),
+    ),
     tracker: { ...(base.tracker ?? {}), type: "github", repos, token: slot(id, "tracker"), ...(api && !base.tracker?.api ? { api } : {}) },
     roles: instances(d.roles, preset).map((r) => ({ ...r, secret: slot(id, r.instance) })),
     owners,
   };
-  if (!Object.keys(d.features).length) delete doc.features;
+  if (!Object.keys(doc.features ?? {}).length) delete doc.features;
   if (own && d.botName && !doc.texts?.botName) doc.texts = { ...(doc.texts ?? {}), botName: d.botName };
   if (d.bind)
     doc.chat = {
@@ -272,9 +276,9 @@ export class Wizard {
     this.living = new Living(chat, host);
   }
 
-  private preset(d: Draft) {
-    const all = this.host.presets();
-    return all.find((p) => p.name === d.preset) ?? all[0];
+  /** Every switch of the draft, the branching included. */
+  private switches(d: Draft): Record<string, boolean> {
+    return { ...d.features, pullRequests: d.branching === "feature" };
   }
 
   /** Whether a step still needs an answer for this draft (import and edits skip the answered ones). */
@@ -288,7 +292,7 @@ export class Wizard {
       case "botCreate":
         return d.bot === "own" && !d.botId;
       case "flow":
-        return !d.preset;
+        return !d.branching;
       case "bind":
         return !d.bind && !d.noChat;
       case "credential":
@@ -358,8 +362,9 @@ export class Wizard {
 
   /** The roles agents can have with the draft's features. */
   private agentRoles(d: Draft) {
-    const p = this.preset(d);
-    const holds = (t: string) => !!d.features[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
+    const p = this.host.flow();
+    const on = this.switches(d);
+    const holds = (t: string) => !!on[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
     return p.roles.filter((r) => r !== p.ownerRole && (p.roleFeatures?.[r] ?? []).every(holds));
   }
 
@@ -382,8 +387,9 @@ export class Wizard {
     delete s.helper;
   }
 
-  private nav(s: Session): Block {
-    return row(...(s.back.length || s.sub ? [b("◀ Back", "back")] : []), b("✖ Cancel", "cancel"));
+  /** The bottom row: Back (when there is a way back), Next (`next`: its data), Cancel. */
+  private nav(s: Session, next?: string): Block {
+    return row(...(s.back.length || s.sub ? [b("◀ Back", "back")] : []), ...(next ? [b("▶ Next", next)] : []), b("✖ Cancel", "cancel"));
   }
 
   private top(s: Session, last = false): Block {
@@ -427,9 +433,14 @@ export class Wizard {
           body: [
             top,
             question("Which bot should bring you the tickets?"),
-            bullets([`<b>This bot</b>${me}: I bring them myself, next to your other workspaces.`, "<b>A new bot</b>: its own name and picture. You create it with two taps; I set it up."]),
           ],
-          rows: [row(b("💬 This bot", "bot:shared"), b("🤖 A new bot", "bot:own")), nav],
+          rows: [
+            options(
+              option(`💬 This bot${me}`, "I bring them myself, next to your other workspaces.", b(d.bot === "shared" ? "● Chosen" : "💬 Choose", "bot:shared")),
+              option("🤖 A new bot", "Its own name and picture; you create it with two taps, I set it up.", b(d.bot === "own" ? "● Chosen" : "🤖 Choose", "bot:own")),
+            ),
+            nav,
+          ],
         };
       }
       case "botCreate": {
@@ -447,24 +458,29 @@ export class Wizard {
         };
       }
       case "flow": {
-        const p = this.preset(d);
-        const presets = this.host.presets();
-        if (!d.preset || !p.features.length || s.sub === "presets")
+        if (s.sub !== "options")
           return {
-            body: [top, question("How should the agents work?"), bullets(presets.map((x) => `<b>${presetName(x.name)}</b>: ${PRESETS[x.name]?.[1] ?? ""}`))],
-            rows: [...presets.map((x) => row(b(`${x.name === d.preset ? "● " : ""}${presetButton(x.name)}`, `flow:${x.name}`))), nav],
+            body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
+            rows: [
+              options(
+                ...(["single", "feature"] as const).map((k) => option(`${BRANCHING[k][0]} ${BRANCHING[k][1]}`, BRANCHING[k][2], b(d.branching === k ? "● Chosen" : `${BRANCHING[k][0]} Choose`, `branch:${k}`))),
+              ),
+              nav,
+            ],
           };
+        const offered = Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
+        const toggle = (f: string) => option(`${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`, OPTIONS[f][1], b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`));
+        const more = offered.filter((f) => f !== "releases");
         return {
           body: [
             top,
-            question("Which extras should it have?"),
-            text(`For <b>${presetName(d.preset)}</b>: switch on what this project needs. You can change it later.`),
-            bullets(p.features.map((f) => `<b>${featureName(f)}</b>: ${FEATURES[f]?.[1] ?? ""}`)),
+            question("What else should the flow do?"),
+            text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; you can change them later.`),
           ],
           rows: [
-            ...p.features.map((f) => row(b(`${d.features[f] ? "✅" : "⬜"} ${featureName(f)}`, `feat:${f}`))),
-            row(b("🔄 Another way of working", "flow:"), b("▶ Next", "flow:done")),
-            nav,
+            ...(offered.includes("releases") ? [options(toggle("releases"))] : []),
+            ...(more.length ? [text("<b>More options</b>"), options(...more.map(toggle))] : []),
+            this.nav(s, "flow:done"),
           ],
         };
       }
@@ -476,12 +492,12 @@ export class Wizard {
             body: [
               top,
               question("Add the bot to a group"),
-              text(`Tap <b>👥 Choose a group</b> and pick one: Telegram adds ${who} there, and the group is set.`),
-              text(`Only one topic of a forum group? Add ${who} to the group, then send ${code(`/bind ${d.bindCode}`)} inside that topic.`),
             ],
             rows: [
-              ...(bot ? [row(linkBtn("👥 Choose a group", `https://t.me/${bot}?startgroup=${d.bindCode}`))] : []),
-              row(copyBtn(`📋 Copy /bind ${d.bindCode}`, `/bind ${d.bindCode}`)),
+              options(
+                ...(bot ? [option("👥 A whole group", `Pick one: Telegram adds ${who} there, and the group is set.`, linkBtn("👥 Choose a group", `https://t.me/${bot}?startgroup=${d.bindCode}`))] : []),
+                option("🧵 One topic of a forum group", `Add ${who} to the group, then send ${code(`/bind ${d.bindCode}`)} inside that topic.`, copyBtn("📋 Copy", `/bind ${d.bindCode}`)),
+              ),
               nav,
             ],
           };
@@ -490,20 +506,20 @@ export class Wizard {
           body: [
             top,
             question("Where should the tickets appear?"),
-            bullets([
-              own ? `<b>In a private chat</b> with ${who}: open it and press <b>Start</b> once, so it may write to you.` : "<b>Here</b>, in this chat with me.",
-              "<b>In a group</b>: everyone there can read them; only you answer them.",
-            ]),
           ],
           rows: [
-            ...(own && bot ? [row(linkBtn(`↗ Open ${who}`, `https://t.me/${bot}`))] : []),
-            row(b(own ? "💬 In my private chat" : "💬 Here, in this chat", "bind:here"), b("👥 In a group", "bind:group")),
+            options(
+              own
+                ? option(`💬 In my private chat with ${who}`, "Open it and press <b>Start</b> once, so it may write to you.", ...(bot ? [linkBtn("↗ Open", `https://t.me/${bot}`)] : []), b("💬 Choose", "bind:here"))
+                : option("💬 Here", "In this chat with me.", b("💬 Choose", "bind:here")),
+              option("👥 In a group", "Everyone there can read them; only you answer them.", b("👥 Choose", "bind:group")),
+            ),
             nav,
           ],
         };
       }
       case "credential": {
-        const on = Object.entries(d.features).filter(([, v]) => v).map(([k]) => k);
+        const on = Object.entries(this.switches(d)).filter(([, v]) => v).map(([k]) => k);
         const help = this.host.tokenHelp(d.repos, `Flowee ${d.id ?? ""}`.trim(), on);
         return {
           body: [
@@ -513,7 +529,8 @@ export class Wizard {
               `${help.url ? "Tap <b>🔑 Create a token</b>: GitHub opens the form with the permissions filled in. " : ""}Under <b>Repository access</b> choose ${d.repos.map(code).join(", ")}, create the token and paste it here.`,
             ),
             text("🔒 I delete your message right away and keep the token encrypted; it is never shown again."),
-            details("Permissions it needs", `<ul>${help.permissions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`),
+            text("<b>Permissions it needs</b>"),
+            facts(help.permissions.map((x) => [esc(x)])),
           ],
           rows: [...(help.url ? [row(linkBtn("🔑 Create a token", help.url))] : []), nav],
         };
@@ -524,34 +541,33 @@ export class Wizard {
           body: [
             top,
             question("How many agents do you want?"),
-            bullets(roles.map((r) => `<b>${roleName(r)}</b> ${ROLES[r]?.[1] ?? ""}`)),
             text(`Each agent gets its own secret to sign in with. You get them all once at the end, with a ready ${code(".flowee.toml")}.`),
           ],
-          rows: [...roles.map((r) => row(b("−", `role:${r}:-1`), { label: `${roleName(r)}: ${d.roles[r] ?? 0}` }, b("+", `role:${r}:1`))), row(b("▶ Next", "roles:done")), nav],
+          rows: [options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? "", b("−", `role:${r}:-1`), { label: String(d.roles[r] ?? 0) }, b("+", `role:${r}:1`)))), this.nav(s, "roles:done")],
         };
       }
       case "summary": {
         const edit = !!(s.single || d.replaces);
         return {
-          body: [this.top(s, true), question(edit ? `Save the changes to ${code(d.id ?? "")}?` : `Create the workspace ${code(d.id ?? "")}?`), bullets(this.facts(s))],
+          body: [this.top(s, true), question(edit ? `Save the changes to ${code(d.id ?? "")}?` : `Create the workspace ${code(d.id ?? "")}?`), facts(this.facts(s))],
           rows: [row(b(edit ? "✅ Save the changes" : "✅ Create the workspace", "confirm")), nav],
         };
       }
     }
   }
 
-  private facts(s: Session): string[] {
+  /** What it will be, as rows of a two-column table. */
+  private facts(s: Session): string[][] {
     const d = s.draft;
-    const p = this.preset(d);
-    const on = Object.entries(d.features).filter(([, v]) => v).map(([k]) => featureName(k));
+    const p = this.host.flow();
     const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => esc(r.instance));
     return [
-      `📦 Repositories: ${d.repos.map(code).join(", ")}`,
-      `🤖 Bot: ${d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"}`,
-      `🔀 Way of working: ${presetName(d.preset)}${on.length ? `, with ${on.join(", ")}` : ""}`,
-      `💬 Tickets appear: ${this.where(s)}`,
-      `🔑 GitHub token: ${d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"}`,
-      `👥 Agents: ${agents.join(", ") || "none"}${agents.length ? " (each gets a new secret)" : ""}`,
+      ["📦 Repositories", d.repos.map(code).join(", ")],
+      ["🤖 Bot", d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"],
+      ["🔀 Way of working", wayOf(this.switches(d))],
+      ["💬 Tickets appear", this.where(s)],
+      ["🔑 GitHub token", d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"],
+      ["👥 Agents", `${agents.join(", ") || "none"}${agents.length ? " (each gets a new secret)" : ""}`],
     ];
   }
 
@@ -627,18 +643,17 @@ export class Wizard {
         return this.advance(s);
       case "repos":
         return this.advance(s);
-      case "flow": {
-        if (v === "done") return this.advance(s);
-        if (!v) {
-          s.sub = "presets";
-          return this.show(s);
-        }
-        if (d.preset && d.preset !== v) d.features = {};
-        d.preset = v;
-        if (d.preset && !this.preset(d).features.length) return this.advance(s);
+      case "flow":
+        return this.advance(s);
+      case "branch":
+        d.branching = v === "feature" ? "feature" : "single";
+        if (!Object.keys(OPTIONS).some((f) => this.host.flow().features.includes(f))) return this.advance(s);
+        s.sub = "options";
         return this.show(s);
-      }
       case "feat":
+        // UI review means nothing without the paths that count as UI, which the configuration names
+        if (v === "uiReview" && !d.features[v] && typeof d.base?.features?.uiReview !== "object")
+          return this.show(s, { note: "UI review needs the paths that count as UI: export the configuration, add features.uiReview.paths, and import it." });
         d.features[v] = !d.features[v];
         return this.show(s);
       case "bind":

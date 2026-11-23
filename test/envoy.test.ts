@@ -252,7 +252,7 @@ describe("search, numbers, postponed (29-32)", () => {
     await hook(msg("thumb", prompt.id));
     const res = rich().at(-1) as ReturnType<typeof rich>[number];
     expect(html(res).startsWith("<p>🔎 <b>thumb</b> · 1 found</p>")).toBe(true);
-    expect(html(res)).toContain("<ul><li><b>#2</b> Is the <b>thumbnail</b> grid right</li></ul>");
+    expect(html(res)).toContain("<table bordered striped compact><tr><td><b>#2</b> Is the <b>thumbnail</b> grid right</td></tr></table>");
     expect(gh.last(1)).toContain("Board:");
     await hook(msg("zzz", res.id));
     expect(html(rich().at(-1) as never)).toContain("<p>No open item matches <b>zzz</b></p>");
