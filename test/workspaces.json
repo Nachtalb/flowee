@@ -63,7 +63,7 @@
         "publicUrl": "https://shop-envoy.example.workers.dev"
       },
       "files": {
-        "url": "https://f.naa.gg/",
+        "url": "https://paste.example/",
         "token": "PASTE_TOKEN",
         "expire": "90d"
       },

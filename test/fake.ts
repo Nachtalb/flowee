@@ -206,7 +206,7 @@ export class FakeTelegram {
   }
 }
 
-/** rustypaste at f.naa.gg: keeps what was uploaded, answers its link. */
+/** rustypaste at paste.example: keeps what was uploaded, answers its link. */
 export class FakePaste {
   uploads: { name: string; body: string; auth: string | null; expire: string | null }[] = [];
   fail = false;
@@ -215,7 +215,7 @@ export class FakePaste {
     if (this.fail) return new Response("unauthorized", { status: 401 });
     const file = (await req.formData()).get("file") as File;
     this.uploads.push({ name: file.name, body: await file.text(), auth: req.headers.get("authorization"), expire: req.headers.get("expire") });
-    return new Response(`https://f.naa.gg/${file.name}\n`);
+    return new Response(`https://paste.example/${file.name}\n`);
   }
 }
 
@@ -239,7 +239,7 @@ export function install() {
     if (host === "api.telegram.org" && new URL(req.url).pathname.startsWith("/file/"))
       return new Response(`bytes of ${new URL(req.url).pathname.split("/").pop()}`);
     if (host === "api.telegram.org") return tg.handle(req);
-    if (host === "f.naa.gg") return paste.handle(req);
+    if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
   return { gh, gh2, app, lib, viewer, deps, web, api, tg, paste };

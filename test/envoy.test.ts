@@ -331,7 +331,7 @@ describe("answers (34-42)", () => {
     expect(texts()).toEqual(["Reply to a card to answer it.", "Reply to a card to answer it."]);
   });
 
-  it("photos and files are uploaded to f.naa.gg and linked (39)", async () => {
+  it("photos and files are uploaded to paste.example and linked (39)", async () => {
     const note = await escalated();
     const u = msg(undefined, note, {
       caption: "See this",
@@ -343,10 +343,10 @@ describe("answers (34-42)", () => {
     await hook(u);
     const name = `screenshot-${u.message.message_id}.jpg`;
     expect(paste.uploads).toEqual([{ name, body: "bytes of big", auth: "paste-test", expire: "90d" }]);
-    expect(gh.last(1)).toBe(`Ann: See this\n\n![${name}](https://f.naa.gg/${name})`);
+    expect(gh.last(1)).toBe(`Ann: See this\n\n![${name}](https://paste.example/${name})`);
     const note2 = await escalated(2);
     await hook(msg(undefined, note2, { document: { file_id: "d", file_name: "my log.txt", mime_type: "text/plain", file_size: 12 } }));
-    expect(gh.last(2)).toBe("Ann: [my_log.txt](https://f.naa.gg/my_log.txt)");
+    expect(gh.last(2)).toBe("Ann: [my_log.txt](https://paste.example/my_log.txt)");
   });
 
   it("too big, upload failure, voice and stickers are refused with the reference's texts (40, 41)", async () => {
@@ -375,7 +375,7 @@ describe("answers (34-42)", () => {
     await inFlow((f) => f.sql.exec("UPDATE albums SET ts = ts - 5000"));
     expect(await runDurableObjectAlarm(stub())).toBe(true);
     expect(gh.issues.get(1)?.comments.filter((c) => c.body.startsWith("Ann:"))).toHaveLength(1);
-    expect(gh.last(1)).toMatch(/^Ann: Both broken\n\n!\[screenshot-\d+\.jpg\]\(https:\/\/f\.naa\.gg\/screenshot-\d+\.jpg\)\n\n!\[screenshot-\d+\.jpg\]/);
+    expect(gh.last(1)).toMatch(/^Ann: Both broken\n\n!\[screenshot-\d+\.jpg\]\(https:\/\/paste\.example\/screenshot-\d+\.jpg\)\n\n!\[screenshot-\d+\.jpg\]/);
   });
 
   it("an answer through the API re-renders the card on screen", async () => {

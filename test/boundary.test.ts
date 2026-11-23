@@ -56,9 +56,10 @@ describe("architecture boundaries", () => {
       ...w.owners.flatMap((o: any) => [o.name, o.tracker, o.chat]),
       w.chat?.chatId,
       w.chat?.username,
+      w.files && new URL(w.files.url).host,
     ]);
     const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-    const re = new RegExp(`\\b(${[...new Set(named.filter((x): x is string => !!x))].map(esc).join("|")})\\b|nachtalb(?!\\/flowee)|naa\\.gg`, "i");
+    const re = new RegExp(`\\b(${[...new Set(named.filter((x): x is string => !!x))].map(esc).join("|")})\\b|nachtalb(?!\\/flowee)`, "i");
     for (const [path, src] of Object.entries(files)) expect(re.exec(src)?.[0], path).toBeUndefined();
   });
 });
