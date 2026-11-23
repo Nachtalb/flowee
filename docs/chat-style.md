@@ -62,6 +62,11 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
   the chat the user is in, the group picker link, the token form with its permissions, ✅ Keep the current value).
   Typed input accepts what people naturally paste (a repository's link in any form).
 - Errors: one sentence that says what to do, with an example where it helps.
+- **A switch is never a dead end; an option asks for what it needs.** Switching on an option that needs values opens
+  its follow-up screen in the same living message (one screen per option, one row per value: the default marked,
+  suggestions as buttons, ✏️ Type, a sent file); the option is on only when its values are usable, ▶ Done works
+  without typing wherever a default exists, and switching it off keeps the values. No screen tells the user to
+  export, edit and import to finish a choice the bot could ask for.
 
 ## The living message
 

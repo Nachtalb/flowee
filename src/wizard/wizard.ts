@@ -6,6 +6,7 @@ import type { TrackerKind } from "../config/trackers";
 import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
 import { TOKEN_DAYS, type TokenHelp } from "../ports/tracker";
+import { fromFile, INPUTS, type OptionSpec, parse, problem, shown, type Values, valuesOf, written } from "./inputs";
 
 /** A workspace's tracker: its kind and, when not the default one, its API (GitHub Enterprise, a self-managed GitLab). */
 export interface TrackerRef {
@@ -43,6 +44,8 @@ export interface Draft {
   branching?: "single" | "feature";
   /** The other switches: versioning (`releases`) and the more options. */
   features: Record<string, boolean>;
+  /** The values an option asked for (its follow-up screen), by option; kept when it is switched off. */
+  inputs?: Record<string, Record<string, unknown>>;
   bind?: { chat: string; topic?: number; label: string };
   bindCode?: string;
   /** The sealed tracker token, when it was given in this conversation. */
@@ -67,9 +70,12 @@ export interface Session {
   /** The steps this setup asks, for "Step k of n". */
   plan?: Step[];
   /** A second screen of the step: the group instructions of the bind step, the options after the branching, a token wider than needed. */
-  sub?: "group" | "options" | "wide";
+  sub?: "group" | "options" | "wide" | "input";
   /** The repositories a pasted token reaches besides the workspace's (sub `wide`). */
   wide?: string[];
+  /** Sub `input`: the option whose values are asked, and the one value the next typed message is for. */
+  input?: string;
+  typing?: string;
   /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
   helper?: number;
   /** Edit one part: the summary follows that step. */
@@ -81,6 +87,7 @@ export interface Session {
 export type Input =
   | { kind: "press"; data: string; message?: number }
   | { kind: "text"; text: string; message: number }
+  | { kind: "file"; name: string; text: string; message: number }
   | { kind: "managed"; botId: string; username?: string; name?: string }
   | { kind: "bound"; chat: string; topic?: number; label: string };
 
@@ -250,10 +257,16 @@ export function instances(roles: Record<string, number>, preset: FlowInfo): { in
 }
 
 /** User feedback as written: its options (also from the former `untrustedReports`) with the switch as `autoTriage`. */
-function feedbackDoc(f: WorkspaceDoc["features"], on: boolean) {
+function feedbackDoc(f: WorkspaceDoc["features"], on: boolean, asked?: Values) {
   const old = f?.userFeedback ?? f?.untrustedReports;
-  const { autoTriage: _, ...opts } = (typeof old === "object" ? old : {}) as Record<string, unknown>;
+  const { autoTriage: _, ...opts } = written("userFeedback", { ...((typeof old === "object" ? old : {}) as Values), ...(asked ?? {}) });
   return Object.keys(opts).length || !on ? { ...opts, autoTriage: on } : true;
+}
+
+/** A switched-on feature as written: the document's options with what the wizard asked over them. */
+function withInputs(k: string, old: unknown, asked: Values | undefined, on: boolean): unknown {
+  const opts = written(k, { ...((typeof old === "object" ? old : {}) as Values), ...(asked ?? {}) });
+  return Object.keys(opts).length ? opts : on;
 }
 
 /** The workspace document of a finished draft; fields of an imported or existing document are kept. */
@@ -277,7 +290,7 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
     features: Object.fromEntries(
       Object.entries({ ...d.features, pullRequests: d.branching === "feature" })
         .filter(([k, on]) => on || k === "userFeedback")
-        .map(([k, on]) => [k, k === "userFeedback" ? feedbackDoc(base.features, on) : typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on]),
+        .map(([k, on]) => [k, k === "userFeedback" ? feedbackDoc(base.features, on, d.inputs?.[k]) : withInputs(k, base.features?.[k as keyof typeof base.features], d.inputs?.[k], on)]),
     ),
     tracker: {
       ...(base.tracker ?? {}),
@@ -510,7 +523,7 @@ export class Wizard {
         };
       }
       case "flow": {
-        if (s.sub !== "options")
+        if (s.sub !== "options" && s.sub !== "input")
           return {
             body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
             rows: [
@@ -520,16 +533,25 @@ export class Wizard {
               nav,
             ],
           };
+        if (s.sub === "input") return this.inputScreen(s);
         const offered = Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
-        const toggle = (f: string) => option(`${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`, (!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1], b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`));
+        const toggle = (f: string) =>
+          option(
+            `${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`,
+            `${(!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1]}${d.features[f] && INPUTS[f as keyof typeof INPUTS] ? ` ${this.inputLine(d, f)}` : ""}`,
+            b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`),
+            ...(d.features[f] && INPUTS[f as keyof typeof INPUTS] ? [b("⚙️ Change", `in:open:${f}`)] : []),
+          );
         const more = offered.filter((f) => f !== "releases");
+        const feature = d.branching === "feature" && INPUTS.pullRequests;
         return {
           body: [
             top,
             question("What else should the flow do?"),
-            text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; you can change them later.`),
+            text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.`),
           ],
           rows: [
+            ...(feature ? [options(option(`⚙️ ${BRANCHING.feature[1]}`, this.inputLine(d, "pullRequests"), b("⚙️ Change", "in:open:pullRequests")))] : []),
             ...(offered.includes("releases") ? [options(toggle("releases"))] : []),
             ...(more.length ? [text("<b>More options</b>"), options(...more.map(toggle))] : []),
             this.nav(s, "flow:done"),
@@ -630,6 +652,135 @@ export class Wizard {
     }
   }
 
+  /** An option's values now: defaults, the document's, then what was asked here. */
+  private values(d: Draft, f: string): Values {
+    return valuesOf(f, d.base?.features?.[f as keyof NonNullable<WorkspaceDoc["features"]>], d.inputs?.[f]);
+  }
+
+  /** The asked values in one line, for the option's row. */
+  private inputLine(d: Draft, f: string): string {
+    const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
+    const v = this.values(d, f);
+    const say = (x: unknown, i: OptionSpec["inputs"][number]) =>
+      i.type === "flag" ? (x ? "on" : "off") : i.type === "choice" ? (i.choices?.find(([c]) => c === x)?.[1] ?? String(x)) : Array.isArray(x) ? (x.length ? x.map((y) => code(String(y))).join(", ") : "none") : x === undefined || x === "" ? "none" : code(String(x));
+    return shown(spec, v).map((i) => `${esc(i.name)}: ${say(v[i.key], i)}`).join("; ");
+  }
+
+  /** The follow-up screen of an option: one row per value with its suggestions, Type, and a sent file. */
+  private inputScreen(s: Session): Screen {
+    const d = s.draft;
+    const f = s.input as string;
+    const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
+    const v = this.values(d, f);
+    const rows = shown(spec, v).flatMap((i) => {
+      const x = v[i.key];
+      const type = b(s.typing === i.key ? "✏️ Typing…" : "✏️ Type", `in:type:${i.key}`);
+      if (i.type === "choice") return [option(esc(i.name), esc(i.ask), ...(i.choices ?? []).map(([c, l]) => b(x === c ? `● ${l}` : l, `in:set:${i.key}:${c}`)))];
+      if (i.type === "flag") return [option(`${x ? "✅" : "⬜"} ${esc(i.name)}`, esc(i.ask), b(x ? "Switch off" : "Switch on", `in:flag:${i.key}`))];
+      if (i.type === "list") {
+        const now = (x as string[]) ?? [];
+        const offer = [...new Set([...(i.suggest ?? []), ...now])];
+        return [
+          option(esc(i.name), `${esc(i.ask)} Now: ${now.length ? now.map((y) => code(y)).join(", ") : "none"}.`, type, ...(now.length ? [b("✖ Clear", `in:clear:${i.key}`)] : [])),
+          ...offer.map((y, k) => option(`${now.includes(y) ? "✅" : "⬜"} ${code(y)}`, now.includes(y) ? "chosen" : "suggested", b(now.includes(y) ? "Remove" : "Add", `in:tog:${i.key}:${k}`))),
+        ];
+      }
+      return [option(esc(i.name), `${esc(i.ask)} Now: ${x === undefined || x === "" ? "none" : code(String(x))}.`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `in:set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ None", `in:clear:${i.key}`)] : []))];
+    });
+    const typing = spec.inputs.find((i) => i.key === s.typing);
+    return {
+      body: [
+        this.top(s),
+        question(esc(spec.question)),
+        text(
+          typing
+            ? `Type ${esc(typing.name.toLowerCase())} as your next message${typing.type === "list" ? ", one per line" : ""}.`
+            : "Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ▶ Done keeps what is shown.",
+        ),
+      ],
+      rows: [options(...rows), row(b("◀ Back", "in:back"), b("▶ Done", "in:done"), b("✖ Cancel", "cancel"))],
+    };
+  }
+
+  /** A press on an option's follow-up screen. */
+  private async inputPress(s: Session, what: string, key: string, value: string | undefined) {
+    const d = s.draft;
+    if (what === "open") {
+      if (!INPUTS[key as keyof typeof INPUTS]) return this.show(s);
+      s.sub = "input";
+      s.input = key;
+      delete s.typing;
+      return this.show(s);
+    }
+    const f = s.input;
+    const spec = f && INPUTS[f as keyof typeof INPUTS];
+    if (!f || !spec || s.sub !== "input") return this.show(s);
+    const v = this.values(d, f);
+    const set = (x: unknown) => {
+      d.inputs = { ...(d.inputs ?? {}), [f]: { ...(d.inputs?.[f] ?? {}), [key]: x } };
+    };
+    const i = spec.inputs.find((x) => x.key === key);
+    switch (what) {
+      case "back":
+        delete s.typing;
+        s.sub = "options";
+        return this.show(s);
+      case "done": {
+        const why = problem(spec, v);
+        if (why) return this.show(s, { note: why });
+        delete s.typing;
+        if (f !== "pullRequests") d.features[f] = true;
+        s.sub = "options";
+        return this.show(s);
+      }
+      case "type":
+        if (i) s.typing = key;
+        return this.show(s);
+      case "set":
+        if (i && value !== undefined) set(i.type === "number" ? Number(value) : value);
+        delete s.typing;
+        return this.show(s);
+      case "flag":
+        if (i) set(!v[key]);
+        return this.show(s);
+      case "clear":
+        if (i) set(i.type === "list" ? [] : "");
+        return this.show(s);
+      case "tog": {
+        if (!i) return this.show(s);
+        const now = (v[key] as string[]) ?? [];
+        const y = [...new Set([...(i.suggest ?? []), ...now])][Number(value)];
+        if (y !== undefined) set(now.includes(y) ? now.filter((z) => z !== y) : [...now, y]);
+        return this.show(s);
+      }
+    }
+    return this.show(s);
+  }
+
+  /** A typed value or a sent file on an option's follow-up screen; the message is deleted after reading. */
+  private async inputText(s: Session, text: string, file: boolean) {
+    const d = s.draft;
+    const f = s.input as string;
+    const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
+    const v = this.values(d, f);
+    const put = (values: Values) => {
+      d.inputs = { ...(d.inputs ?? {}), [f]: { ...(d.inputs?.[f] ?? {}), ...values } };
+    };
+    if (file) {
+      const r = fromFile(spec, text, s.typing, v);
+      if ("error" in r) return this.show(s, { note: r.error });
+      put(r.values);
+    } else {
+      const i = spec.inputs.find((x) => x.key === s.typing) ?? spec.inputs.find((x) => x.type === "list" || x.type === "label");
+      if (!i) return this.show(s, { note: "Tap ✏️ Type beside the value you want to type first." });
+      const r = parse(i, text, v[i.key]);
+      if ("error" in r) return this.show(s, { note: r.error });
+      put({ [i.key]: r.value });
+    }
+    delete s.typing;
+    return this.show(s);
+  }
+
   /** What it will be, as rows of a two-column table. */
   private facts(s: Session): string[][] {
     const d = s.draft;
@@ -679,6 +830,13 @@ export class Wizard {
       return true;
     }
     if (i.kind === "text") return this.text(s, i.text, i.message);
+    if (i.kind === "file") {
+      // a file is the wizard's only while an option asks for its values; otherwise it is an import
+      if (s.step !== "flow" || s.sub !== "input") return false;
+      await this.chat.remove(s.at, i.message).catch(() => {});
+      await this.inputText(s, i.text, true);
+      return true;
+    }
     if (!i.data.startsWith("w:")) return false;
     await this.press(s, i.data.slice(2));
     return true;
@@ -726,11 +884,12 @@ export class Wizard {
         s.sub = "options";
         return this.show(s);
       case "feat":
-        // UI review means nothing without the paths that count as UI, which the configuration names
-        if (v === "uiReview" && !d.features[v] && typeof d.base?.features?.uiReview !== "object")
-          return this.show(s, { note: "UI review needs the paths that count as UI: export the configuration, add features.uiReview.paths, and import it." });
+        // an option that needs details asks for them next; it is on once they are usable (off keeps them)
+        if (!d.features[v] && INPUTS[v as keyof typeof INPUTS]) return this.inputPress(s, "open", v, undefined);
         d.features[v] = !d.features[v];
         return this.show(s);
+      case "in":
+        return this.inputPress(s, v, w, data.split(":").slice(3).join(":") || undefined);
       case "bind":
         if (v === "group") {
           s.sub = "group";
@@ -758,6 +917,11 @@ export class Wizard {
   /** A typed answer: deleted after reading (always for the token), the result shown in the living message. */
   private async text(s: Session, text: string, message: number): Promise<boolean> {
     const d = s.draft;
+    if (s.step === "flow" && s.sub === "input") {
+      await this.chat.remove(s.at, message).catch(() => {});
+      await this.inputText(s, text, false);
+      return true;
+    }
     if (s.step !== "credential" && s.step !== "repos") return false;
     // the token never stays in the chat: deleted before anything else happens
     const kept = await this.chat.remove(s.at, message).then(

@@ -522,6 +522,16 @@ export class InstanceHost implements InstanceApi {
       return {};
     }
     const c = e.content;
+    // a file while an option asks for its values is those values (a .json or a text file)
+    if (typeof c === "object" && "files" in c && /\.(json|txt)$/i.test(c.files[0]?.name ?? "") && host.load(e.from)) {
+      const text = new TextDecoder().decode(await tg.download(c.files[0]));
+      if (await wizard.input(e.from, e.at, { kind: "file", name: c.files[0].name, text, message: e.id })) return {};
+      if (c.files[0].name.endsWith(".json")) {
+        host.expectImport(e.from, false);
+        await manager.importText(e.from, e.at, text);
+        return {};
+      }
+    }
     if (typeof c === "object" && "files" in c && c.files[0]?.name.endsWith(".json")) {
       host.expectImport(e.from, false);
       const text = new TextDecoder().decode(await tg.download(c.files[0]));

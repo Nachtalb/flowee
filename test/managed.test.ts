@@ -141,17 +141,32 @@ const OPTION_TEXT: Record<string, [string, string, string?]> = {
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
   userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
 };
-const TOGGLE = (f: string, on: Record<string, boolean>) => OPT(`${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`, (!on[f] && OPTION_TEXT[f][2]) || OPTION_TEXT[f][1], CB(on[f] ? "Switch off" : "Switch on", `w:feat:${f}`));
+/** The values an option asked for, in its row once it is on (the defaults here). */
+const LINES: Record<string, string> = {
+  pullRequests: "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Merge; Who merges: On the pass",
+  releases: "Release source: Latest release; Tested tag: none; Hold test cards: on",
+  dependencyTickets: "Authors: <code>dependabot[bot]</code>; Labels: none",
+  userFeedback: "Feedback label: <code>feedback</code>",
+};
+const ASKS = new Set(["releases", "uiReview", "dependencyTickets", "userFeedback"]);
+const TOGGLE = (f: string, on: Record<string, boolean>, lines: Record<string, string> = {}) =>
+  OPT(
+    `${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`,
+    `${(!on[f] && OPTION_TEXT[f][2]) || OPTION_TEXT[f][1]}${on[f] && ASKS.has(f) ? ` ${lines[f] ?? LINES[f]}` : ""}`,
+    CB(on[f] ? "Switch off" : "Switch on", `w:feat:${f}`),
+    ...(on[f] && ASKS.has(f) ? [CB("⚙️ Change", `w:in:open:${f}`)] : []),
+  );
 /** The second screen of the flow step: versioning, then the more options, each a toggle row. */
-const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "") =>
+const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "", lines: Record<string, string> = {}) =>
   [
     "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
     "<p><b>What else should the flow do?</b></p>",
-    `<p>With <b>${branching}</b>. Each switch works on its own; you can change them later.</p>`,
+    `<p>With <b>${branching}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.</p>`,
     note,
-    TABLE(TOGGLE("releases", on)),
+    branching === "Feature branches" ? TABLE(OPT("⚙️ Feature branches", lines.pullRequests ?? LINES.pullRequests, CB("⚙️ Change", "w:in:open:pullRequests"))) : "",
+    TABLE(TOGGLE("releases", on, lines)),
     "<p><b>More options</b></p>",
-    TABLE(...["samples", "uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on))),
+    TABLE(...["samples", "uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
     NEXT("w:flow:done"),
   ].join("");
 const WHERE_HERE = [
@@ -489,10 +504,57 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:bot:shared");
     await tap(100, "w:branch:feature");
     expect(screen()).toBe(OPTIONS("Feature branches"));
+    // an option that needs details asks for them in the same message; ▶ Done with the defaults switches it on
     await tap(100, "w:feat:releases");
+    const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ▶ Done keeps what is shown.</p>";
+    expect(screen()).toBe(
+      [
+        "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+        "<p><b>How should versioning work?</b></p>",
+        HINT,
+        TABLE(
+          OPT("Release source", "What counts as published: the latest release, or the commit a tag points at.", CB("● Latest release", "w:in:set:source:release"), CB("A tag", "w:in:set:source:tag")),
+          OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:in:set:testedTag:tested"), CB("✏️ Type", "w:in:type:testedTag")),
+          OPT("✅ Hold test cards", "Test cards wait until a published version has the ticket&#39;s code.".replace("&#39;", "'"), CB("Switch off", "w:in:flag:hold")),
+        ),
+        ROW(CB("◀ Back", "w:in:back"), CB("▶ Done", "w:in:done"), CB("✖ Cancel", "w:cancel")),
+      ].join(""),
+    );
+    // a tag as the source asks for that tag, which is required
+    await tap(100, "w:in:set:source:tag");
+    expect(screen()).toContain(OPT("Release tag", "The tag that marks the published build. Now: none.", CB("stable", "w:in:set:tag:stable"), CB("latest", "w:in:set:tag:latest"), CB("✏️ Type", "w:in:type:tag")));
+    await tap(100, "w:in:done");
+    expect(screen()).toContain("<p>⚠️ Release tag: pick one or type your own.</p>");
+    await tap(100, "w:in:set:source:release");
+    await tap(100, "w:in:done");
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true }));
+    // UI review: suggested paths as rows, typed ones, a sent file; on only once it has one
     await tap(100, "w:feat:uiReview");
-    expect(screen()).toBe(OPTIONS("Feature branches", { releases: true }, "<p>⚠️ UI review needs the paths that count as UI: export the configuration, add features.uiReview.paths, and import it.</p>"));
+    await tap(100, "w:in:done");
+    expect(screen()).toContain("<p>⚠️ UI paths: pick at least one, type your own or send a file.</p>");
+    expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "suggested", CB("Add", "w:in:tog:paths:0")));
+    await tap(100, "w:in:tog:paths:0");
+    await tap(100, "w:in:type:paths");
+    expect(screen()).toContain("<p>Type ui paths as your next message, one per line.</p>");
+    await dm(100, "app/ui/**\n- web/views/**");
+    expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
+    files["paths-0"] = JSON.stringify({ paths: ["src/components/**", "app/ui/**", "web/views/**", "**/*.css"] });
+    await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "paths-0", file_name: "ui.json", file_size: 10 } }));
+    expect(screen()).toContain(OPT("UI paths", "A change under one of these comes to you before it closes. Now: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>.", CB("✏️ Type", "w:in:type:paths"), CB("✖ Clear", "w:in:clear:paths")));
+    await tap(100, "w:in:done");
+    const UI = "UI paths: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>";
+    expect(screen()).toBe(OPTIONS("Feature branches", { releases: true, uiReview: true }, "", { uiReview: UI }));
+    // switched off and on again, the values are kept
+    await tap(100, "w:feat:uiReview");
+    await tap(100, "w:feat:uiReview");
+    await tap(100, "w:in:done");
+    expect(screen()).toBe(OPTIONS("Feature branches", { releases: true, uiReview: true }, "", { uiReview: UI }));
+    // feature branches: their settings from the row above the options
+    await tap(100, "w:in:open:pullRequests");
+    await tap(100, "w:in:set:method:squash");
+    await tap(100, "w:in:done");
+    expect(screen()).toContain(OPT("⚙️ Feature branches", "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Squash; Who merges: On the pass", CB("⚙️ Change", "w:in:open:pullRequests")));
+    await tap(100, "w:feat:uiReview");
     // back to the branching: the choice is marked, versioning stays on with the other branching
     await tap(100, "w:back");
     expect(screen()).toBe(FLOW.replace(CB("🔀 Choose", "w:branch:feature"), CB("● Chosen", "w:branch:feature")));
@@ -520,7 +582,29 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toContain(FACT("🔀 Way of working", "Feature branches, Versioning"));
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
-    expect(doc).toMatchObject({ flow: { preset: "pr-release" }, features: { pullRequests: true, releases: true } });
+    expect(doc).toMatchObject({ flow: { preset: "pr-release" }, features: { pullRequests: { method: "squash" }, releases: true } });
+    expect(doc.features.uiReview).toBeUndefined();
+  });
+
+  it("user feedback asks for its label; switched off it still writes the label, waiting for a human", async () => {
+    await dm(100, "/setup");
+    await dm(100, "acme/app");
+    await tap(100, "w:bot:shared");
+    await tap(100, "w:branch:single");
+    await tap(100, "w:feat:userFeedback");
+    expect(screen()).toContain("<p><b>Which label marks user feedback?</b></p>");
+    expect(screen()).toContain(OPT("Feedback label", "Tickets carrying this label hold a user&#39;s text. Now: <code>feedback</code>.".replace("&#39;", "'"), CB("user-report", "w:in:set:label:user-report"), CB("✏️ Type", "w:in:type:label")));
+    await tap(100, "w:in:type:label");
+    await dm(100, "from users");
+    await tap(100, "w:in:done");
+    expect(screen()).toBe(OPTIONS("Single branch", { userFeedback: true }, "", { userFeedback: "Feedback label: <code>from users</code>" }));
+    await tap(100, "w:feat:userFeedback");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:bind:here");
+    await dm(100, TOKEN);
+    await tap(100, "w:roles:done");
+    await tap(100, "w:confirm");
+    expect((await admin("GET", "/admin/workspaces/app")).body.workspace.features).toEqual({ userFeedback: { label: "from users", autoTriage: false } });
   });
 
   it("a token that reaches other repositories: one sentence, use it anyway or make a narrower one", async () => {
