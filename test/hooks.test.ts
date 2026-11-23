@@ -381,4 +381,17 @@ describe("alarms", () => {
     expect(await run((f) => f.wakeAt())).toBe(T + 60e3);
   });
 
+  it("Flowee's own writes reach the mirror at once: a command's label is in queue before its delivery", async () => {
+    fx.hk.add({ state_label: "needs triage" });
+    await cron();
+    expect((await call("board", "next", {}, undefined, "h")).body.ticket).toMatchObject({ n: 1 });
+    expect((await call("board", "triage", { n: 1, comment: "specified" }, undefined, "h")).body.state).toBe("ready");
+    const before = calls();
+    expect((await call("dev1", "queue", undefined, undefined, "h")).body).toMatchObject({ queue: [1], source: "mirror" });
+    expect(calls()).toBe(before);
+    // the delivery that follows changes nothing but the update time
+    await deliver("hooks", "hooks", "issues", GH.issues("acme/hooks", 1), await secret());
+    await alarm();
+    await sameAsTrackerAnySource();
+  });
 });

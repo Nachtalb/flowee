@@ -4,7 +4,7 @@
 // everything to catch missed deliveries; a repository without healthy webhooks is polled as before. Events are
 // hints: every command still re-reads the ticket from the tracker.
 import type { Delivery, TrackerEvent } from "../ports/hooks";
-import type { Issue } from "../ports/tracker";
+import type { Issue, IssuePatch } from "../ports/tracker";
 import { fileDependencyTicket, moveTestedTag } from "./code";
 import { Fail } from "./errors";
 import { tickTicket } from "./housekeeping";
@@ -111,6 +111,19 @@ export class Webhooks {
   private put(i: Issue) {
     if (i.open) this.f.db.exec("INSERT OR REPLACE INTO mirror VALUES (?, ?)", i.n, JSON.stringify(i));
     else this.f.db.exec("DELETE FROM mirror WHERE n = ?", i.n);
+  }
+
+  /**
+   * Flowee's own write, into the mirror at once: its delivery follows and brings the tracker's updated time (until
+   * then the old one stays, so a reconcile still sees a write whose delivery never came).
+   */
+  follow(w: Issue | { n: number; patch: IssuePatch }) {
+    if ("open" in w) return this.put(w);
+    const row = this.f.rows<{ issue: string }>("SELECT issue FROM mirror WHERE n = ?", w.n)[0];
+    if (!row) return;
+    const i = JSON.parse(row.issue) as Issue;
+    const p = w.patch;
+    this.put({ ...i, ...(p.labels ? { labels: p.labels } : {}), ...(p.assignees ? { assignees: p.assignees } : {}), ...(p.open !== undefined ? { open: p.open } : {}), ...(p.title !== undefined ? { title: p.title } : {}), ...(p.body !== undefined ? { body: p.body } : {}) });
   }
 
   /** A full listing of one repository from the tracker; the mirror becomes it. */

@@ -154,12 +154,18 @@ export class Repos implements Tracker {
     return this.createIn(this.list[0], title, body, labels);
   }
 
+  /** Told of every issue Flowee writes: the webhook mirror follows its own writes without waiting for their delivery. */
+  written?: (i: Issue | { n: number; patch: IssuePatch }) => void;
+
   async createIn(r: Repo, title: string, body: string, labels: string[]) {
-    return this.global(r, await r.tracker.create(title, body, labels));
+    const i = this.global(r, await r.tracker.create(title, body, labels));
+    this.written?.(i);
+    return i;
   }
 
-  update(id: number, patch: IssuePatch, what: string) {
-    return this.on(id, (t, n) => t.update(n, patch, what));
+  async update(id: number, patch: IssuePatch, what: string) {
+    await this.on(id, (t, n) => t.update(n, patch, what));
+    this.written?.({ n: id, patch });
   }
 
   comment(id: number, body: string) {

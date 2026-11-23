@@ -54,6 +54,7 @@ export class Flowee {
     this.flow = s.flow;
     const signs = Object.keys(this.flow.options.roles).map((r) => this.signWord(r));
     this.strip = stripper([...new Set([...signs, "Owner"])]);
+    tracker.written = (w) => this.events.follow(w);
   }
 
   signWord(role: string) {
