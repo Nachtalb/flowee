@@ -45,7 +45,7 @@ export class Agents {
     private named: { instance: string; role: string }[],
   ) {}
 
-  private rows = () => this.db.rows<Row>("SELECT * FROM agents ORDER BY created, name");
+  private rows = () => this.db.rows<Row>("SELECT * FROM agents ORDER BY rowid");
   private seenOf = (name: string) => Number(this.db.rows<{ v: string }>("SELECT v FROM meta WHERE k = ?", `seen:${name}`)[0]?.v) || undefined;
 
   /** The stored agents with a secret of their own (strict mode): SHA-256 hex digests. */
