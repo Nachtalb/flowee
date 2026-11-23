@@ -39,6 +39,12 @@ whole group; typed commands are only answered inside the bound topic.
 
 The standalone bot's settings are left as its owner made them in BotFather.
 
+How the live Bot API answers (checked against the instance bot with `getMe`, which returns `BotFullInfo`): all
+seven parameters are accepted together in one call and read back as sent. `has_topics_enabled: true` also turns on
+`allows_users_to_create_topics`, `false` turns it off again. `has_topic_sidebar: true` is answered `ok` but stays
+`false` while `has_topics_enabled` is off. `callback_query_mode` takes `default`, `auto` and `inline` (anything else:
+`400 unsupported callback query mode specified`) and is not part of `BotFullInfo`, so it cannot be read back.
+
 No default administrator rights are requested (`setMyDefaultAdministratorRights`): in a group the bot only sends,
 edits and deletes its own messages and reads commands and replies, none of which needs a right; the one message
 it deletes that is not its own (the GitHub token) is in the private chat.
