@@ -930,7 +930,9 @@
   "roles": {
     "sampler": {
       "sign": "Sampler",
-      "who": "the sampler"
+      "who": "the sampler",
+      "description": "Finds a real sample file for a ticket and puts it on the main branch before development starts.",
+      "several": true
     }
   },
   "grant": {

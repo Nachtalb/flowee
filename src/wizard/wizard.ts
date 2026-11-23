@@ -240,7 +240,7 @@ export const chatLabel = (chat: string, topic?: number) => (!chat.startsWith("-"
 /** A draft from an existing or imported document. */
 export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
   const roles: Record<string, number> = {};
-  for (const r of d.roles) if (r.role !== flow.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
+  for (const r of d.roles ?? []) if (r.role !== flow.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
   const { pullRequests, untrustedReports, ...features } = d.features ?? {};
   // the former name: automatic triage of user feedback
   if (untrustedReports && features.userFeedback === undefined) features.userFeedback = true;

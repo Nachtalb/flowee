@@ -249,7 +249,7 @@ export class InstanceHost implements InstanceApi {
           if (d.botId) self.setKv(`bot:${doc.id}`, d.botId);
         }
         const secrets: Record<string, string> = {};
-        for (const r of doc.roles)
+        for (const r of doc.roles ?? [])
           if (!has(r.secret)) {
             secrets[r.instance] = randomSecret();
             await self.put(r.secret, doc.id, await digestOf(secrets[r.instance]));
@@ -303,7 +303,7 @@ export class InstanceHost implements InstanceApi {
       },
       async rotate(id, instance) {
         const doc = reg.get(id) as WorkspaceDoc;
-        const r = doc.roles.find((x) => x.instance === instance) as WorkspaceDoc["roles"][number];
+        const r = (doc.roles ?? []).find((x) => x.instance === instance) as NonNullable<WorkspaceDoc["roles"]>[number];
         const secret = randomSecret();
         await self.put(r.secret, id, await digestOf(secret));
         reg.reindex();
@@ -312,11 +312,11 @@ export class InstanceHost implements InstanceApi {
       },
       async addAgent(id, role) {
         const doc = structuredClone(reg.get(id) as WorkspaceDoc);
-        const taken = new Set(doc.roles.map((r) => r.instance));
+        const taken = new Set((doc.roles ?? []).map((r) => r.instance));
         const short = role === "developer" ? "dev" : role;
         let instance = role === "developer" ? "dev1" : short;
         for (let i = 2; taken.has(instance); i++) instance = `${short}${i}`;
-        doc.roles.splice(doc.roles.findIndex((r) => r.role === flow.ownerRole), 0, { instance, role, secret: slot(id, instance) });
+        (doc.roles ??= []).splice(doc.roles.findIndex((r) => r.role === flow.ownerRole), 0, { instance, role, secret: slot(id, instance) });
         const errs = validate(doc);
         if (errs.length) throw new Error(errs.join(" "));
         reg.import(doc);
@@ -328,9 +328,9 @@ export class InstanceHost implements InstanceApi {
       },
       async removeAgent(id, instance) {
         const doc = structuredClone(reg.get(id) as WorkspaceDoc);
-        const r = doc.roles.find((x) => x.instance === instance && x.role !== flow.ownerRole);
+        const r = (doc.roles ?? []).find((x) => x.instance === instance && x.role !== flow.ownerRole);
         if (!r) throw new Error(`The workspace has no agent '${instance}'.`);
-        doc.roles = doc.roles.filter((x) => x !== r);
+        doc.roles = (doc.roles ?? []).filter((x) => x !== r);
         reg.import(doc);
         self.dropSecret(r.secret);
         reg.reindex();
@@ -698,7 +698,7 @@ export class InstanceHost implements InstanceApi {
       if (!w) return bad(404, "not_found", `There is no workspace '${id}'.`);
       const given = (body ?? {}) as Record<string, unknown>;
       const names = secretNames(w);
-      const roleSlots = new Set(w.roles.map((r) => r.secret));
+      const roleSlots = new Set((w.roles ?? []).map((r) => r.secret));
       for (const [n, v] of Object.entries(given)) {
         if (!names.includes(n)) return bad(400, "bad_request", `${n}: the workspace names no such secret.`);
         if (typeof v !== "string" || !v) return bad(400, "bad_request", `${n}: must be a non-empty string.`);

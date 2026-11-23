@@ -128,10 +128,18 @@ export const SCHEMA: S = {
         ["repos", "token"],
         "The issue tracker that keeps the record.",
       ),
+      agents: obj(
+        {
+          key: secret("the SHA-256 hex of the project key: lists the roles and creates, changes and removes agents (docs/api.md, \"Agents\")"),
+          secrets: { enum: ["project", "per-agent"], default: "project", description: "project: an agent acts with the project key and its name; per-agent (strict): each agent created gets its own secret, and the key only manages agents." },
+        },
+        ["key"],
+        "The project key and how agents sign in. Agents are then created through the API, not listed here.",
+      ),
       roles: {
         type: "array",
         minItems: 1,
-        description: "The agents (and the owner) that call the API, one secret each.",
+        description: "Agents with a secret of their own (the former way; with agents.key they are created through the API instead).",
         items: obj(
           {
             instance: str("Instance name (claims belong to it), e.g. dev1.", { pattern: "^[a-z0-9][a-z0-9-]*$" }),
@@ -203,7 +211,7 @@ export const SCHEMA: S = {
         "How Flowee learns of tracker changes (docs/webhooks.md).",
       ),
     },
-    ["flowee", "id", "flow", "tracker", "roles", "owners"],
+    ["flowee", "id", "flow", "tracker", "owners"],
     "A Flowee workspace: one flow over a repository, its roles, owners and chat.",
   ),
 };
@@ -349,12 +357,13 @@ export function validate(doc: unknown): string[] {
   if (d.tracker.project && !repos.some((r) => r.type === "github")) errs.push("$.tracker.project: a GitHub project board needs at least one GitHub repository.");
   const roles = Object.keys(flow.options.roles);
   const seen = new Set<string>();
-  d.roles.forEach((r, i) => {
+  (d.roles ?? []).forEach((r, i) => {
     if (!roles.includes(r.role)) errs.push(`$.roles[${i}].role: '${r.role}' is no role of the flow (${roles.join(", ")}).`);
     if (seen.has(r.instance)) errs.push(`$.roles[${i}].instance: '${r.instance}' is used twice.`);
     seen.add(r.instance);
   });
-  if (!d.roles.some((r) => r.role === flow.options.ownerRole))
+  if (!d.agents && !d.roles?.length) errs.push("$.agents: a workspace needs a project key (agents.key) or agents with their own secrets (roles).");
+  else if (!d.agents && !d.roles?.some((r) => r.role === flow.options.ownerRole))
     errs.push(`$.roles: no instance has the owner role '${flow.options.ownerRole}', so the owner cannot answer through the API.`);
   if (d.chat && !d.owners.some((o) => o.chat)) errs.push("$.owners: with a chat, at least one owner needs a chat user id.");
   if (d.chat?.members && !d.chat.chatId.startsWith("-")) errs.push("$.chat.members: only a group or a topic has members; a private chat is the owner's alone.");
@@ -448,7 +457,7 @@ export function repoList(d: WorkspaceDoc) {
 
 /** Secret names a document references. */
 export function secretNames(d: WorkspaceDoc): string[] {
-  return [...new Set([d.tracker.token, ...repoList(d).map((r) => r.token), ...d.roles.map((r) => r.secret), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
+  return [...new Set([d.tracker.token, ...repoList(d).map((r) => r.token), ...(d.roles ?? []).map((r) => r.secret), ...(d.agents ? [d.agents.key] : []), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
 }
 
 /** Problems of a workspace document or of an instance document (`{"flowee": 1, "workspaces": [...]}`). */

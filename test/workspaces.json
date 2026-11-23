@@ -1182,6 +1182,92 @@
       "sync": {
         "webhooks": "off"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "keyed",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/keyed"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "owners": [
+        {
+          "name": "Ann"
+        }
+      ],
+      "sync": {
+        "webhooks": "off"
+      },
+      "extensions": [
+        "builtin:samples"
+      ],
+      "agents": {
+        "key": "KEYED_KEY"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "keyed2",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/keyed2"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "owners": [
+        {
+          "name": "Ann"
+        }
+      ],
+      "sync": {
+        "webhooks": "off"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "KEYED2_BOARD"
+        }
+      ],
+      "agents": {
+        "key": "KEYED2_KEY"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "strict",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/strict"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "owners": [
+        {
+          "name": "Ann"
+        }
+      ],
+      "sync": {
+        "webhooks": "off"
+      },
+      "agents": {
+        "key": "STRICT_KEY",
+        "secrets": "per-agent"
+      }
     }
   ]
 }

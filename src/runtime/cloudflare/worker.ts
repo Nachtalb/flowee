@@ -88,6 +88,9 @@ export class Workspace extends DurableObject<CloudflareEnv> {
   wipe() {
     return this.host.wipe();
   }
+  agents(change?: { name: string; remove?: boolean; paused?: boolean }) {
+    return this.host.agents(change);
+  }
 }
 
 /** The managed instance's Durable Object. */

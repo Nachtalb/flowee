@@ -32,7 +32,10 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `tracker.project.number` | integer ≥ 1 | required | The project number. |
 | `tracker.tokenDays` | integer 1 to 366, or `"none"` | `366` (else `instance.tokenDays`) | The lifetime the wizard's token link asks for: GitHub's `expires_in` (1 to 366 days, or `none` for no expiry; an organisation's lifetime policy may still cap it); GitLab's form takes no expiry in the link, so the screen asks for a date that many days ahead (GitLab caps it at 365). |
 | `tracker.notPlannedLabel` | string | `not planned` | GitLab stores no close reason: a ticket the flow closes as not planned (`drop`) gets this label, taken off again when it reopens. GitHub uses its own `not_planned` reason. |
-| `roles` | array, ≥ 1 | required | The callers of the API. |
+| `agents` | object | | The project key and how agents sign in (docs/api.md, "Agents"); new workspaces use it instead of `roles`. |
+| `agents.key` | secret name | required | Holds the SHA-256 hex of the project key: it lists the roles (`GET /v1/roles`) and creates, changes and removes agents (`/v1/agents`). |
+| `agents.secrets` | `project` \| `per-agent` | `project` | `project`: an agent acts with the project key and its name (`X-Flowee-Agent`). `per-agent` (strict): `POST /v1/agents` answers the new agent's own secret once, and the project key cannot act as an agent. |
+| `roles` | array, ≥ 1 | `agents` or this | Agents with a secret each, named in the document (the former way, kept working). Without `agents` the owner role must be among them. |
 | `roles[].instance` | string `^[a-z0-9][a-z0-9-]*$` | required | Instance name (claims belong to it), unique. |
 | `roles[].role` | string | required | A role of the flow (`trunk`: board, developer, tester, owner). |
 | `roles[].secret` | secret name | required | Holds the SHA-256 hex of this instance's API secret. |

@@ -34,5 +34,9 @@ export const bindings: Record<string, string> = {
   HOOKS2_OWNER: hash("k-owner"),
   HOOKSGL_BOARD: hash("g-board"),
   HOOKSGL_OWNER: hash("g-owner"),
+  KEYED_KEY: hash("key-keyed"),
+  KEYED2_KEY: hash("key-keyed2"),
+  KEYED2_BOARD: hash("k2-board"),
+  STRICT_KEY: hash("key-strict"),
   FLOWEE_KEY: "key-test",
 };

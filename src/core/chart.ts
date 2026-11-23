@@ -87,7 +87,8 @@ export interface CommandOptions {
 }
 
 export interface FlowOptions {
-  roles: Record<string, { sign: string; who: string; features?: string | string[] }>;
+  /** `description`: one line for `GET /v1/roles`; `several`: whether more than one agent of the role makes sense. */
+  roles: Record<string, { sign: string; who: string; description?: string; several?: boolean; features?: string | string[] }>;
   /** Every API command: who may call it and what its body holds. Commands that are chart events need `n`. */
   commands: Record<string, CommandOptions>;
   /** Hours a claim lives without a heartbeat. */

@@ -25,9 +25,11 @@ CREATE TABLE tui_log (seq INTEGER PRIMARY KEY, ev TEXT NOT NULL);
 CREATE TABLE tui_frames (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE tui_files (id TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL);
 CREATE TABLE tui_state (k TEXT PRIMARY KEY, v TEXT NOT NULL);`,
+  // agents created with the project key (src/core/agents.ts); `secret`: the SHA-256 hex of an own secret (strict mode)
+  "CREATE TABLE agents (name TEXT PRIMARY KEY, role TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0, secret TEXT, created INTEGER NOT NULL);",
 ];
 
-export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events", "tui_messages", "tui_log", "tui_frames", "tui_files", "tui_state"];
+export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events", "tui_messages", "tui_log", "tui_frames", "tui_files", "tui_state", "agents"];
 
 export function migrate(db: Store) {
   db.exec("CREATE TABLE IF NOT EXISTS _migrations (v INTEGER NOT NULL)");

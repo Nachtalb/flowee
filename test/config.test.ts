@@ -36,6 +36,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     { instance: "board", role: "board", secret: "T_BOARD" },
     { instance: "owner", role: "owner", secret: "T_OWNER" },
   ],
+  agents: { key: "T_KEY", secrets: "per-agent" },
   owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
   chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true, members: ["42", "43"], transport: "webhook" },
   tui: { people: [{ id: "ann", name: "Ann", role: "manager", key: "a".repeat(64) }] },
@@ -106,6 +107,8 @@ describe("the schema", () => {
     delete bad.owners[0].chat;
     bad.schedule = { timezone: "Mars/Olympus", digestFrom: 12, digestTo: 9 };
     delete bad.chat.publicUrl;
+    delete bad.agents;
+    expect(validate(JSON.parse(JSON.stringify({ ...bad, roles: undefined })))).toContain("$.agents: a workspace needs a project key (agents.key) or agents with their own secrets (roles).");
     expect(validate(bad)).toEqual([
       "$.roles[1].role: 'qa' is no role of the flow (board, developer, tester, owner, sampler).",
       "$.roles[1].instance: 'board' is used twice.",
@@ -170,7 +173,7 @@ describe("export and import", () => {
     expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad", "desk", "team", "duo", "fb"]);
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad", "desk", "team", "duo", "fb", "keyed", "keyed2", "strict"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });

@@ -97,11 +97,15 @@ export class StaticRegistry implements WorkspaceRegistry {
   }
   protected index() {
     this.digests = new Map();
-    for (const w of this.docs.values())
-      for (const r of w.roles) {
+    for (const w of this.docs.values()) {
+      for (const r of w.roles ?? []) {
         const h = this.secrets.get(r.secret)?.trim().toLowerCase();
         if (h) this.digests.set(h, { id: w.id, instance: r.instance, role: r.role });
       }
+      // the project key: the workspace is known, the agent comes with the request
+      const k = w.agents && this.secrets.get(w.agents.key)?.trim().toLowerCase();
+      if (k) this.digests.set(k, { id: w.id, instance: "", role: "" });
+    }
   }
 }
 
@@ -208,7 +212,8 @@ export function settings(d: WorkspaceDoc): Settings {
     ownerLogin: d.owners.find((o) => o.tracker)?.tracker,
     // a terminal person is an owner of the conversation: the router only lets in who has a key
     owners: [...d.owners.map((o) => o.chat).filter((x): x is string => !!x), ...(d.tui?.people ?? []).map((p) => `tui:${p.id}`)],
-    instances: d.roles.map((r) => ({ ...r })),
+    instances: (d.roles ?? []).map((r) => ({ ...r })),
+    agents: { key: d.agents?.key, strict: d.agents?.secrets === "per-agent" },
     texts: texts(d),
     chat: d.chat
       ? { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username, ...(d.chat.members ? { members: d.chat.members } : {}) }

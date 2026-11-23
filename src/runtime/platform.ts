@@ -33,7 +33,11 @@ export interface WorkspaceApi {
   syncStatus(): Promise<SyncStatus>;
   manualHook(alias: string): Promise<{ url: string; secret: string; where: string; permission: string }>;
   wipe(): Promise<void>;
+  agents(change?: { name: string; remove?: boolean; paused?: boolean }): Promise<AgentRow[]>;
 }
+
+/** One agent as the management menu shows it. */
+export type AgentRow = { name: string; role: string; source: "api" | "document"; paused: boolean; created?: number; seen?: number; holds: string[] };
 
 export type Routed = { forward?: string; status?: number };
 

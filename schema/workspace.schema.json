@@ -10,7 +10,6 @@
     "id",
     "flow",
     "tracker",
-    "roles",
     "owners"
   ],
   "properties": {
@@ -548,10 +547,34 @@
         }
       }
     },
+    "agents": {
+      "type": "object",
+      "description": "The project key and how agents sign in. Agents are then created through the API, not listed here.",
+      "additionalProperties": false,
+      "required": [
+        "key"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the secret holding the SHA-256 hex of the project key: lists the roles and creates, changes and removes agents (docs/api.md, \"Agents\") (never the value).",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "secrets": {
+          "enum": [
+            "project",
+            "per-agent"
+          ],
+          "default": "project",
+          "description": "project: an agent acts with the project key and its name; per-agent (strict): each agent created gets its own secret, and the key only manages agents."
+        }
+      }
+    },
     "roles": {
       "type": "array",
       "minItems": 1,
-      "description": "The agents (and the owner) that call the API, one secret each.",
+      "description": "Agents with a secret of their own (the former way; with agents.key they are created through the API instead).",
       "items": {
         "type": "object",
         "description": "One role instance.",

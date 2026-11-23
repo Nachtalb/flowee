@@ -81,8 +81,8 @@ export class WorkspaceHost {
     this.store.exec("DELETE FROM meta WHERE k LIKE 'vault:%'");
     for (const [n, v] of Object.entries(sealed)) this.store.exec("INSERT INTO meta VALUES (?, ?)", `vault:${n}`, v);
     // a removed agent's claims expire now: the reaper hands its tickets back as for a lapsed lease
-    const names = doc.roles.map((r) => r.instance);
-    const gone = this.store.exec(`UPDATE claims SET touched = 0 WHERE instance NOT IN (${names.map(() => "?").join(", ")})`, ...names);
+    const names = [...(doc.roles ?? []).map((r) => r.instance), ...this.store.rows<{ name: string }>("SELECT name FROM agents").map((r) => r.name)];
+    const gone = this.store.exec(`UPDATE claims SET touched = 0 WHERE touched > 0 AND instance NOT IN (${names.map(() => "?").join(", ") || "''"})`, ...names);
     this.reset();
     if (gone.rowsWritten) await this.room.wake(Date.now());
   }
@@ -91,6 +91,17 @@ export class WorkspaceHost {
   async syncStatus() {
     await this.unlock();
     return this.runtime().flow.events.status();
+  }
+
+  /** The agents for the management menu: the list, after removing or pausing one (`change`). */
+  async agents(change?: { name: string; remove?: boolean; paused?: boolean }) {
+    await this.unlock();
+    const f = this.runtime().flow;
+    return this.lock(async () => {
+      if (change?.remove && f.agents.remove(change.name).length) await this.room.wake(Date.now());
+      else if (change?.paused !== undefined) f.agents.change(change.name, { paused: change.paused });
+      return f.agents.list().map((a) => ({ ...a, holds: f.agents.holds(a.name).map((n) => f.label(n)) }));
+    });
   }
 
   /** Webhooks set up by hand for one repository: its URL and a new secret, shown once. */

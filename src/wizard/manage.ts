@@ -158,7 +158,7 @@ export class Manager {
         d.chat || !d.tui ? { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] } : ["💬 Tickets appear", this.where(user, d)],
         ...(d.tui ? [{ cells: ["🖥 Terminal people", d.tui.people.map((p) => esc(p.name ?? p.id)).join(", ")], buttons: [b("👥 People", `ppl:${d.id}`)] }] : []),
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
-        ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
+        ["👥 Agents", (d.roles ?? []).filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
         { cells: ["🧩 Custom steps", (d.extensions ?? []).map((e) => code(extName(e))).join(", ") || "none"], buttons: [edit("ext" as Step)] },
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),
@@ -273,12 +273,12 @@ export class Manager {
         return;
       }
       case "rot":
-        if (!v || !d.roles.some((r) => r.instance === v)) {
+        if (!v || !d.roles?.some((r) => r.instance === v)) {
           await this.show(user, at, [
             heading("🔑", "New agent secret", code(id)),
             question("Which agent gets a new secret?"),
             text("Its old secret stops working at once."),
-            options(...d.roles.map((r) => option(esc(r.instance), esc(r.role), b("🔑 New secret", `rot:${id}:${r.instance}`)))),
+            options(...(d.roles ?? []).map((r) => option(esc(r.instance), esc(r.role), b("🔑 New secret", `rot:${id}:${r.instance}`)))),
             row(back(id)),
           ]);
           return;
@@ -304,7 +304,7 @@ export class Manager {
         return "➕ Agent added";
       }
       case "rmag": {
-        const agents = d.roles.filter((r) => r.role !== this.host.flow().ownerRole);
+        const agents = (d.roles ?? []).filter((r) => r.role !== this.host.flow().ownerRole);
         const r = agents.find((x) => x.instance === v);
         if (!r) {
           await this.show(user, at, [

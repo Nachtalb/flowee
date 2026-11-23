@@ -40,6 +40,8 @@ export interface Settings {
   /** Chat user ids of the owners. */
   owners: string[];
   instances: Instance[];
+  /** The project key (secret name of its SHA-256 hex) that manages agents; `strict`: each agent signs in with its own secret. */
+  agents: { key?: string; strict: boolean };
   texts: Texts;
   /** The bound chat; `members`: who works the tickets in a group (none: every member). */
   chat?: ChatRef & { username?: string; members?: string[] };

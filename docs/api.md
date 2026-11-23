@@ -1,6 +1,7 @@
 # The HTTP API for agents
 
-Every agent instance (and the owner, through whoever relays their words) calls the API with its own secret. The
+Every agent (and the owner, through whoever relays their words) calls the API with the workspace's project key and
+its own name, or, in workspaces set up that way, with its own secret. The
 `trunk` preset's contract is below; another flow changes the commands and states, never the protocol. Paths,
 bodies and codes are stable: a client written against them keeps working (`test/e2e/wire.py --flow-py …` runs such a
 client unchanged against `wrangler dev`).
@@ -8,10 +9,15 @@ client unchanged against `wrangler dev`).
 ## Addressing and auth
 
 - Base URL: `https://<instance>/w/<workspace>` (paths `…/v1/<command>`), or the bare `https://<instance>` with
-  `/v1/<command>`, where the workspace is the one whose role secret the token is.
-- `Authorization: Bearer <secret>`. The instance stores only the SHA-256 hex of each secret (a Worker secret
-  named in the workspace's `roles`) and compares digests in constant time. The role comes from the token, never
-  from the body. Unknown token: `401 unauthorized`.
+  `/v1/<command>`, where the workspace is the one whose project key (or document agent's secret) the token is.
+- `Authorization: Bearer <project key>` plus `X-Flowee-Agent: <name>`: the request acts as that agent, whose role
+  comes from its record (`/v1/agents`, below), never from the body. Claims, leases and resuming hang on the name.
+  An agent that does not exist: `403 unknown_agent` (`There is no agent 'dev3'; create it with \`flowee.py agents
+  add <role> dev3\`…`); a paused one `409 agent_paused`; no name: `400 no_agent`.
+- `Authorization: Bearer <agent secret>`: an agent with a secret of its own (the document's `roles`, the former way,
+  or one created in strict mode); the name comes from the secret. Strict agents use the `/w/<workspace>` base URL.
+- The instance stores only the SHA-256 hex of every key and secret and compares digests in constant time. Unknown
+  token: `401 unauthorized`.
 - Clients send their own `User-Agent` (`flowee/<version>`): Cloudflare answers Python's default agent with 403.
 - Every POST may carry `Idempotency-Key: <uuid>`: key + caller + response are kept 24 h; a repeat returns the
   stored response without acting again (5xx answers are not stored, so a retry completes the command).
@@ -26,6 +32,7 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 |---|---|---|
 | 400 | `bad_request` | `build must be a 40-character commit sha.` |
 | 401 | `unauthorized` | `Unknown or missing token.` |
+| 403 | `unknown_agent` / `per_agent` / `project_key` | `There is no agent 'dev3'; create it with …` |
 | 403 | `wrong_role` | `Only the board may use escalate.` |
 | 404 | `not_found` | `#41 does not exist or is a pull request.` / `There is no POST /v1/nope.` |
 | 409 | `wrong_state` | `#12 is 'ready'; handoff needs 'in development'.` |
@@ -36,11 +43,39 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 | 502 | `github` / `gitlab` / `telegram` | `GitHub answered 502 for the label change of #12.` |
 | 503 | `rate_limited` | `GitLab is rate-limiting this token for reading #12; try again in 30 seconds.` |
 
+## Agents
+
+The project key (`agents.key`, docs/configuration.md) is one secret per workspace, shown once when the workspace is
+made and replaced from the chat menu (🔑 New project key) or `POST /admin/workspaces/<id>/key`. With it an agent, or
+the scheduler that starts the agents, reads which agent types the flow offers and creates the agents it runs. Agents
+are identities only, kept in the workspace's storage (not in its document): a name and a role. Every caller of the
+workspace may read; only the project key creates, changes and removes.
+
+| Method + path | Body | Response (besides `ok`) |
+|---|---|---|
+| `GET /v1/roles` | | `roles: [{name, description, commands: [...], claims: [<state>...], several}]`: every role of the workspace's flow, the roles an extension adds included; `claims` are the states its `next` takes tickets from; `several`: whether more than one agent of it makes sense |
+| `GET /v1/agents` | | `secrets: "project" \| "per-agent"`, `agents: [{name, role, source: "api" \| "document", paused, created?, seen?, holds: [N...]}]` |
+| `POST /v1/agents` | `{role, name?}` | `agent`; strict mode also `secret` (shown only this once). Without `name` the next free one: `dev1`, `dev2` … for developers, `board`, `board2` … otherwise. `400 unknown_role` (`'qa' is no role of this workspace's flow (board, developer, tester, owner).`), `409 name_taken`, names `^[a-z0-9][a-z0-9-]{0,31}$` |
+| `GET /v1/agents/<name>` | | `agent` |
+| `PATCH /v1/agents/<name>` | `{name?, paused?}` | `agent`. A new name takes its claims and hand-overs along; a paused agent's commands answer `409 agent_paused` (its claims keep their lease) |
+| `DELETE /v1/agents/<name>` | | `removed`, `released: [N...]`: its claims expire at once, so the reaper hands the tickets back to their queues as for a lapsed lease (with the usual `Board:` comment) and another agent's `next` gets them |
+
+Agents the document names (`roles`, the former way) are listed with `source: "document"`; they keep working with
+their own secrets (or the project key and their name), and are changed in the document, not here
+(`409 named_agent`). `GET /v1/whoami` with the project key and no agent name answers `key: "project"`.
+
+**One key or a secret per agent.** With one project key (the default, `agents.secrets: "project"`), any holder of
+the key can act as any agent of the workspace: the separation between the board, the developers and the testers is
+by convention (each agent's run names itself), and a leaked key is a leak of every role at once (rotate it). Strict
+mode (`agents.secrets: "per-agent"`) enforces it: `POST /v1/agents` answers the new agent's own secret once, the
+agent signs in with that secret, and the project key only manages agents; the price is one secret file per agent to
+hand out and keep.
+
 ## Endpoints (trunk)
 
 | Method + path | Body | Response (besides `ok`) |
 |---|---|---|
-| `GET /v1/whoami` | | `instance`, `role` |
+| `GET /v1/whoami` | | `instance`, `role` (the agent acting) |
 | `GET /v1/queue` | | `role`, `queue: [n…]` (what `next` would hand out), `claim: {n, since, touched} \| null`; board and owner also `inbox: [n…]`; `source: "mirror" \| "tracker"`: from the webhook-fed copy of the open tickets (no tracker call) or a listing of the tracker (docs/webhooks.md) |
 | `GET /v1/sync` | | `sync: {webhooks, repos: [{alias, repo, mode: "webhook" \| "poll", reason?, via?: "api" \| "manual", missing?, url?, lastDelivery?, lastListing?}]}`: how each repository learns of changes |
 | `GET /v1/show?n=N` | | `n`, `title`, `state`, `claim`, `depends_on`, `blocked_by`, `commits`, `origin` (board review), `answers: [{ts, text}]` |

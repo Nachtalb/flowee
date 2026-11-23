@@ -2,19 +2,27 @@
   "roles": {
     "board": {
       "sign": "Board",
-      "who": "the board"
+      "who": "the board",
+      "description": "Plans and specifies the tickets, sends work back, and is the only one who asks the owner.",
+      "several": false
     },
     "developer": {
       "sign": "Developer",
-      "who": "a developer"
+      "who": "a developer",
+      "description": "Builds what a ready ticket asks for and hands it to testing.",
+      "several": true
     },
     "tester": {
       "sign": "Tester",
-      "who": "the tester"
+      "who": "the tester",
+      "description": "Tests a handed-over ticket's build and passes or fails it.",
+      "several": true
     },
     "owner": {
       "sign": "{owner}",
-      "who": "the owner"
+      "who": "the owner",
+      "description": "Relays the owner's answers through the API (the chat does this too).",
+      "several": false
     }
   },
   "commands": {

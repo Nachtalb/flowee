@@ -42,7 +42,14 @@ export interface WorkspaceDoc {
     /** Days a new tracker token lives, asked for by the token link (default 366, GitHub's longest; `none`: no expiry). */
     tokenDays?: number | "none";
   };
-  roles: { instance: string; role: string; secret: string }[];
+  /** Agents with a secret of their own, named here (the former way; agents now come and go through the API). */
+  roles?: { instance: string; role: string; secret: string }[];
+  /**
+   * The project key: one secret per workspace that lists the roles and creates, changes and removes agents
+   * (docs/api.md, "Agents"). `secrets: "per-agent"` (strict): each agent created gets its own secret, and the key only
+   * manages agents; default `project`: any agent acts with the key and its name.
+   */
+  agents?: { key: string; secrets?: "project" | "per-agent" };
   owners: { name?: string; tracker?: string; chat?: string }[];
   chat?: {
     type: "telegram";

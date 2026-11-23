@@ -10,6 +10,7 @@ import { type Repos, SLOT } from "./repos";
 import { type Caller, type Ctx, check, fire, pick } from "./engine";
 import { codeView, untrustedQueue } from "./code";
 import { Webhooks } from "./events";
+import { Agents } from "./agents";
 import { housekeeping } from "./housekeeping";
 import { Fail } from "./errors";
 import type { Settings } from "./settings";
@@ -43,6 +44,8 @@ export class Flowee {
   /** Webhooks, the mirror of open tickets and the listings' schedule (src/core/events.ts). */
   readonly events = new Webhooks(this);
   readonly strip: (text: string) => string;
+  /** The workspace's agents: the document's and those created with the project key. */
+  readonly agents: Agents;
 
   constructor(
     public s: Settings,
@@ -52,6 +55,7 @@ export class Flowee {
     public secrets: Secrets,
   ) {
     this.flow = s.flow;
+    this.agents = new Agents(db, s.flow, s.instances);
     const signs = Object.keys(this.flow.options.roles).map((r) => this.signWord(r));
     this.strip = stripper([...new Set([...signs, "Owner"])]);
     tracker.written = (w) => this.events.follow(w);

@@ -83,7 +83,7 @@ describe("flow extensions", () => {
     const rooted = JSON.stringify(flowOf(doc([], { samples: { root: "Samples/", notNeededLabel: "no sample" } })).chart);
     expect(rooted).toContain('"root":"Samples/","unlessLabel":"no sample"');
     expect(JSON.stringify(samplesWith({}))).toBe(JSON.stringify(BUILTIN.samples));
-    expect(validate({ ...doc(["builtin:samples"]), roles: [...doc([]).roles, { instance: "sampler", role: "sampler", secret: "T_S" }] })).toEqual([]);
+    expect(validate({ ...doc(["builtin:samples"]), roles: [...(doc([]).roles ?? []), { instance: "sampler", role: "sampler", secret: "T_S" }] })).toEqual([]);
     // the base chart knows no sampler at all
     expect(JSON.stringify(FLOW)).not.toMatch(/sampl/);
   });
