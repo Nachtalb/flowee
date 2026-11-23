@@ -71,9 +71,285 @@
     },
     "features": {
       "type": "object",
-      "description": "Feature switches of the flow.",
-      "additionalProperties": {
-        "type": "boolean"
+      "additionalProperties": false,
+      "description": "Feature switches of the flow; each is off unless given (docs/configuration.md, Features).",
+      "properties": {
+        "pullRequests": {
+          "description": "A branch and a pull request per ticket, its checks green before hand-off or merge.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The ticket's branch; {n} is the ticket.",
+                  "default": "flowee/{n}",
+                  "pattern": "\\{n\\}"
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Check names that must be green; empty: every check of the head.",
+                  "default": []
+                },
+                "method": {
+                  "enum": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ],
+                  "default": "merge",
+                  "description": "How a pull request is merged."
+                },
+                "merger": {
+                  "enum": [
+                    "flow",
+                    "developer"
+                  ],
+                  "default": "flow",
+                  "description": "flow: the tester's pass merges; developer: the developer merges before the hand-off."
+                },
+                "deleteBranch": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Delete the branch after the merge."
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
+        "releases": {
+          "description": "Releases: test cards wait for the release with their code, the version line, the tested tag.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "source": {
+                  "enum": [
+                    "release",
+                    "tag"
+                  ],
+                  "default": "release",
+                  "description": "release: the latest published release; tag: the commit `tag` points at."
+                },
+                "tag": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The tag that marks the published build (source tag)."
+                },
+                "testedTag": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A tag moved forward over main as far as no commit belongs to an untested ticket."
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Checks a commit needs green before testedTag moves onto it.",
+                  "default": []
+                },
+                "skip": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Commit types never tagged (their builds are skipped).",
+                  "default": [
+                    "docs",
+                    "chore",
+                    "test"
+                  ]
+                },
+                "hold": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Test cards wait in `awaiting release` until the release has the ticket's code."
+                },
+                "versionLine": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Test cards say `📦 In <version> or later`."
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
+        "samples": {
+          "description": "The sampler role: tickets need a real sample on the main branch before development.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "root": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sample paths must start with this.",
+                  "default": ""
+                },
+                "notNeededLabel": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Tickets with this label need no sample.",
+                  "default": "not file related"
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
+        "uiReview": {
+          "description": "A pass whose diff changes the UI goes to board review with an owner card.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Globs: a change under one of them is a UI change."
+                },
+                "addedFiles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Globs: a file added under one of them is a UI change."
+                },
+                "addedLines": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Regular expressions: an added line matching one is a UI change."
+                },
+                "ignore": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Globs never counted."
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
+        "dependencyTickets": {
+          "description": "One ticket per open dependency pull request (e.g. Dependabot); the developer merges it green.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "authors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Pull request authors whose pull requests become tickets.",
+                  "default": [
+                    "dependabot[bot]"
+                  ],
+                  "minItems": 1
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One entry."
+                  },
+                  "description": "Labels the filed ticket gets.",
+                  "default": []
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
+        "untrustedReports": {
+          "description": "Tickets with untrusted user text go to one role only until it checked them.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The label marking untrusted text.",
+                  "default": "feedback"
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The role that reviews it.",
+                  "default": "board"
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        }
       }
     },
     "tracker": {

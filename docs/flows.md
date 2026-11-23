@@ -125,6 +125,26 @@ label; every target exists; every state is reachable; every guard and action (al
 command is a built-in or an event; input rules are known; `leaseHours > 0`; `commitSuffix` contains `{n}`. Each
 problem is one sentence naming the state, event or option.
 
+## Features: one chart, pruned per workspace
+
+A preset can carry optional parts. States, transitions, roles, commands and ticks name the **feature terms** that must
+all hold for them to exist: `meta.features` on a state or transition (Stately keeps `meta`, so the file stays
+openable there), `features` on an options role, command or tick. A term is `samples` (on), `!samples` (off),
+`pullRequests.merger=flow` (on, with that option), `releases.hold` (on, the option true). When a workspace is loaded,
+`prune()` (`src/core/features.ts`) removes everything whose terms fail, then drops events that lost every transition,
+commands whose event is gone, and the switched-off roles from the command lists. The pruned chart is what the loader
+checks and the engine runs; `GET /v1/whoami`, `queue` and `wrong_state` only ever see it.
+
+So the statechart of a workspace is the preset minus the parts of its switched-off features. A workspace may also
+give its own complete statechart inline and tag it the same way. Guards and actions of a feature read its options
+(`c.f.s.features`); used on a workspace without the feature they pass or do nothing.
+
+**Ticks** (`options.ticks: [{event, role, features?}]`): the cron fires `event` as `role` on every open ticket whose
+state has it, after the reaper; selector guards decide (e.g. `released` hands an `awaiting release` card to the owner
+once `inRelease` holds). Tick events need no entry in `options.commands`.
+
+**Input rule `paths`**: an optional array of non-empty strings (sample paths).
+
 ## Writing a preset
 
 1. Draw the chart (Stately or by hand) into `flows/<name>.json`; write `flows/<name>.options.json`.

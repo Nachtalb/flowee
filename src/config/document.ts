@@ -1,6 +1,7 @@
 // A workspace's whole configuration as one versioned JSON document. Secrets are never part of it: fields named
 // `secret`/`token`/`webhookSecret` hold the NAME of a secret supplied to the instance separately.
 import type { Chart, FlowOptions } from "../core/chart";
+import type { FeaturesDoc } from "../core/features";
 import type { Texts } from "../core/settings";
 
 export const VERSION = 1;
@@ -16,7 +17,7 @@ export interface WorkspaceDoc {
   name?: string;
   flow: FlowRef;
   /** Feature switches of the flow; phase 1 knows none, presets of later versions read them. */
-  features?: Record<string, boolean>;
+  features?: FeaturesDoc;
   tracker: {
     type: "github";
     /** The repositories; tickets are `alias#n` when there are several. */

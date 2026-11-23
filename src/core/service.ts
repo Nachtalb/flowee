@@ -8,6 +8,7 @@ import { parseCard } from "./card";
 import { BUILTIN, type Flow, type InputRule } from "./chart";
 import { type Repos, SLOT } from "./repos";
 import { type Caller, type Ctx, check, fire, pick } from "./engine";
+import { housekeeping } from "./housekeeping";
 import { Fail } from "./errors";
 import type { Settings } from "./settings";
 import { fill, iso, or, stripper } from "./text";
@@ -218,6 +219,10 @@ export class Flowee {
       case "flag":
         if (v !== undefined && typeof v !== "boolean") throw new Fail(400, "bad_request", `${name} must be true or false.`);
         return v === true;
+      case "paths":
+        if (v === undefined) return [];
+        if (!Array.isArray(v) || v.some((p) => typeof p !== "string" || !p.trim())) throw new Fail(400, "bad_request", `${name} must be a list of paths.`);
+        return v.map((p: string) => p.trim());
     }
     return t;
   }
@@ -358,6 +363,7 @@ export class Flowee {
   async cron() {
     const now = this.clock.now();
     await this.reap();
+    await housekeeping(this).catch((e) => console.error("housekeeping", e));
     if (this.envoy) await this.envoy.tick().catch((e) => console.error("envoy tick", e));
     this.db.exec("DELETE FROM idem WHERE ts < ?", now - 24 * 3600e3);
     this.db.exec("DELETE FROM updates WHERE ts < ?", now - 7 * 24 * 3600e3);

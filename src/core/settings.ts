@@ -1,6 +1,7 @@
 // What a workspace's runtime needs, resolved from its configuration document (src/config).
 import type { ChatRef } from "../ports/chat";
 import type { Flow } from "./chart";
+import type { Features } from "./features";
 
 export interface Texts {
   /** The owner's name: signature (`Owner:`) and filing note. */
@@ -29,6 +30,8 @@ export interface Instance {
 export interface Settings {
   id: string;
   flow: Flow;
+  /** The switched-on features with their options (src/core/features.ts). */
+  features: Features;
   mainBranch: string;
   /** The owner's tracker login (assigned in the inbox state). */
   ownerLogin?: string;

@@ -67,6 +67,7 @@ export type InputRule =
   | "text"
   | "body"
   | "title"
+  | "paths"
   | { required: string[] };
 
 export interface CommandOptions {
@@ -77,10 +78,12 @@ export interface CommandOptions {
   input?: Record<string, InputRule>;
   /** The response carries the ticket's state (default true). */
   state?: boolean;
+  /** Feature terms that must hold for the command to exist (docs/flows.md, "Features"). */
+  features?: string | string[];
 }
 
 export interface FlowOptions {
-  roles: Record<string, { sign: string; who: string }>;
+  roles: Record<string, { sign: string; who: string; features?: string | string[] }>;
   /** Every API command: who may call it and what its body holds. Commands that are chart events need `n`. */
   commands: Record<string, CommandOptions>;
   /** Hours a claim lives without a heartbeat. */
@@ -93,6 +96,8 @@ export interface FlowOptions {
   commitSuffix: string;
   /** The role that files tickets from the chat and answers there. */
   ownerRole: string;
+  /** Events the cron fires as `role` on every open ticket whose state has them (e.g. `released`). */
+  ticks?: { event: string; role: string; features?: string | string[] }[];
 }
 
 /** Commands handled by the service itself rather than a chart event. */
@@ -120,7 +125,7 @@ export function guardNames(g: Ref | undefined): string[] {
   return [refName(g), ...(refName(g) === "all" ? (p.guards ?? []).flatMap(guardNames) : [])];
 }
 
-const INPUTS = ["required", "optional", "card", "sha", "gates", "flag", "text", "body", "title"];
+const INPUTS = ["required", "optional", "card", "sha", "gates", "flag", "text", "body", "title", "paths"];
 
 /**
  * Loads and validates a flow. `guards`/`actions` are the names the registries know. Throws a Fail(400,
@@ -166,7 +171,7 @@ export function loadFlow(chart: Chart, options: FlowOptions, guards: string[], a
   for (const s of states) if (!reach.has(s)) errs.push(`State '${s}' is unreachable: no transition leads to it.`);
   const cmds = options.commands ?? {};
   for (const ev of events)
-    if (ev !== options.reaper?.event && !cmds[ev]) errs.push(`Event '${ev}' has no entry in options.commands.`);
+    if (ev !== options.reaper?.event && !(options.ticks ?? []).some((t) => t.event === ev) && !cmds[ev]) errs.push(`Event '${ev}' has no entry in options.commands.`);
   for (const [c, o] of Object.entries(cmds)) {
     for (const r of o.roles ?? []) if (!roles.includes(r)) errs.push(`Command '${c}' names the unknown role '${r}'.`);
     if (!o.read && !(BUILTIN as readonly string[]).includes(c) && !events.has(c)) errs.push(`Command '${c}' is no event of the chart.`);
@@ -174,7 +179,7 @@ export function loadFlow(chart: Chart, options: FlowOptions, guards: string[], a
       if (typeof rule === "string" ? !INPUTS.includes(rule) : !Array.isArray(rule.required))
         errs.push(`Command '${c}', field '${f}': unknown input rule ${JSON.stringify(rule)}.`);
   }
-  for (const r of [options.reaper?.role, options.ownerRole, ...(options.inboxRoles ?? [])])
+  for (const r of [options.reaper?.role, options.ownerRole, ...(options.inboxRoles ?? []), ...(options.ticks ?? []).map((t) => t.role)])
     if (r && !roles.includes(r)) errs.push(`The options name the unknown role '${r}'.`);
   if (!(options.leaseHours > 0)) errs.push("options.leaseHours must be a positive number.");
   if (!options.commitSuffix?.includes("{n}")) errs.push("options.commitSuffix must contain {n}.");

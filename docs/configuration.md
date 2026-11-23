@@ -45,7 +45,7 @@ with its JSON path, e.g. `$.tracker.repos: must have at least 1 item(s).`
 | `flow` | object | required | `{"preset": "trunk"}` or `{"chart": {…}, "options": {…}}` (inline XState statechart and options, see docs/flows.md). |
 | `flow.preset` | `"trunk"` | | A preset in `flows/`. |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
-| `features` | object of booleans | `{}` | Feature switches of the flow (none in this version; later presets read them, e.g. pull requests, releases). |
+| `features` | object | `{}` | Feature switches of the flow, each off unless given; see Features below. |
 | `tracker` | object | required | The tracker that keeps the record. |
 | `tracker.type` | `"github"` | required | The tracker adapter. |
 | `tracker.repos` | array, ≥ 1, of `owner/name` or `{repo, alias?, token?, mainBranch?}` | required | The repositories. With several, a ticket is `alias#n` (see "Several repositories" below). |
@@ -113,6 +113,44 @@ ticket's global id: its repository's slot × 10⁹ + its number. The first repos
 (`owner/name`) in the workspace's storage, so renaming an alias or reordering the list never moves a ticket.
 A repository removed and added again gets its old slot back.
 
+### Features
+
+Each feature is off unless the document gives it: `true` switches it on with the defaults, an object with options,
+`false` or absence leaves it off. A feature the workspace's flow has no states for (`trunk` has none; `pr-release`
+has all) or that its tracker cannot do is refused. docs/flows.md ("Features") says how a flow tags them;
+docs/adapters.md lists the token permission each one needs; docs/anyfile-parity.md maps them to AnyFile's flow.
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `features.pullRequests` | `true` or object | off | A branch and a pull request per ticket. The developer pushes the branch and calls `pr` (the Worker opens or updates the pull request); `handoff` needs it open with its checks green (or merged, see `merger`). |
+| `features.pullRequests.branch` | string with `{n}` | `flowee/{n}` | The ticket's branch name (the client creates it). |
+| `features.pullRequests.checks` | array of names | `[]` | Checks that must be green on the pull request's head; empty: every check run and status, and at least one. |
+| `features.pullRequests.method` | `merge`, `squash`, `rebase` | `merge` | How the pull request is merged; the merge commit's subject ends with the ticket suffix (` (#n)`). |
+| `features.pullRequests.merger` | `flow`, `developer` | `flow` | `flow`: the tester tests the pull request's head and `pass` merges it. `developer`: the developer merges with `merge` (checks green) before `handoff`, and the tester tests the main branch. |
+| `features.pullRequests.deleteBranch` | boolean | `true` | Delete the branch after the merge. |
+| `features.releases` | `true` or object | off | Releases: which one contains a ticket, test cards held until then, the version line, the `tested` tag. |
+| `features.releases.source` | `release`, `tag` | `release` | `release`: the latest published release (its notes' `build from <sha>` names the built commit, else its tag's commit). `tag`: the commit `tag` points at (a moving tag). |
+| `features.releases.tag` | string | | The tag marking the published build (`source: "tag"`, required there). |
+| `features.releases.testedTag` | string | | A tag the cron moves forward over the main branch as far as no commit belongs to a ticket still in an untested state (`meta.untested`); CI can release from it. |
+| `features.releases.checks` | array of names | `[]` | `testedTag` lands only on a commit with these checks green. |
+| `features.releases.skip` | array of commit types | `["docs", "chore", "test"]` | `testedTag` never lands on a commit of these types. |
+| `features.releases.hold` | boolean | `true` | A `Kind: test` card for a ticket whose commits the release lacks waits in `awaiting release`; the cron hands it to the owner when a release has them. |
+| `features.releases.versionLine` | boolean | `true` | Test cards say `📦 In <version> or later`. |
+| `features.samples` | `true` or object | off | The `sampler` role and the states `needs samples`, `in procurement`, `samples unobtainable`; `Kind: sample` cards. |
+| `features.samples.root` | string | `""` | Sample paths must start with this (e.g. `Samples/`). |
+| `features.samples.notNeededLabel` | string | `not file related` | A ticket with this label needs no sample to become `ready`. |
+| `features.uiReview` | object | off | A `pass` whose commits change the UI goes to `board review` with an owner card instead of closing. |
+| `features.uiReview.paths` | array of globs | `[]` | A change to a file under one of them is a UI change (`**/ui/**`, `**/src/main/res/**`). |
+| `features.uiReview.addedFiles` | array of globs | `[]` | A file added under one of them is a UI change (a new view). |
+| `features.uiReview.addedLines` | array of regular expressions | `[]` | An added line matching one is a UI change (`@Composable`). |
+| `features.uiReview.ignore` | array of globs | `[]` | Files never counted (`formats/**`, tests). |
+| `features.dependencyTickets` | `true` or object | off | The cron files one ticket per open pull request of these authors (`deps: <title> (PR #p)`, body `Pull request: #p`); its hand-off needs that pull request merged. |
+| `features.dependencyTickets.authors` | array | `["dependabot[bot]"]` | Pull request authors. |
+| `features.dependencyTickets.labels` | array | `[]` | Labels the ticket gets (e.g. `not file related`). |
+| `features.untrustedReports` | `true` or object | off | A ticket labelled as untrusted user text goes only to `role` (in any state) until `triage` or `checked` removes the label. |
+| `features.untrustedReports.label` | string | `feedback` | The label an outside service puts on untrusted text. |
+| `features.untrustedReports.role` | string | `board` | The role that reviews it. |
+
 ### Invalid combinations (one sentence each)
 
 - A `roles[].role` that is no role of the flow; an `instance` used twice.
@@ -122,6 +160,10 @@ A repository removed and added again gets its old slot back.
 - `files` without `chat`; `profile` without `chat.publicUrl`.
 - `schedule.digestFrom` not before `schedule.digestTo`; a `schedule.timezone` that is no IANA zone.
 - An inline `flow` that does not load (every problem of docs/flows.md's checks).
+- A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the 'trunk' flow has no
+  feature 'samples'.`); `releases.source: "tag"` without `releases.tag`; `releases.testedTag` equal to `releases.tag`;
+  `uiReview` without any of `paths`, `addedFiles`, `addedLines`, or with an `addedLines` entry that is no regular
+  expression; `untrustedReports.role` that is no role of the flow; an instance of a role whose feature is off.
 - In an instance document: a workspace id twice; two workspaces bound to the same chat and topic; (standalone)
   two different bots.
 

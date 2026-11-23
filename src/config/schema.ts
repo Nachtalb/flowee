@@ -4,7 +4,8 @@ import { loadFlow } from "../core/chart";
 import { ACTIONS } from "../core/actions";
 import { GUARDS } from "../core/guards";
 import type { InstanceDoc, WorkspaceDoc } from "./document";
-import { PRESETS } from "./presets";
+import { FEATURES_SCHEMA, featureProblems } from "./features";
+import { flowOf, PRESETS, rawFlow } from "./presets";
 
 type S = Record<string, unknown>;
 const str = (description: string, extra: S = {}): S => ({ type: "string", minLength: 1, description, ...extra });
@@ -49,7 +50,7 @@ export const SCHEMA: S = {
           ),
         ],
       },
-      features: { type: "object", description: "Feature switches of the flow.", additionalProperties: { type: "boolean" } },
+      features: FEATURES_SCHEMA,
       tracker: obj(
         {
           type: { enum: ["github"], description: "The tracker adapter." },
@@ -195,12 +196,13 @@ export function validate(doc: unknown): string[] {
   const errs = check(SCHEMA, doc);
   if (errs.length) return errs;
   const d = doc as WorkspaceDoc;
-  const flow = "preset" in d.flow ? PRESETS[d.flow.preset] : d.flow;
+  const flow = flowOf(d);
   try {
     loadFlow(flow.chart, flow.options, Object.keys(GUARDS), Object.keys(ACTIONS));
   } catch (e) {
     return [`$.flow: ${(e as Error).message}`];
   }
+  errs.push(...featureProblems(d, rawFlow(d)));
   const repos = repoList(d);
   repos.forEach((r, i) => {
     if (!new RegExp(ALIAS).test(r.alias)) errs.push(`$.tracker.repos[${i}]: the alias '${r.alias}' made from the name is not usable; give an alias.`);

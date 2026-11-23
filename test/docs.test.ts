@@ -4,6 +4,7 @@ import config from "../docs/configuration.md?raw";
 import flows from "../docs/flows.md?raw";
 import { ACTIONS } from "../src/core/actions";
 import { GUARDS } from "../src/core/guards";
+import { FEATURES_SCHEMA } from "../src/config/features";
 import { SCHEMA } from "../src/config/schema";
 
 const fields = (s: Record<string, any>, p = ""): string[] =>
@@ -16,6 +17,13 @@ const fields = (s: Record<string, any>, p = ""): string[] =>
 describe("docs", () => {
   it("docs/flows.md describes every guard and action", () => {
     for (const n of [...Object.keys(GUARDS), ...Object.keys(ACTIONS)]) expect(flows, n).toContain(`| \`${n}\` |`);
+  });
+
+  it("docs/configuration.md describes every feature switch and its options", () => {
+    for (const [k, v] of Object.entries(FEATURES_SCHEMA.properties as Record<string, any>)) {
+      expect(config, k).toContain(`| \`features.${k}\` |`);
+      for (const o of Object.keys(v.oneOf[0].properties)) expect(config, `${k}.${o}`).toContain(`| \`features.${k}.${o}\` |`);
+    }
   });
 
   it("docs/configuration.md describes every field of the schema", () => {

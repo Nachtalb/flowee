@@ -8,7 +8,8 @@ import { hex, sha256 } from "../core/text";
 import type { ChatRef } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
 import { type InstanceDoc, VERSION, type WorkspaceDoc } from "./document";
-import { PRESETS } from "./presets";
+import { resolve } from "../core/features";
+import { flowOf } from "./presets";
 import { secretNames, validate, validateInstance } from "./schema";
 
 export interface WorkspaceRegistry {
@@ -129,12 +130,13 @@ export function texts(d: WorkspaceDoc): Texts {
 
 /** The runtime settings of a document. */
 export function settings(d: WorkspaceDoc): Settings {
-  const f = "preset" in d.flow ? PRESETS[d.flow.preset] : d.flow;
+  const f = flowOf(d);
   const flow = loadFlow(f.chart, f.options, Object.keys(GUARDS), Object.keys(ACTIONS));
   const s = d.schedule ?? {};
   return {
     id: d.id,
     flow,
+    features: resolve(d.features),
     mainBranch: d.tracker.mainBranch ?? "main",
     ownerLogin: d.owners.find((o) => o.tracker)?.tracker,
     owners: d.owners.map((o) => o.chat).filter((x): x is string => !!x),
