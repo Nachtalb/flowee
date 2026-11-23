@@ -416,7 +416,7 @@ In the project repository, with `<url>` the instance's address:
 2. `.flowee.toml` at the repository root, committed (no secret in it):
 
    ```toml
-   url = "http://127.0.0.1:8787"
+   url = "http://127.0.0.1:8787"              # <url>: this one is a self-hosted instance on this machine
    workspace = "acme"
    key_file = "~/.secrets/flowee/{workspace}/key"
 
