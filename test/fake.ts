@@ -168,7 +168,8 @@ export class FakeTelegram {
     getManagedBotAccessSettings: { is_access_restricted: false },
   };
   down = false;
-  webhook = "";
+  /** The webhook URL per bot token. */
+  hooks: Record<string, string> = {};
   private id = 100;
 
   of(method: string) {
@@ -183,13 +184,13 @@ export class FakeTelegram {
     const params = (multipart ? Object.fromEntries(await req.formData()) : await req.json()) as Record<string, any>;
     const call: { method: string; params: Record<string, any>; id?: number; bot: string } = { method, params, bot };
     this.calls.push(call);
-    if (method === "setWebhook") this.webhook = params.url;
+    if (method === "setWebhook") this.hooks[bot] = params.url;
     if (this.down) return Response.json({ ok: false, description: "Bad Gateway" }, { status: 502 });
     const result =
       method in this.answers
         ? this.answers[method]
         : method === "getWebhookInfo"
-        ? { url: this.webhook }
+        ? { url: this.hooks[bot] ?? "" }
         : method === "getFile"
           ? { file_path: `files/${params.file_id}` }
           : method.startsWith("send") || method === "editMessageText"

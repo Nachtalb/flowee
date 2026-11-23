@@ -20,6 +20,8 @@ export interface Draft {
   bot?: "shared" | "own";
   botId?: string;
   botUsername?: string;
+  /** The name the user gave the own bot when creating it (its profile keeps it). */
+  botName?: string;
   repos: string[];
   preset?: string;
   features: Record<string, boolean>;
@@ -55,7 +57,7 @@ export interface Session {
 export type Input =
   | { kind: "press"; data: string; message?: number }
   | { kind: "text"; text: string; message: number }
-  | { kind: "managed"; botId: string; username?: string }
+  | { kind: "managed"; botId: string; username?: string; name?: string }
   | { kind: "bound"; chat: string; topic?: number; label: string };
 
 export interface Preset {
@@ -161,6 +163,7 @@ export function toDoc(d: Draft, user: string, preset: Preset, shared: { token: s
     owners,
   };
   if (!Object.keys(d.features).length) delete doc.features;
+  if (own && d.botName && !doc.texts?.botName) doc.texts = { ...(doc.texts ?? {}), botName: d.botName };
   if (d.bind)
     doc.chat = {
       ...(base.chat ?? {}),
@@ -382,6 +385,7 @@ export class Wizard {
       await this.host.adoptBot(s, i.botId);
       s.draft.botId = i.botId;
       s.draft.botUsername = i.username;
+      s.draft.botName = i.name;
       if (this.chat.dropKeyboard) await this.chat.dropKeyboard(s.at, `🤖 @${i.username ?? i.botId} is yours; I manage it from here.`).catch(() => {});
       await this.advance(s);
       return true;

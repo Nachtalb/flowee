@@ -142,8 +142,6 @@ export interface Chat {
   /** Removes a reply keyboard with a short note. */
   dropKeyboard?(to: ChatRef, text: string): Promise<number>;
   sendFile?(to: ChatRef, name: string, data: string, caption?: string): Promise<number>;
-  /** The HTML text and buttons of a sent message, replaced. */
-  editHtml?(to: ChatRef, id: number, html: string, buttons?: Button[][]): Promise<void>;
   download(file: FileRef): Promise<ArrayBuffer>;
   /** Profile items, each applied only when `changed(item, value)` says so. */
   setName(name: string): Promise<void>;

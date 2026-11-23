@@ -219,8 +219,18 @@ describe("the setup wizard", () => {
       publicUrl: "https://flowee.test",
       username: "WidgetEnvoyBot",
     });
-    // the own bot got its settings from its workspace
-    expect(tg.calls.filter((c) => c.method === "setMySettings" && c.bot === "777:own-token").map((c) => c.params.can_manage_bots)).toEqual([false]);
+    // the own bot got its profile and settings from its workspace (the name the user gave it, the bundled photo)
+    const own = (m: string) => tg.calls.filter((c) => c.method === m && c.bot === "777:own-token").map((c) => c.params);
+    expect(own("setMySettings").map((p) => p.can_manage_bots)).toEqual([false]);
+    expect(own("setMyName")).toEqual([{ name: "Widget" }]);
+    expect(own("setMyDescription")[0].description).toBe("Your widget review inbox as a todo list: tests, questions and decisions waiting for you, answered by replying.");
+    expect(own("setMyProfilePhoto").length).toBe(1);
+    expect(own("setWebhook").at(-1)?.url).toBe("https://flowee.test/telegram/w/widget");
+    // hash-gated: a new version's /setup changes nothing that did not change
+    const before = tg.calls.length;
+    await runInDurableObject(env.WORKSPACE.get(env.WORKSPACE.idFromName("widget")), (o) => o.store.exec("DELETE FROM meta WHERE k = 'setup'"));
+    await worker.fetch(new Request("https://flowee.test/setup"), menv());
+    expect(tg.calls.slice(before).filter((c) => c.bot === "777:own-token" && c.method.startsWith("set"))).toEqual([]);
     // the card goes to the topic through the own bot; only the owner's reply in that topic answers
     lib.add({ number: 1, state_label: "board review" });
     expect((await api(s.board, "/v1/escalate", { n: "lib#1", comment: CARD })).body.telegram).toBe("sent");

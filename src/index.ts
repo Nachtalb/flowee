@@ -129,5 +129,7 @@ export default {
 
   async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(each(env, "/cron"));
+    // the instance bot's profile follows its configuration (each item only when it changed)
+    if (mode(env) === "managed") ctx.waitUntil(instance(env).setup(instanceDoc(env)).catch((e) => console.error("instance setup", e)));
   },
 } satisfies ExportedHandler<Env>;

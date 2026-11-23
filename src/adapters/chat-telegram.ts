@@ -254,11 +254,6 @@ export class Telegram implements Chat {
     form.append("document", new Blob([data], { type: "application/json" }), name);
     return (await this.call("sendDocument", form)).message_id;
   }
-  async editHtml(at: ChatRef, id: number, html: string, buttons?: Button[][]) {
-    const p: Record<string, unknown> = { chat_id: at.chat, message_id: id, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: true } };
-    p.reply_markup = { inline_keyboard: (buttons ?? []).map((r) => r.map((b) => ({ text: b.label, callback_data: b.data }))) };
-    await this.call("editMessageText", p);
-  }
   async setWebhook(url: string, secret: string) {
     await this.call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query"] });
   }

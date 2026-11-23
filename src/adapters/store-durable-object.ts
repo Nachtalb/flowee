@@ -16,6 +16,7 @@ import { Paste } from "./files-paste";
 import { GitHub } from "./tracker-github";
 import { Telegram } from "./chat-telegram";
 import { registry, type Env } from "./instance";
+import { PHOTO } from "./photo";
 import { unseal, vaultKey } from "./vault";
 
 export const WORKSPACE_HEADER = "x-flowee-workspace";
@@ -161,8 +162,10 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
   if (doc.chat) {
     const files = doc.files && new Paste(doc.files.url, secrets.get(doc.files.token), doc.files.expire);
     const photo = doc.profile?.photo;
+    // a workspace's own bot without a photo of its own gets the bundled one
+    const own = doc.chat.managed ? () => Uint8Array.from(atob(PHOTO), (c) => c.charCodeAt(0)).buffer : undefined;
     envoy = new Envoy(flow, new Telegram(secrets.get(doc.chat.token), doc.chat.token), files, async () =>
-      photo ? (await fetch(photo)).arrayBuffer() : undefined,
+      photo ? (await fetch(photo)).arrayBuffer() : own?.(),
     );
     envoy.version = env.VERSION?.id ?? "dev";
     flow.envoy = envoy;

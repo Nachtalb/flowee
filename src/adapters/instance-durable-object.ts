@@ -301,7 +301,7 @@ export class Instance extends DurableObject<Env> {
     const { wizard, manager, say } = this.tools(tg);
     const dm = (user: string): ChatRef => ({ chat: user });
     if (e.kind === "managed") {
-      await wizard.input(e.from, dm(e.from), { kind: "managed", botId: e.bot.id, username: e.bot.username });
+      await wizard.input(e.from, dm(e.from), { kind: "managed", botId: e.bot.id, username: e.bot.username, name: e.bot.name });
       return {};
     }
     const bound = e.at && this.registry.byChat(e.at);
@@ -347,7 +347,8 @@ export class Instance extends DurableObject<Env> {
       await manager.importText(e.from, e.at, text);
       return {};
     }
-    if (typeof e.text === "string" && (await wizard.input(e.from, e.at, { kind: "text", text: e.text, message: e.id }))) return {};
+    // a reply to one of the bot's messages (a card) is never wizard input
+    if (typeof e.text === "string" && !e.replyTo && (await wizard.input(e.from, e.at, { kind: "text", text: e.text, message: e.id }))) return {};
     if (e.text?.trim().startsWith("{")) {
       await manager.importText(e.from, e.at, e.text);
       return {};
