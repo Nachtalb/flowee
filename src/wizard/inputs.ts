@@ -45,7 +45,7 @@ export const INPUTS: Partial<Record<FeatureName, OptionSpec>> = {
   pullRequests: {
     question: "How should feature branches work?",
     inputs: [
-      { key: "branch", name: "Branch name", ask: "The branch made for each ticket; {n} becomes the ticket's number.", type: "text", suggest: ["flowee/{n}", "ticket-{n}"], check: (x) => (String(x).includes("{n}") ? undefined : "The branch name needs {n}, the ticket's number.") },
+      { key: "branch", name: "Branch name", ask: "The branch made for each ticket; {n} becomes the ticket's number.", type: "text", suggest: ["flowee/{n}", "ticket-{n}"], required: true, check: (x) => (String(x).includes("{n}") ? undefined : "The branch name needs {n}, the ticket's number.") },
       { key: "checks", name: "Required checks", ask: "The checks that must pass before a pull request is merged.", none: "All of them", type: "list" },
       { key: "method", name: "Merge method", ask: "How the pull request is merged on {tracker}.", type: "choice", choices: [["merge", "Merge"], ["squash", "Squash"], ["rebase", "Rebase"]] },
       { key: "merger", name: "Who merges", ask: "Flowee merges once the ticket passed testing, or the developer agent merges before it is tested.", type: "choice", choices: [["flow", "Flowee, after testing"], ["developer", "The developer"]] },

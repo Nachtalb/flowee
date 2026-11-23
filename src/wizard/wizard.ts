@@ -831,7 +831,7 @@ export class Wizard {
     return {
       body: [
         this.top(s),
-        question("Custom steps"),
+        question("Add steps and rules of your own"),
         text(`An extension file adds steps, agent roles and rules of your own to how tickets move (${code(`${this.host.publicUrl}/docs/flows.md`)}, “Extending the flow”). Send the ${code(".json")} file here; an agent can write it from ${code(`${this.host.publicUrl}/flows/flow.json`)}.`),
         ...(s.extProblems?.length ? [warning(`The file was not added: ${s.extProblems.length > 1 ? `${s.extProblems.length} problems` : "one problem"}.`), facts(s.extProblems.map((x) => [esc(x)]))] : []),
         ...(exts.length ? [] : [text("None added yet.")]),
@@ -884,7 +884,7 @@ export class Wizard {
   private say(i: OptionSpec["inputs"][number], x: unknown): string {
     if (i.type === "flag") return x ? "on" : "off";
     if (i.type === "choice") return i.choices?.find(([c]) => c === x)?.[1] ?? String(x);
-    if (empty(x)) return (i.none ?? "none").toLowerCase();
+    if (empty(x)) return (i.none ?? "not set").toLowerCase();
     return Array.isArray(x) ? x.map((y) => code(String(y))).join(", ") : code(String(x));
   }
 
@@ -919,7 +919,7 @@ export class Wizard {
     return {
       body: [this.top(s), question(esc(spec.question))],
       rows: [
-        options(...rows, ...(more.length ? [option("⚙️ Advanced", `Rarely needed: ${more.map((i) => esc(i.name)).join(", ")}.`, b(s.advanced ? "Hide" : "Show", "advanced"))] : [])),
+        options(...rows, ...(more.length ? [option("⚙️ Advanced", `Rarely needed: ${more.map((i) => esc(i.name.replace(/^\w/, (c) => c.toLowerCase()))).join(", ")}.`, b(s.advanced ? "Hide" : "Show", "advanced"))] : [])),
         row(b("◀ Back", "back"), b("✅ Apply", "apply"), b("✖ Cancel", "cancel")),
       ],
     };

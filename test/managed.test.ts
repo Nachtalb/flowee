@@ -507,7 +507,7 @@ describe("the setup wizard: one living message", () => {
         TABLE(
           OPT("✅ Wait for a release", "You are asked to test a ticket only once a release contains its change.", CB("Switch off", "w:flag:hold")),
           OPT("What counts as released", "The newest release on GitHub, or a git tag you move yourself (e.g. stable).", CB("● The newest release", "w:set:source:release"), CB("A git tag", "w:set:source:tag")),
-          OPT("⚙️ Advanced", "Rarely needed: Mark tested code with a tag.", CB("Show", "w:advanced")),
+          OPT("⚙️ Advanced", "Rarely needed: mark tested code with a tag.", CB("Show", "w:advanced")),
         ),
         ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
@@ -521,7 +521,7 @@ describe("the setup wizard: one living message", () => {
     // the rare setting behind Advanced, its value in words
     await tap(100, "w:advanced");
     expect(screen()).toContain(OPT("Mark tested code with a tag", "Flowee keeps a git tag on the newest commit whose tickets all passed testing. Now: off.", CB("tested", "w:set:testedTag:tested"), CB("✏️ Type", "w:type:testedTag")));
-    expect(screen()).toContain(OPT("⚙️ Advanced", "Rarely needed: Mark tested code with a tag.", CB("Hide", "w:advanced")));
+    expect(screen()).toContain(OPT("⚙️ Advanced", "Rarely needed: mark tested code with a tag.", CB("Hide", "w:advanced")));
     expect(screen()).toContain(OPT("Release tag", "The git tag you move onto each released commit. Now: not set yet.", CB("stable", "w:set:tag:stable"), CB("latest", "w:set:tag:latest"), CB("✏️ Type", "w:type:tag")));
     await tap(100, "w:apply");
     expect(screen()).toContain("<p>⚠️ The release tag is not set yet.</p>");
@@ -614,7 +614,7 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(
       [
         "<p>🆕 <b>New workspace</b> · Custom steps</p>",
-        "<p><b>Custom steps</b></p>",
+        "<p><b>Add steps and rules of your own</b></p>",
         "<p>An extension file adds steps, agent roles and rules of your own to how tickets move (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send the <code>.json</code> file here; an agent can write it from <code>https://flowee.test/flows/flow.json</code>.</p>",
         "<p>None added yet.</p>",
         ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
