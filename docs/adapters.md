@@ -22,14 +22,37 @@ Errors are `Fail`s: `404 not_found` for a missing issue, `502 <tracker>` naming 
 Optional capabilities, each an object the adapter sets or leaves undefined; `capability(tracker, "pulls")`
 turns a missing one into `501 unsupported` (`The tracker does not support pull requests.`):
 
-| Capability | Methods | Used by (phase 2, AnyFile's flow) |
+| Capability | Methods | Used by |
 |---|---|---|
 | `board` | `setStatus(issue, status)` | the project board column per state (GitHub adapter: when `tracker.project` is set) |
-| `branches` | `head(name)` | a ticket's branch |
-| `pulls` | `forIssue(n)`, `get(number)`, `merge(number, method)` | branch + pull request flows |
-| `checks` | `forCommit(sha)` | CI checks green before a pass or a merge (AnyFile: the build workflow on master) |
-| `releases` | `latest()` (tag, built-from sha, body) | `awaiting release`: a test card waits until the published build has the ticket's commits |
-| `tags` | `get(name)`, `move(name, sha)` | the `tested` tag that moves over main as far as tested tickets allow |
+| `branches` | `head(name)`, `exists(ref, path)`, `changes(sha)` (files + added lines), `remove(name)` | `pullRequests` (the ticket's branch), `samples` (sample paths on main), `uiReview` (the diff) |
+| `pulls` | `forBranch(name)`, `get(n)`, `open()`, `create(head, base, title, body)`, `update(n, {title, body})`, `merge(n, method, subject)` | `pullRequests`, `dependencyTickets` |
+| `checks` | `forCommit(sha)` (check runs and commit statuses, newest per name) | `pullRequests` (`checksGreen`), `releases` (`checks`: the `tested` tag only onto a green commit) |
+| `releases` | `latest()` (tag, name, the built-from sha its notes name, body) | `releases` (`source: "release"`) |
+| `tags` | `get(name)`, `move(name, sha)` | `releases` (`source: "tag"`, `testedTag`) |
+
+A workspace that switches on a feature its tracker cannot do is refused when it is loaded
+(`$.features.pullRequests: the tracker 'github' cannot do pull requests.`); a call that reaches a missing
+capability anyway answers `501 unsupported`. Errors map to the existing codes: a missing pull request is
+`404 not_found`, a merge GitHub refuses (not mergeable, head moved) `409 not_mergeable`, anything else `502 github`
+naming the call.
+
+### GitHub token permissions per feature
+
+A fine-grained token limited to the workspace's repositories. The base flow needs **Issues: read and write**,
+**Metadata: read** and **Contents: read** (commits, compare); a `tracker.project` board needs a classic token with
+`repo` + `project` instead (fine-grained tokens cannot write a user's project).
+
+| Feature | Calls | Permission |
+|---|---|---|
+| `pullRequests` | branch heads, open/update/read pull requests, check runs and statuses, merge, delete the branch | **Pull requests: read and write**, **Checks: read**, **Commit statuses: read**, **Contents: read and write** (merging and deleting a branch write contents) |
+| `releases` | the latest release, read a tag | **Contents: read** |
+| `releases.testedTag` | move the tag | **Contents: read and write** |
+| `releases.checks` | check runs and statuses of main's commits | **Checks: read**, **Commit statuses: read** |
+| `samples` | does a path exist on main | **Contents: read** |
+| `uiReview` | the files and lines of the ticket's commits | **Contents: read** |
+| `dependencyTickets` | list open pull requests, read one, file a ticket | **Pull requests: read**, **Issues: read and write** |
+| `untrustedReports` | labels only | (base) |
 
 ## Chat
 

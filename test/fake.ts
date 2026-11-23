@@ -25,6 +25,8 @@ export class FakeGitHub {
   writes: string[] = [];
   /** The Authorization header of every request. */
   auth: string[] = [];
+  /** Routes of the optional capabilities (test/fake-code.ts); answered before the routes below. */
+  extra?: (method: string, path: string, body: Record<string, any>, url: URL) => Response | undefined;
   private nextComment = 1;
 
   constructor(public repo = "Nachtalb/livedu") {}
@@ -83,7 +85,8 @@ export class FakeGitHub {
     const code = this.fail?.(method, path);
     if (code) return new Response("{}", { status: code });
     const ok = (b: unknown, status = 200) => Response.json(b, { status });
-    const body = method === "GET" ? {} : ((await req.json()) as Record<string, any>);
+    const raw = method === "GET" ? "" : await req.text();
+    const body = (raw ? JSON.parse(raw) : {}) as Record<string, any>;
     if (method !== "GET") this.writes.push(`${method} ${path}`);
     const page = Number(url.searchParams.get("page") ?? 1);
     const per = Number(url.searchParams.get("per_page") ?? 30);
@@ -94,6 +97,8 @@ export class FakeGitHub {
     };
     let m: RegExpExecArray | null;
     const R = `/repos/${this.repo}`;
+    const extra = this.extra?.(method, path, body, url);
+    if (extra) return extra;
 
     if (path === "/graphql") {
       const q: string = body.query;

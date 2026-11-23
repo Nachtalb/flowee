@@ -1,7 +1,8 @@
 // The Tracker port over the GitHub REST API (issues, labels, comments, commits, compare) and, for the optional
 // board, a user's Projects (v2) board over GraphQL. Plain fetch, no SDK.
 import { Fail } from "../core/errors";
-import type { Board, Comment, Commit, Issue, IssuePatch, Tracker } from "../ports/tracker";
+import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, Tags, Tracker } from "../ports/tracker";
+import { GitHubBranches, GitHubChecks, GitHubPulls, GitHubReleases, GitHubTags } from "./tracker-github-code";
 
 interface GhIssue {
   number: number;
@@ -45,6 +46,11 @@ export interface GitHubConfig {
 
 export class GitHub implements Tracker {
   board?: Board;
+  branches: Branches = new GitHubBranches(this);
+  pulls: PullRequests = new GitHubPulls(this);
+  checks: Checks = new GitHubChecks(this);
+  releases: Releases = new GitHubReleases(this);
+  tags: Tags = new GitHubTags(this);
 
   constructor(private c: GitHubConfig) {
     if (c.project) this.board = new ProjectBoard(this, c.project);
@@ -81,7 +87,7 @@ export class GitHub implements Tracker {
     }
   }
 
-  private get r() {
+  get r() {
     return `/repos/${this.c.repo}`;
   }
 

@@ -67,43 +67,68 @@ export interface Board {
   setStatus(issue: Issue, status: string): Promise<void>;
 }
 
+export interface Change {
+  /** A added, M modified, D deleted, R renamed. */
+  status: "A" | "M" | "D" | "R";
+  path: string;
+  /** The lines the change adds (without the leading +). */
+  added: string[];
+}
+
+/** Reading the repository's code: branch heads, files, the files a commit changed. */
 export interface Branches {
   /** The head sha of a branch, or null when it does not exist. */
   head(name: string): Promise<string | null>;
+  /** Whether a file or directory exists at `path` on `ref`. */
+  exists(ref: string, path: string): Promise<boolean>;
+  /** The files a commit changed, with their added lines. */
+  changes(sha: string): Promise<Change[]>;
+  remove(name: string): Promise<void>;
 }
 
 export interface PullRequest {
   number: number;
   title: string;
+  body: string;
   url: string;
   head: string;
   headSha: string;
   base: string;
   state: "open" | "closed" | "merged";
-  /** Issue numbers the pull request says it closes. */
-  closes: number[];
+  /** The commit the merge made on the base branch. */
+  mergeSha: string | null;
+  author: string;
 }
 
 export interface PullRequests {
-  /** Pull requests that reference the issue (open ones first). */
-  forIssue(n: number): Promise<PullRequest[]>;
+  /** The newest pull request from `branch` (open ones first), or null. */
+  forBranch(branch: string): Promise<PullRequest | null>;
+  /** One pull request; 404 not_found when missing. */
   get(number: number): Promise<PullRequest>;
-  merge(number: number, method: "merge" | "squash" | "rebase"): Promise<string>;
+  /** The open pull requests. */
+  open(): Promise<PullRequest[]>;
+  create(head: string, base: string, title: string, body: string): Promise<PullRequest>;
+  update(number: number, patch: { title?: string; body?: string }): Promise<void>;
+  /** Merges; the merge commit's sha. 409 not_mergeable when the tracker refuses. */
+  merge(number: number, method: "merge" | "squash" | "rebase", subject?: string): Promise<string>;
 }
 
 export interface CheckRun {
   name: string;
   status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "neutral" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
+  conclusion: "success" | "failure" | "neutral" | "cancelled" | "skipped" | "timed_out" | "action_required" | "stale" | null;
 }
 
 export interface Checks {
+  /** Check runs and commit statuses of a commit, one entry per name (the newest). */
   forCommit(sha: string): Promise<CheckRun[]>;
 }
 
 export interface Release {
   tag: string;
-  /** The commit the release was built from, when the tracker or its notes name it. */
+  /** The release's name (the version shown on cards). */
+  name: string;
+  /** The commit the release was built from, when its notes name it (`build from <sha>`). */
   sha: string | null;
   body: string;
   url: string;
@@ -111,10 +136,12 @@ export interface Release {
 }
 
 export interface Releases {
+  /** The latest published release, or null. */
   latest(): Promise<Release | null>;
 }
 
 export interface Tags {
+  /** The commit a tag points at, or null when it does not exist. */
   get(name: string): Promise<string | null>;
   /** Creates or moves a tag (AnyFile's `tested` tag moves forward over main). */
   move(name: string, sha: string): Promise<void>;
@@ -124,7 +151,7 @@ export type Capability = "board" | "branches" | "pulls" | "checks" | "releases" 
 
 const NAMES: Record<Capability, string> = {
   board: "a project board",
-  branches: "branches",
+  branches: "reading branches and files",
   pulls: "pull requests",
   checks: "check runs",
   releases: "releases",
