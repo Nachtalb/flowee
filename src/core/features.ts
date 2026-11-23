@@ -57,11 +57,13 @@ export interface DependencyTicketsFeature {
   labels: string[];
 }
 
-export interface UntrustedReportsFeature {
-  /** The label an outside service puts on untrusted user text. */
+export interface UserFeedbackFeature {
+  /** The label that marks user feedback (untrusted text from outside the team). */
   label: string;
-  /** The only role that gets such a ticket, in any state, until it is checked. */
+  /** The role that triages it (in any state, until it is checked). */
   role: string;
+  /** true: the board triages it automatically; false: a new ticket with the label waits for a human first. */
+  autoTriage: boolean;
 }
 
 /** Resolved switches: a feature is on when present. */
@@ -71,13 +73,16 @@ export interface Features {
   samples?: SamplesFeature;
   uiReview?: UiReviewFeature;
   dependencyTickets?: DependencyTicketsFeature;
-  untrustedReports?: UntrustedReportsFeature;
+  userFeedback?: UserFeedbackFeature;
 }
 
 export type FeatureName = keyof Features;
 
 /** As written in a workspace document: false/absent off, true on with defaults, an object on with options. */
-export type FeaturesDoc = { [K in FeatureName]?: boolean | Partial<NonNullable<Features[K]>> };
+export type FeaturesDoc = { [K in FeatureName]?: boolean | Partial<NonNullable<Features[K]>> } & {
+  /** The former name of `userFeedback` (automatic triage); still read when `userFeedback` is absent. */
+  untrustedReports?: boolean | Partial<Omit<UserFeedbackFeature, "autoTriage">>;
+};
 
 export const DEFAULTS: { [K in FeatureName]-?: NonNullable<Features[K]> } = {
   pullRequests: { branch: "flowee/{n}", checks: [], method: "merge", merger: "flow", deleteBranch: true },
@@ -85,7 +90,7 @@ export const DEFAULTS: { [K in FeatureName]-?: NonNullable<Features[K]> } = {
   samples: { root: "", notNeededLabel: "not file related" },
   uiReview: { paths: [], addedFiles: [], addedLines: [], ignore: [] },
   dependencyTickets: { authors: ["dependabot[bot]"], labels: [] },
-  untrustedReports: { label: "feedback", role: "board" },
+  userFeedback: { label: "feedback", role: "board", autoTriage: true },
 };
 
 export const FEATURES = Object.keys(DEFAULTS) as FeatureName[];
@@ -97,11 +102,13 @@ export const NEEDS: Record<FeatureName, Capability[]> = {
   samples: ["branches"],
   uiReview: ["branches"],
   dependencyTickets: ["pulls"],
-  untrustedReports: [],
+  userFeedback: [],
 };
 
 export function resolve(doc: FeaturesDoc = {}): Features {
   const out: Record<string, unknown> = {};
+  // the former `untrustedReports` is `userFeedback` with automatic triage
+  if (doc.untrustedReports && doc.userFeedback === undefined) doc = { ...doc, userFeedback: { ...(doc.untrustedReports === true ? {} : doc.untrustedReports), autoTriage: true } };
   for (const k of FEATURES) {
     const v = doc[k];
     if (v) out[k] = { ...DEFAULTS[k], ...(v === true ? {} : v) };

@@ -87,7 +87,7 @@ and has its own token. Pull requests on with the defaults; releases without hold
   "flowee": 1,
   "id": "platform",
   "flow": { "preset": "pr-release" },
-  "features": { "pullRequests": true, "releases": { "hold": false }, "untrustedReports": { "label": "user-report", "role": "board" } },
+  "features": { "pullRequests": true, "releases": { "hold": false }, "userFeedback": { "label": "user-report", "autoTriage": true } },
   "tracker": {
     "type": "github",
     "token": "PLATFORM_GITHUB_TOKEN",

@@ -98,9 +98,9 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `cardKind` | selector | `kinds` | the card checked by the command's input is of one of these kinds | — |
 | `hasCard` | selector | | the newest comment with a valid owner card (kept for `sendCard`) | — |
 | `samplesGiven` | check | | `paths` are given, start with `samples.root` and exist on the main branch (or a container they point into does), or the ticket has `samples.notNeededLabel`; the paths go to the comment as `{paths}` | 422 `no_samples` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
-| `untrusted` | selector | | the ticket has the `untrustedReports.label` | — |
+| `untrusted` | selector | | the ticket has the `userFeedback.label` | — |
 | `isUntrusted` | check | | the ticket has the label | 409 `not_untrusted` `#12 has no 'feedback' label.` |
-| `trusted` | selector | | no untrusted label, or the caller is `untrustedReports.role` (in `claimable.when`: other roles never get such a ticket) | — |
+| `trusted` | selector | | no feedback label, or the caller is `userFeedback.role` and either `autoTriage` is on or the ticket is past the initial state (in `claimable.when`: other roles never get such a ticket, and without `autoTriage` nobody takes a new one) | — |
 
 ## Actions
 
@@ -117,12 +117,12 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `clearOrigin` | | forgets the origin (the trunk's `board review` exit) |
 | `recordHanded` | | stores the commits `commitsOnMain` found; answers `commits` |
 | `recordAnswer` | `field` (`text`) | stores the owner's answer; the chat card says answered |
-| `sendCard` | `field` (`chat`) | the ticket becomes an inbox item and its card goes to the chat; answers `field: "sent" \| "queued"`; with `releases.versionLine` a test card carries the published version (`📦 In <version> or later`) |
+| `sendCard` | `field` (`chat`), `card` | the ticket becomes an inbox item and its card goes to the chat (the card the transition's guard read, else `card`: `{kind, question}`, for a tick); answers `field: "sent" \| "queued"`; with `releases.versionLine` a test card carries the published version (`📦 In <version> or later`) |
 | `dropInboxCard` | | the ticket's card leaves the owner's todo list |
 | `openPull` | | opens the ticket's pull request from its branch (title: the ticket's title + the commit suffix, body `Closes #n`) or updates its title; answers `pull: {number, url, branch}`; 422 `no_branch` `Push flowee/12 first; it does not exist on the tracker.` |
 | `mergePull` | | merges the ticket's open pull request (`pullRequests.method`, subject ending with the commit suffix), deletes the branch (`deleteBranch`), records the merge commit; answers `merged`; 409 `not_mergeable` when the tracker refuses; no-op without an open pull request |
 | `moveTag` | | moves `releases.testedTag` (also every cron run); answers `tested` when it moved |
-| `markChecked` | | removes the `untrustedReports.label` |
+| `markChecked` | | removes the `userFeedback.label` |
 
 ## Options
 

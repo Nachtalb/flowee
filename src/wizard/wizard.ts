@@ -143,13 +143,13 @@ const BRANCHING: Record<"single" | "feature", [string, string, string]> = {
   single: ["🌿", "Single branch", "The agents commit straight to the main branch; the tester tests the main branch."],
   feature: ["🔀", "Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it."],
 };
-/** Versioning first, then the more options; each works with either branching. */
-const OPTIONS: Record<string, [string, string]> = {
+/** Versioning first, then the more options; each works with either branching. A third text: the row when off. */
+const OPTIONS: Record<string, [string, string, string?]> = {
   releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
   samples: ["Samples", "A sampler finds a real sample file before development starts."],
   uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
-  untrustedReports: ["Outside reports", "Tickets with text from users go to the board first, until it has checked them."],
+  userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
 };
 export const ROLES: Record<string, [string, string]> = {
   board: ["🧭 Board", "Plans and sorts the tickets, and asks you."],
@@ -159,7 +159,7 @@ export const ROLES: Record<string, [string, string]> = {
 };
 /** The way of working in words: the branching, then every option switched on. */
 export const wayOf = (features: Record<string, unknown> = {}) =>
-  [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f]).map((f) => OPTIONS[f][0])].join(", ");
+  [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f] && (features[f] as { autoTriage?: boolean }).autoTriage !== false).map((f) => OPTIONS[f][0])].join(", ");
 export const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
 
 /** The parts of a screen: text blocks, then button rows; a warning goes between them. */
@@ -207,7 +207,8 @@ export const failedView = (why: string, setup: boolean): View => [
 ];
 
 export function fresh(user: string, at: ChatRef, now: number): Session {
-  return { user, at, step: "bot", back: [], draft: { repos: [], features: {}, roles: {} }, ts: now };
+  // user feedback is a choice either way: off, a ticket with the label waits for a human first
+  return { user, at, step: "bot", back: [], draft: { repos: [], features: { userFeedback: false }, roles: {} }, ts: now };
 }
 
 /** A chat as its owner knows it, without its title. */
@@ -217,7 +218,9 @@ export const chatLabel = (chat: string, topic?: number) => (!chat.startsWith("-"
 export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
   const roles: Record<string, number> = {};
   for (const r of d.roles) if (r.role !== flow.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
-  const { pullRequests, ...features } = d.features ?? {};
+  const { pullRequests, untrustedReports, ...features } = d.features ?? {};
+  // the former name: automatic triage of user feedback
+  if (untrustedReports && features.userFeedback === undefined) features.userFeedback = true;
   return {
     id: d.id,
     base: d,
@@ -225,7 +228,7 @@ export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
     repos: d.tracker.repos.map((r) => (typeof r === "string" ? r : r.repo)),
     tracker: { kind: d.tracker.type ?? "github", ...(d.tracker.api ? { api: d.tracker.api } : {}) },
     branching: pullRequests ? "feature" : "single",
-    features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false])),
+    features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false && !(k === "userFeedback" && typeof v === "object" && (v as { autoTriage?: boolean }).autoTriage === false)])),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
     roles,
   };
@@ -244,6 +247,13 @@ export function instances(roles: Record<string, number>, preset: FlowInfo): { in
   }
   out.push({ instance: preset.ownerRole, role: preset.ownerRole });
   return out;
+}
+
+/** User feedback as written: its options (also from the former `untrustedReports`) with the switch as `autoTriage`. */
+function feedbackDoc(f: WorkspaceDoc["features"], on: boolean) {
+  const old = f?.userFeedback ?? f?.untrustedReports;
+  const { autoTriage: _, ...opts } = (typeof old === "object" ? old : {}) as Record<string, unknown>;
+  return Object.keys(opts).length || !on ? { ...opts, autoTriage: on } : true;
 }
 
 /** The workspace document of a finished draft; fields of an imported or existing document are kept. */
@@ -266,8 +276,8 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
     // a feature switched on keeps the options the document gave it
     features: Object.fromEntries(
       Object.entries({ ...d.features, pullRequests: d.branching === "feature" })
-        .filter(([, on]) => on)
-        .map(([k, on]) => [k, typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on]),
+        .filter(([k, on]) => on || k === "userFeedback")
+        .map(([k, on]) => [k, k === "userFeedback" ? feedbackDoc(base.features, on) : typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on]),
     ),
     tracker: {
       ...(base.tracker ?? {}),
@@ -511,7 +521,7 @@ export class Wizard {
             ],
           };
         const offered = Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
-        const toggle = (f: string) => option(`${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`, OPTIONS[f][1], b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`));
+        const toggle = (f: string) => option(`${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`, (!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1], b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`));
         const more = offered.filter((f) => f !== "releases");
         return {
           body: [

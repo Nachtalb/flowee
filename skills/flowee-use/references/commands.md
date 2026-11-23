@@ -54,7 +54,7 @@ come on stdin. Output is the API's JSON without `ok`. Which commands exist depen
 | `approve N` / `drop N` | close completed / not planned |
 | `postpone N` / `resume N` | park on the owner's word / bring back |
 | `needsamples N` | (`samples`) back to the sampler |
-| `checked N` | (`untrustedReports`) reviewed new untrusted text; the label goes |
+| `checked N` | (`userFeedback` with `autoTriage`) read the user's text as text; the feedback label goes |
 
 ## Sampler (`samples`)
 

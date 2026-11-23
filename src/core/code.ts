@@ -1,5 +1,5 @@
 // Guards, actions and housekeeping of the code features (docs/configuration.md, "Features"): branches and pull
-// requests, CI checks, releases and the tested tag, samples, UI review, dependency tickets, untrusted reports.
+// requests, CI checks, releases and the tested tag, samples, UI review, dependency tickets, user feedback.
 // Each reaches the tracker of the ticket's repository through its optional capabilities.
 import { capability, type Change, type Issue, type PullRequest, type Release, type Tracker } from "../ports/tracker";
 import { type Card, parseCard } from "./card";
@@ -133,7 +133,7 @@ export function uiReasons(changes: Change[], u: NonNullable<Flowee["s"]["feature
 }
 
 function untrustedLabel(f: Flowee) {
-  return f.s.features.untrustedReports?.label;
+  return f.s.features.userFeedback?.label;
 }
 
 export const CODE_GUARDS: Record<string, Guard> = {
@@ -278,8 +278,11 @@ export const CODE_GUARDS: Record<string, Guard> = {
   trusted: {
     kind: "selector",
     run: (c) => {
-      const u = c.f.s.features.untrustedReports;
-      return !u || !c.t.issue.labels.includes(u.label) || c.caller.role === u.role;
+      const u = c.f.s.features.userFeedback;
+      if (!u || !c.t.issue.labels.includes(u.label)) return true;
+      // without automatic triage a new ticket with the label waits for a human: nobody takes it from the queue
+      if (!u.autoTriage && c.t.state === c.f.flow.initial) return false;
+      return c.caller.role === u.role;
     },
   },
 };
@@ -347,8 +350,8 @@ export async function codeView(f: Flowee, t: Ticket): Promise<Record<string, unk
 
 /** The reviewing role also gets every free ticket with untrusted text, in any state, after its own queue. */
 export function untrustedQueue(f: Flowee, c: Caller, issues: Issue[], out: Issue[]): Issue[] {
-  const u = f.s.features.untrustedReports;
-  if (!u || c.role !== u.role) return out;
+  const u = f.s.features.userFeedback;
+  if (!u?.autoTriage || c.role !== u.role) return out;
   const mine = new Set(out.map((i) => i.n));
   const claims = new Map(f.rows<{ n: number; instance: string }>("SELECT n, instance FROM claims").map((r) => [r.n, r.instance]));
   const extra = issues.filter((i) => i.labels.includes(u.label) && !mine.has(i.n) && (claims.get(i.n) ?? c.instance) === c.instance && f.stateOrNull(i) !== null);

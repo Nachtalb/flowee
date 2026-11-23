@@ -322,8 +322,42 @@
             }
           ]
         },
+        "userFeedback": {
+          "description": "User feedback: tickets carrying `label` are triaged by `role` automatically (autoTriage) or wait for a human first.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The label that marks user feedback.",
+                  "default": "feedback"
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The role that triages it.",
+                  "default": "board"
+                },
+                "autoTriage": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "true: the board triages it automatically, in any state, reading it as untrusted text; false: a new ticket with the label goes to the owner's inbox as a card first."
+                }
+              },
+              "description": "On, with these options."
+            },
+            {
+              "type": "boolean",
+              "description": "true: on with the defaults; false: off."
+            }
+          ]
+        },
         "untrustedReports": {
-          "description": "Tickets with untrusted user text go to one role only until it checked them.",
+          "description": "The former name of userFeedback with autoTriage true; read only when userFeedback is absent.",
           "oneOf": [
             {
               "type": "object",

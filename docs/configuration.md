@@ -202,9 +202,13 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
 | `features.dependencyTickets` | `true` or object | off | The cron files one ticket per open pull request of these authors (`deps: <title> (PR #p)`, body `Pull request: #p`); its hand-off needs that pull request merged. |
 | `features.dependencyTickets.authors` | array | `["dependabot[bot]"]` | Pull request authors. |
 | `features.dependencyTickets.labels` | array | `[]` | Labels the ticket gets (e.g. `not file related`). |
-| `features.untrustedReports` | `true` or object | off | A ticket labelled as untrusted user text goes only to `role` (in any state) until `triage` or `checked` removes the label. |
-| `features.untrustedReports.label` | string | `feedback` | The label an outside service puts on untrusted text. |
-| `features.untrustedReports.role` | string | `board` | The role that reviews it. |
+| `features.userFeedback` | `true` or object | off (the wizard always sets it) | User feedback: tickets carrying `label` are untrusted text from outside the team. With `autoTriage` they go to `role` automatically (in any state) until `triage` or `checked` removes the label; without it a new ticket with the label waits for a human first: the cron moves it from `needs triage` to the owner's inbox as a card (triage it, drop it, or answer the reporter), and the owner's answer removes the label and hands it to the board. |
+| `features.userFeedback.label` | string | `feedback` | The label that marks user feedback (an outside service or the reporter's form sets it). |
+| `features.userFeedback.role` | string | `board` | The role that triages it. |
+| `features.userFeedback.autoTriage` | boolean | `true` | `true`: the board triages it automatically; `false`: it waits for a human first. The wizard's switch is this value. |
+| `features.untrustedReports` | `true` or object | off | The former name of `userFeedback` with `autoTriage: true` (`label`, `role` as there); still valid, read only when `userFeedback` is absent; the wizard rewrites it as `userFeedback`. |
+| `features.untrustedReports.label` | string | `feedback` | As `userFeedback.label`. |
+| `features.untrustedReports.role` | string | `board` | As `userFeedback.role`. |
 
 ### Invalid combinations (one sentence each)
 

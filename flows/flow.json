@@ -1,7 +1,7 @@
 {
   "id": "flowee",
   "initial": "needs triage",
-  "description": "The full ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency and untrusted tickets; each part tagged with its feature in meta.features and pruned when switched off.",
+  "description": "The full ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency tickets and user feedback; each part tagged with its feature in meta.features and pruned when switched off.",
   "states": {
     "needs triage": {
       "meta": {
@@ -10,7 +10,8 @@
         "holder": "board",
         "claimable": {
           "role": "board",
-          "rank": 2
+          "rank": 2,
+          "when": "trusted"
         }
       },
       "on": {
@@ -329,7 +330,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -343,7 +344,38 @@
             },
             "recordAnswer"
           ]
-        }
+        },
+        "feedback": [
+          {
+            "target": "human review",
+            "guard": "untrusted",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "text": "User feedback: it waits for a human before any agent reads it."
+                }
+              },
+              "setLabel",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram",
+                  "card": {
+                    "kind": "decision",
+                    "question": "User feedback came in. Should the board triage it, drop it, or should someone answer the reporter first? Reply with what to do."
+                  }
+                }
+              }
+            ],
+            "meta": {
+              "features": [
+                "userFeedback.autoTriage=false"
+              ]
+            }
+          }
+        ]
       }
     },
     "needs samples": {
@@ -407,7 +439,7 @@
             ],
             "meta": {
               "features": [
-                "untrustedReports"
+                "userFeedback.autoTriage"
               ]
             }
           }
@@ -493,7 +525,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -542,7 +574,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -650,7 +682,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -700,7 +732,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -763,7 +795,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -841,7 +873,7 @@
             ],
             "meta": {
               "features": [
-                "untrustedReports"
+                "userFeedback.autoTriage"
               ]
             }
           }
@@ -927,7 +959,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1003,7 +1035,7 @@
             ],
             "meta": {
               "features": [
-                "untrustedReports"
+                "userFeedback.autoTriage"
               ]
             }
           }
@@ -1089,7 +1121,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1591,7 +1623,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1639,7 +1671,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1721,7 +1753,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1768,7 +1800,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -1995,24 +2027,47 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
-        "answer": {
-          "target": "needs triage",
-          "actions": [
-            "setStatus",
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "setLabel",
-            "recordAnswer"
-          ]
-        }
+        "answer": [
+          {
+            "target": "needs triage",
+            "guard": "untrusted",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "field": "text"
+                }
+              },
+              "setLabel",
+              "recordAnswer",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "userFeedback.autoTriage=false"
+              ]
+            }
+          },
+          {
+            "target": "needs triage",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "field": "text"
+                }
+              },
+              "setLabel",
+              "recordAnswer"
+            ]
+          }
+        ]
       }
     },
     "postponed": {
@@ -2044,7 +2099,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2090,7 +2145,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2140,7 +2195,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2425,7 +2480,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2472,7 +2527,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2675,7 +2730,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },
@@ -2751,7 +2806,7 @@
             ],
             "meta": {
               "features": [
-                "untrustedReports"
+                "userFeedback.autoTriage"
               ]
             }
           }
@@ -2782,7 +2837,7 @@
           ],
           "meta": {
             "features": [
-              "untrustedReports"
+              "userFeedback.autoTriage"
             ]
           }
         },

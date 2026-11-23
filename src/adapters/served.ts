@@ -180,7 +180,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     "   - Which repository or repositories (`owner/name`, GitHub or GitLab, self-hosted API URL if any)? Why: one workspace covers a project; a repository belongs to one workspace per instance. Default: this directory's `git remote get-url origin`.",
     "   - Commits straight to the main branch, or a feature branch and pull request per ticket? Why: it picks the flow preset (`trunk` or `pr-release`). Default: main branch (`trunk`).",
     "   - Versioning: are releases made, and how (tags, a version file, a tested tag)? Why: the `releases` feature. Default: no releases.",
-    `   - Which optional parts: pull request checks, releases, sample files, UI review, dependency tickets, untrusted reports (${u("/skills/flowee-configure/references/features.md")})? Why: each adds states and a token permission. Default: none; webhooks on.`,
+    `   - Which optional parts: pull request checks, releases, sample files, UI review, dependency tickets, user feedback (triaged automatically or by a human first) (${u("/skills/flowee-configure/references/features.md")})? Why: each adds states and a token permission. Default: none; webhooks on.`,
     "   - Where should the tickets appear: a private chat with the bot, a group, or a topic in a group? Why: `chat` and who sees the cards. Default: a private chat with the owner.",
     `   - The instance's bot (${bot ?? "none here"}) or the workspace's own bot? Why: an own bot carries the project's name and photo. Default: the instance's bot.`,
     "   - Who is the owner (tracker login, chat user id)? Why: only the owner's answers count. Default: the user you are talking to.",

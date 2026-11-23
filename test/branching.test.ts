@@ -206,3 +206,37 @@ describe("feature branches without versioning", () => {
     expect(shown).not.toContain("📦");
   });
 });
+
+describe("user feedback", () => {
+  const f = (who: string, cmd: string, body?: unknown) => call(who, cmd, body, undefined, "f");
+  it("without automatic triage a new ticket with the feedback label waits for a human: nobody takes it, the cron hands it to the owner as a card, the answer frees it for the board", async () => {
+    const { fb, tg } = setup();
+    await wipe("fb");
+    fb.add({ number: 1, labels: [{ name: "feedback" }] });
+    fb.add({ number: 2 });
+    // the board takes the ordinary ticket, never the feedback one
+    expect((await f("board", "next", {})).body.ticket).toMatchObject({ n: 2 });
+    await f("board", "release", { n: 2 });
+    await inFlow((x) => x.cron(), "fb");
+    expect(fb.label(1)).toEqual(["feedback", "human review"]);
+    expect(fb.last(1)).toBe("Board: User feedback: it waits for a human before any agent reads it.");
+    // the owner's inbox lists it as a decision (⚖️); opened, the card asks what to do
+    expect(tg.sent("sendRichMessage").at(-1)).toMatchObject({ chat_id: "906" });
+    expect(tg.sent("sendRichMessage").at(-1)?.rich_message.html).toContain("⚖️ <a href=\"https://github.com/acme/fb/issues/1#issuecomment-1\">#1</a> Ticket 1");
+    expect(await inFlow((x) => x.rows<{ card: string }>("SELECT card FROM inbox WHERE n = 1")[0].card, "fb")).toContain("User feedback came in. Should the board triage it, drop it, or should someone answer the reporter first?");
+    expect((await f("owner", "answer", { n: 1, text: "Triage it: a real bug." })).body.state).toBe("needs triage");
+    expect(fb.label(1)).toEqual(["needs triage"]);
+    expect((await f("board", "next", {})).body.ticket).toMatchObject({ n: 1 });
+  });
+
+  it("the former untrustedReports is userFeedback with automatic triage; the wizard's switch is autoTriage", () => {
+    expect(resolve({ untrustedReports: { label: "report" } }).userFeedback).toEqual({ label: "report", role: "board", autoTriage: true });
+    expect(resolve({ untrustedReports: true, userFeedback: { autoTriage: false } }).userFeedback).toEqual({ label: "feedback", role: "board", autoTriage: false });
+    const on = prune(FLOW.chart, FLOW.options, resolve({ userFeedback: true }));
+    const off = prune(FLOW.chart, FLOW.options, resolve({ userFeedback: { autoTriage: false } }));
+    expect(Object.keys(on.options.commands)).toContain("checked");
+    expect(on.options.ticks?.map((t) => t.event)).not.toContain("feedback");
+    expect(Object.keys(off.options.commands)).not.toContain("checked");
+    expect(off.options.ticks?.map((t) => t.event)).toContain("feedback");
+  });
+});

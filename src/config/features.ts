@@ -53,7 +53,12 @@ export const FEATURES_SCHEMA: S = {
       authors: strs("Pull request authors whose pull requests become tickets.", { default: ["dependabot[bot]"], minItems: 1 }),
       labels: strs("Labels the filed ticket gets.", { default: [] }),
     }),
-    untrustedReports: feature("Tickets with untrusted user text go to one role only until it checked them.", {
+    userFeedback: feature("User feedback: tickets carrying `label` are triaged by `role` automatically (autoTriage) or wait for a human first.", {
+      label: str("The label that marks user feedback.", { default: "feedback" }),
+      role: str("The role that triages it.", { default: "board" }),
+      autoTriage: bool("true: the board triages it automatically, in any state, reading it as untrusted text; false: a new ticket with the label goes to the owner's inbox as a card first.", true),
+    }),
+    untrustedReports: feature("The former name of userFeedback with autoTriage true; read only when userFeedback is absent.", {
       label: str("The label marking untrusted text.", { default: "feedback" }),
       role: str("The role that reviews it.", { default: "board" }),
     }),
@@ -94,7 +99,8 @@ export function featureProblems(d: WorkspaceDoc, raw: { chart: Chart; options: F
       errs.push(`$.features.uiReview.addedLines[${i}]: '${x}' is no regular expression.`);
     }
   });
-  const t = f.untrustedReports;
-  if (t && !(t.role in raw.options.roles)) errs.push(`$.features.untrustedReports.role: '${t.role}' is no role of the flow.`);
+  const t = f.userFeedback;
+  const key = d.features?.userFeedback === undefined && d.features?.untrustedReports ? "untrustedReports" : "userFeedback";
+  if (t && !(t.role in raw.options.roles)) errs.push(`$.features.${key}.role: '${t.role}' is no role of the flow.`);
   return errs;
 }

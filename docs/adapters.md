@@ -66,7 +66,7 @@ A fine-grained token limited to the workspace's repositories. The base flow need
 | `samples` | does a path exist on main | **Contents: read** |
 | `uiReview` | the files and lines of the ticket's commits | **Contents: read** |
 | `dependencyTickets` | list open pull requests, read one, file a ticket | **Pull requests: read**, **Issues: read and write** |
-| `untrustedReports` | labels only | (base) |
+| `userFeedback` | labels only | (base) |
 | webhooks (`sync.webhooks`, docs/webhooks.md) | list, create, update and delete the repository's webhook | **Webhooks: read and write** (classic: `admin:repo_hook`); without it the workspace polls |
 
 ## Chat

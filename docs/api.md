@@ -132,7 +132,7 @@ states below exist only with their feature; the rest is as in `trunk`, with `sam
 | `merge` | `pullRequests` (`merger: developer`), `dependencyTickets` | developer | `in development` | (unchanged) | `{n}` | claim; the pull request open, checks green. Answers `merged` |
 | `handoff` | `pullRequests` / `dependencyTickets` | developer | `in development` | `ready for testing` | `{n, comment}` | claim; `merger: flow`: pull request open + checks green; `merger: developer` or a dependency ticket: merged. `Pull request: …` appended |
 | `pass` | `pullRequests` / `uiReview` | tester | `testing` | closed, or `board review` with `owner_check` or a UI change (then a card is required) | as `trunk` | `merger: flow`: the build contains the pull request's head, which pass merges. Answers `merged`, `tested` |
-| `checked` | `untrustedReports` | board | any open state | (unchanged) | `{n, comment}` | the ticket has the untrusted label, which goes |
+| `checked` | `userFeedback.autoTriage` | board | any open state | (unchanged) | `{n, comment}` | the ticket has the feedback label, which goes |
 | `released` | `releases` | (cron) | `awaiting release` | `human review`, the card goes out with `📦 In <version> or later` | | the release contains the ticket's commits |
 
 `show` adds `branch` and `pull: {number, url, state, head, checks: green|pending|failed|none, waiting?}` with

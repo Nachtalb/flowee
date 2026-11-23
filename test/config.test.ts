@@ -24,6 +24,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     samples: { root: "Samples/", notNeededLabel: "no sample" },
     uiReview: { paths: ["ui/**"], addedFiles: ["views/**"], addedLines: ["@Composable"], ignore: ["test/**"] },
     dependencyTickets: { authors: ["dependabot[bot]"], labels: ["deps"] },
+    userFeedback: { label: "user-report", role: "board", autoTriage: false },
     untrustedReports: { label: "feedback", role: "board" },
   },
   tracker: {
@@ -167,7 +168,7 @@ describe("export and import", () => {
     expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad", "desk", "team", "duo"]);
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad", "desk", "team", "duo", "fb"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });

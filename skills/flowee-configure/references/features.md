@@ -6,7 +6,7 @@ One flow, three independent choices, each written as switches under `features`:
 |---|---|---|
 | **Branching**, exactly one | **Single branch**: commits straight to the main branch (subject ending ` (#n)`), the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
 | **Versioning**, with either branching | Off, or on: a test card reaches the owner only once a published version contains the ticket's code, saying `📦 In <version> or later`; the `tested` tag follows. | `releases` |
-| **More options**, each on its own | `samples` (adds the `sampler` role), `uiReview` (needs `paths`, `addedFiles` or `addedLines`), `dependencyTickets` (needs a tracker with pull requests), `untrustedReports`. | as named |
+| **More options**, each on its own | `samples` (adds the `sampler` role), `uiReview` (needs `paths`, `addedFiles` or `addedLines`), `dependencyTickets` (needs a tracker with pull requests), `userFeedback` (`autoTriage` on or off). | as named |
 
 ## Starting points
 
@@ -57,9 +57,13 @@ refused.
 | `features.dependencyTickets` | `true` or object | off | The cron files one ticket per open pull request of these authors (`deps: <title> (PR #p)`, body `Pull request: #p`); its hand-off needs that pull request merged. |
 | `features.dependencyTickets.authors` | array | `["dependabot[bot]"]` | Pull request authors. |
 | `features.dependencyTickets.labels` | array | `[]` | Labels the ticket gets (e.g. `not file related`). |
-| `features.untrustedReports` | `true` or object | off | A ticket labelled as untrusted user text goes only to `role` (in any state) until `triage` or `checked` removes the label. |
-| `features.untrustedReports.label` | string | `feedback` | The label an outside service puts on untrusted text. |
-| `features.untrustedReports.role` | string | `board` | The role that reviews it. |
+| `features.userFeedback` | `true` or object | off (the wizard always sets it) | User feedback: tickets carrying `label` are untrusted text from outside the team. With `autoTriage` they go to `role` automatically (in any state) until `triage` or `checked` removes the label; without it a new ticket with the label waits for a human first: the cron moves it from `needs triage` to the owner's inbox as a card (triage it, drop it, or answer the reporter), and the owner's answer removes the label and hands it to the board. |
+| `features.userFeedback.label` | string | `feedback` | The label that marks user feedback (an outside service or the reporter's form sets it). |
+| `features.userFeedback.role` | string | `board` | The role that triages it. |
+| `features.userFeedback.autoTriage` | boolean | `true` | `true`: the board triages it automatically; `false`: it waits for a human first. The wizard's switch is this value. |
+| `features.untrustedReports` | `true` or object | off | The former name of `userFeedback` with `autoTriage: true` (`label`, `role` as there); still valid, read only when `userFeedback` is absent; the wizard rewrites it as `userFeedback`. |
+| `features.untrustedReports.label` | string | `feedback` | As `userFeedback.label`. |
+| `features.untrustedReports.role` | string | `board` | As `userFeedback.role`. |
 
 ## What each switch adds
 
@@ -70,7 +74,7 @@ refused.
 | `samples` | `needs samples`, `in procurement`, `samples unobtainable` | `found`, `unobtainable`, `needsamples`; `triage` with `samples` / `paths` | `ready` needs sample paths on the main branch or the `notNeededLabel`; `Kind: sample` cards |
 | `uiReview` | | | a `pass` whose changes (every file of the open pull request, else the ticket's commits) touch the UI goes to `board review` and needs an owner card |
 | `dependencyTickets` | | `merge` | the cron files one ticket per open pull request of `authors`; its hand-off needs that pull request merged |
-| `untrustedReports` | | `checked` | a ticket with `label` goes only to `role`, in any state, until `triage` or `checked` removes the label |
+| `userFeedback` | | `checked` (`autoTriage`); the cron's `feedback` tick (without) | `autoTriage`: a ticket with `label` goes only to `role`, in any state, until `triage` or `checked` removes the label; without: a new one goes to the owner's inbox first, the answer removes the label |
 
 ## GitHub token permissions
 
@@ -87,6 +91,6 @@ A fine-grained token limited to the workspace's repositories. The base flow need
 | `samples` | does a path exist on main | **Contents: read** |
 | `uiReview` | the files and lines of the ticket's commits | **Contents: read** |
 | `dependencyTickets` | list open pull requests, read one, file a ticket | **Pull requests: read**, **Issues: read and write** |
-| `untrustedReports` | labels only | (base) |
+| `userFeedback` | labels only | (base) |
 
 Without `tracker.project`, a fine-grained token limited to the workspace's repositories is enough and safest.

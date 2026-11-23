@@ -255,7 +255,7 @@
       "input": {
         "comment": "required"
       },
-      "features": "untrustedReports"
+      "features": "userFeedback.autoTriage"
     },
     "pr": {
       "roles": [
@@ -285,6 +285,11 @@
       "event": "released",
       "role": "board",
       "features": "releases.hold"
+    },
+    {
+      "event": "feedback",
+      "role": "board",
+      "features": "userFeedback.autoTriage=false"
     }
   ]
 }

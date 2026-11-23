@@ -1125,6 +1125,63 @@
         "owner": "Ann",
         "cardHeading": "For Ann"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "fb",
+      "flow": {
+        "preset": "trunk"
+      },
+      "features": {
+        "userFeedback": {
+          "autoTriage": false
+        }
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/fb"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "FB_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "FB_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "FB_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "FB_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "906"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "906"
+      },
+      "sync": {
+        "webhooks": "off"
+      }
     }
   ]
 }

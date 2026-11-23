@@ -134,14 +134,14 @@ const FLOW = [
   ),
   NAV,
 ].join("");
-const OPTION_TEXT: Record<string, [string, string]> = {
+const OPTION_TEXT: Record<string, [string, string, string?]> = {
   releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
   samples: ["Samples", "A sampler finds a real sample file before development starts."],
   uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
-  untrustedReports: ["Outside reports", "Tickets with text from users go to the board first, until it has checked them."],
+  userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
 };
-const TOGGLE = (f: string, on: Record<string, boolean>) => OPT(`${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`, OPTION_TEXT[f][1], CB(on[f] ? "Switch off" : "Switch on", `w:feat:${f}`));
+const TOGGLE = (f: string, on: Record<string, boolean>) => OPT(`${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`, (!on[f] && OPTION_TEXT[f][2]) || OPTION_TEXT[f][1], CB(on[f] ? "Switch off" : "Switch on", `w:feat:${f}`));
 /** The second screen of the flow step: versioning, then the more options, each a toggle row. */
 const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "") =>
   [
@@ -151,7 +151,7 @@ const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "")
     note,
     TABLE(TOGGLE("releases", on)),
     "<p><b>More options</b></p>",
-    TABLE(...["samples", "uiReview", "dependencyTickets", "untrustedReports"].map((f) => TOGGLE(f, on))),
+    TABLE(...["samples", "uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on))),
     NEXT("w:flow:done"),
   ].join("");
 const WHERE_HERE = [
@@ -338,6 +338,8 @@ describe("the setup wizard: one living message", () => {
     const doc = (await admin("GET", "/admin/workspaces/app")).body;
     expect(doc.workspace).toMatchObject({ id: "app", tracker: { repos: ["acme/app"], token: "W_APP_TRACKER" }, chat: { chatId: "100", token: "TELEGRAM_BOT_TOKEN" }, owners: [{ chat: "100" }] });
     expect(doc.missing).toEqual([]);
+    // user feedback is a choice either way; left off, it waits for a human first
+    expect(doc.workspace.features).toEqual({ userFeedback: { autoTriage: false } });
     expect(JSON.stringify(doc)).not.toContain(TOKEN);
     const sealed = await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => o.host.store.rows<{ sealed: string }>("SELECT sealed FROM vault"));
     expect(sealed.length).toBe(6);

@@ -92,8 +92,9 @@ export const ACTIONS: Record<string, Action> = {
   /** The ticket becomes an inbox item and its card goes to the owner's chat; `field` in the response says how. */
   async sendCard(c, p) {
     const r = c.f.s.features.releases;
-    const version = r?.versionLine && (c.data.card as Card).kind === "test" ? await firstVersion(c.f, c.t) : null;
-    const card = { ...(c.data.card as Card), ...(version ? { version } : {}) };
+    const version = r?.versionLine && (c.data.card as Card | undefined)?.kind === "test" ? await firstVersion(c.f, c.t) : null;
+    // a transition without a written card (a tick) names its own in `params.card`
+    const card = { ...((c.data.card ?? p.card) as Card), ...(version ? { version } : {}) };
     c.f.db.exec("DELETE FROM claims WHERE n = ?", c.t.n);
     c.f.db.exec(
       "INSERT OR REPLACE INTO inbox (n, comment_id, kind, card, title, url, status, ts) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)",
