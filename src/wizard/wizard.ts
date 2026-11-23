@@ -109,7 +109,7 @@ export interface WizardHost {
   /** Problems of the sealed token with the repositories on that tracker, one sentence each (none: usable). */
   checkRepos(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
   /** The workspace other than `except` that already has this repository. */
-  repoTaken(repo: string, except?: string): string | undefined;
+  repoTaken(repo: string, except: string | undefined, t: TrackerRef): string | undefined;
   /** The managed bot just created: its token stored for the draft, its webhook set. */
   adoptBot(s: Session, botId: string): Promise<void>;
   /** Creates or replaces the workspace; returns the role secrets to hand over once. */
@@ -740,8 +740,9 @@ export class Wizard {
     if (new Set(ok.map((r) => `${r.kind} ${r.api ?? ""}`)).size > 1)
       return no("Paste the repositories of one tracker here; a workspace on several trackers is written as a configuration and imported (📥 Import).");
     const repos = [...new Set(ok.map((r) => r.repo))];
-    const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));
-    if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces)}'; a repository belongs to one workspace only.`);
+    const where: TrackerRef = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
+    const taken = repos.find((r) => this.host.repoTaken(r, d.replaces, where));
+    if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces, where)}'; a repository belongs to one workspace only.`);
     const aliases = repos.map(aliasOf);
     const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
     if (dup) return no(`Two repositories are both called '${dup}'; import a configuration that names them apart instead.`);

@@ -5,7 +5,7 @@
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
 import { FLOW } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
-import { repoClashes, repoList, secretNames, validate } from "../config/schema";
+import { repoClashes, repoIdent, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
 import { list } from "../core/chart";
 import { featuresOf } from "../core/features";
@@ -171,7 +171,10 @@ export class InstanceHost implements InstanceApi {
         }
         return out;
       },
-      repoTaken: (repo, except) => reg.list().find((w) => w.id !== except && repoList(w).some((r) => r.repo.toLowerCase() === repo.toLowerCase()))?.id,
+      repoTaken: (repo, except, t) => {
+        const ident = repoIdent(t.kind, t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined) ?? TRACKER_KINDS[t.kind].api, repo);
+        return reg.list().find((w) => w.id !== except && repoList(w).some((r) => r.ident === ident))?.id;
+      },
       async adoptBot(s, botId) {
         const token = await bots.token(botId);
         const hook = randomSecret();

@@ -283,7 +283,7 @@ export function validate(doc: unknown): string[] {
       errs.push(`$.tracker.repos[${i}].token: a repository on ${k.name} while tracker.type is '${trackerType(d)}' needs its own token.`);
     if (!new RegExp(ALIAS).test(r.alias)) errs.push(`$.tracker.repos[${i}]: the alias '${r.alias}' made from the name is not usable; give an alias.`);
     if (repos.findIndex((x) => x.alias === r.alias) < i) errs.push(`$.tracker.repos[${i}].alias: '${r.alias}' is used twice.`);
-    if (repos.findIndex((x) => x.key.toLowerCase() === r.key.toLowerCase()) < i) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is listed twice.`);
+    if (repos.findIndex((x) => x.ident === r.ident) < i) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is listed twice.`);
   });
   if (d.tracker.project && !repos.some((r) => r.type === "github")) errs.push("$.tracker.project: a GitHub project board needs at least one GitHub repository.");
   const roles = Object.keys(flow.options.roles);
@@ -313,9 +313,9 @@ export function validate(doc: unknown): string[] {
 
 /** A repository already in another workspace (claims and tickets would clash): one sentence per repository. */
 export function repoClashes(others: WorkspaceDoc[], doc: WorkspaceDoc): string[] {
-  const owner = new Map(others.filter((w) => w.id !== doc.id).flatMap((w) => repoList(w).map((r) => [r.key.toLowerCase(), w.id] as const)));
+  const owner = new Map(others.filter((w) => w.id !== doc.id).flatMap((w) => repoList(w).map((r) => [r.ident, w.id] as const)));
   return repoList(doc).flatMap((r, j) => {
-    const w = owner.get(r.key.toLowerCase());
+    const w = owner.get(r.ident);
     return w ? [`$.tracker.repos[${j}]: '${r.repo}' is already in workspace '${w}'; a repository belongs to one workspace only.`] : [];
   });
 }
@@ -352,7 +352,14 @@ const host = (url: string) => {
 export const trackerType = (d: WorkspaceDoc): TrackerKind => d.tracker.type ?? "github";
 
 /**
- * The repositories of a document with their alias, token, branch and tracker resolved. `key` names a repository
+ * One repository across workspaces and trackers: kind, API host and path, lower case. The same path on GitHub and
+ * GitLab, or on github.com and an Enterprise host, are different repositories.
+ */
+export const repoIdent = (type: string, api: string, repo: string) => `${type}:${host(api)}/${repo}`.toLowerCase();
+
+/**
+ * The repositories of a document with their alias, token, branch and tracker resolved. `ident` tells repositories
+ * apart across workspaces (`repoIdent`). `key` names a repository
  * across trackers: its path on GitHub (as it always was: ticket slots are stored by it), `<type>:<host>/<path>`
  * on any other tracker.
  */
@@ -369,6 +376,7 @@ export function repoList(d: WorkspaceDoc) {
       type,
       api,
       key: type === "github" ? r.repo : `${type}:${host(api)}/${r.repo}`,
+      ident: repoIdent(type, api, r.repo),
     };
   });
 }

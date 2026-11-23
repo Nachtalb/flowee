@@ -147,8 +147,11 @@ A repository removed and added again gets its old slot back.
 
 Repositories may live on different trackers (`tracker.repos[].type`, `tracker.repos[].api`): each ticket's issue,
 comments, commits, pull or merge request, checks, tags and releases go through its own repository's tracker, and
-every feature must be one each of them can do. The same path on GitHub and on GitLab is two repositories; slots of
-a non-GitHub repository are kept by `<type>:<host>/<path>`.
+every feature must be one each of them can do. The same path on GitHub and on GitLab, or on github.com and an Enterprise
+host, is two repositories: across workspaces a repository is `<type>:<API host>/<path>` (`repoIdent`), so neither the
+one-workspace-per-repository rule nor the wizard mixes them up; ticket slots keep their stored key (the path on
+GitHub, `<type>:<host>/<path>` elsewhere). Webhook deliveries are addressed per workspace and alias
+(`/hooks/<workspace>/<alias>`), so they need no such key.
 
 ### Features
 

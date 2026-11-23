@@ -5,7 +5,7 @@ import committed from "../schema/workspace.schema.json";
 import committedInstance from "../schema/instance.schema.json";
 import type { WorkspaceDoc } from "../src/config/document";
 import { missingSecrets, StaticRegistry } from "../src/config/registry";
-import { INSTANCE, problems, repoList, SCHEMA, validate } from "../src/config/schema";
+import { INSTANCE, problems, repoClashes, repoList, SCHEMA, validate } from "../src/config/schema";
 import { plain } from "../src/ports/chat";
 import { plan } from "../scripts/deploy";
 import workspaces from "./workspaces.json";
@@ -250,3 +250,21 @@ describe("bun run deploy", () => {
     expect(plan(JSON.stringify({ flowee: 1, workspaces: [], instance: { ...inst, owner: 1 } }), true)).toMatchObject({ problems: [expect.stringContaining("$.instance.owner")] });
   });
 });
+
+describe("a repository across workspaces", () => {
+  const ws = (id: string, tracker: Record<string, unknown>) => ({ ...shop, id, tracker: { ...shop.tracker, ...tracker } }) as WorkspaceDoc;
+  it("is told apart by tracker kind and host: the same path on GitHub, an Enterprise host and GitLab never clashes", () => {
+    const gh = ws("a", { repos: ["acme/app"] });
+    const ghe = ws("b", { repos: ["acme/app"], api: "https://ghe.example/api/v3" });
+    const gl = ws("c", { type: "gitlab", repos: ["acme/app"] });
+    const glself = ws("d", { type: "gitlab", repos: ["acme/app"], api: "https://gitlab.example.com/api/v4" });
+    expect(repoList(gh)[0].ident).toBe("github:api.github.com/acme/app");
+    expect(repoList(ghe)[0].ident).toBe("github:ghe.example/acme/app");
+    expect(repoList(gl)[0].ident).toBe("gitlab:gitlab.com/acme/app");
+    expect(repoClashes([gh, ghe, gl], glself)).toEqual([]);
+    expect(repoClashes([gh, ghe, gl, glself], ws("e", { repos: ["Acme/App"] }))).toEqual(["$.tracker.repos[0]: 'Acme/App' is already in workspace 'a'; a repository belongs to one workspace only."]);
+    // ticket slots keep their stored key: a github.com path as before
+    expect(repoList(gh)[0].key).toBe("acme/app");
+  });
+});
+
