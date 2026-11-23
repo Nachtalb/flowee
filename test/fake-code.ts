@@ -10,7 +10,6 @@ type Pull = {
   base: { ref: string };
   state: "open" | "closed";
   merged_at: string | null;
-  merge_commit_sha: string | null;
   user: { login: string };
   mergeable: boolean;
 };
@@ -29,6 +28,8 @@ export class FakeCode {
   releases: { tag_name: string; name: string; body: string; html_url: string; published_at: string; draft?: boolean; prerelease?: boolean }[] = [];
   tags = new Map<string, string>();
   merged: { number: number; method: string; title?: string }[] = [];
+  /** pull request number -> its merge commit, answered as the issue's `merged` event */
+  mergeSha = new Map<number, string>();
   private n = 0;
 
   constructor(private gh: FakeGitHub) {
@@ -59,7 +60,6 @@ export class FakeCode {
       base: { ref: "main" },
       state: "open",
       merged_at: null,
-      merge_commit_sha: null,
       user: { login: author },
       mergeable: true,
     };
@@ -122,13 +122,16 @@ export class FakeCode {
       const p = this.pulls.find((x) => x.number === Number(m![1]));
       return p ? ok((this.commitsOn.get(p.head.ref) ?? []).flatMap((sha) => this.changes.get(sha) ?? [])) : nf();
     }
+    if ((m = /^issues\/(\d+)\/events$/.exec(rest)) && this.pulls.some((p) => p.number === Number(m![1])))
+      return ok(this.mergeSha.has(Number(m[1])) ? [{ event: "merged", commit_id: this.mergeSha.get(Number(m[1])) }] : []);
     if ((m = /^pulls\/(\d+)(\/merge)?$/.exec(rest))) {
       const p = this.pulls.find((x) => x.number === Number(m![1]));
       if (!p) return nf();
       if (m[2] && method === "PUT") {
         if (!p.mergeable || p.state !== "open") return ok({ message: "Pull Request is not mergeable" }, 405);
         const sha = this.gh.commit(body.commit_title ?? `Merge pull request #${p.number} from ${p.head.ref}`);
-        Object.assign(p, { state: "closed", merged_at: "2026-11-21T00:00:00Z", merge_commit_sha: sha });
+        Object.assign(p, { state: "closed", merged_at: "2026-11-21T00:00:00Z" });
+        this.mergeSha.set(p.number, sha);
         this.merged.push({ number: p.number, method: body.merge_method, title: body.commit_title });
         return ok({ sha, merged: true });
       }

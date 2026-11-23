@@ -119,7 +119,7 @@ export class GitHub implements Tracker {
         authorization: `Bearer ${this.c.token}`,
         accept: "application/vnd.github+json",
         "user-agent": "flowee",
-        "x-github-api-version": "2022-11-28",
+        "x-github-api-version": "2026-03-10",
         ...(body === undefined ? {} : { "content-type": "application/json" }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),

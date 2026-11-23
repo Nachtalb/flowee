@@ -25,7 +25,6 @@ interface GhPull {
   base: { ref: string };
   state: "open" | "closed";
   merged_at: string | null;
-  merge_commit_sha: string | null;
   user: { login: string };
 }
 
@@ -38,7 +37,7 @@ const pull = (p: GhPull): PullRequest => ({
   headSha: p.head.sha,
   base: p.base.ref,
   state: p.merged_at ? "merged" : p.state,
-  mergeSha: p.merged_at ? p.merge_commit_sha : null,
+  mergeSha: null,
   author: p.user.login,
 });
 
@@ -81,6 +80,18 @@ const toChanges = (files: GhFile[]): Change[] =>
 export class GitHubPulls implements PullRequests {
   constructor(private gh: GitHub) {}
 
+  /** API 2026-03-10 dropped `merge_commit_sha` from pull requests: a merged one's commit is its `merged` event's. */
+  private async withMerge(p: PullRequest): Promise<PullRequest> {
+    if (p.state !== "merged") return p;
+    let sha: string | null = null;
+    for (let page = 1; page <= 30; page++) {
+      const batch = await this.gh.req<{ event: string; commit_id: string | null }[]>("GET", `${this.gh.r}/issues/${p.number}/events?per_page=100&page=${page}`, `the events of pull request #${p.number}`);
+      for (const e of batch) if (e.event === "merged" && e.commit_id) sha = e.commit_id;
+      if (batch.length < 100) break;
+    }
+    return { ...p, mergeSha: sha };
+  }
+
   async files(n: number): Promise<Change[]> {
     const all: GhFile[] = [];
     // GitHub lists at most 3000 files, 100 per page
@@ -96,13 +107,13 @@ export class GitHubPulls implements PullRequests {
     const owner = this.gh.r.split("/")[2];
     const all = await this.gh.req<GhPull[]>("GET", `${this.gh.r}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch}`)}&per_page=100`, `the pull requests of ${branch}`);
     const ps = all.map(pull).sort((a, b) => Number(b.state === "open") - Number(a.state === "open") || b.number - a.number);
-    return ps[0] ?? null;
+    return ps[0] ? this.withMerge(ps[0]) : null;
   }
 
   async get(number: number) {
     const p = await orNull(this.gh.req<GhPull>("GET", `${this.gh.r}/pulls/${number}`, `pull request #${number}`));
     if (!p) throw new Fail(404, "not_found", `Pull request #${number} does not exist.`);
-    return pull(p);
+    return this.withMerge(pull(p));
   }
 
   async open() {

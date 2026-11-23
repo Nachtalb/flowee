@@ -87,7 +87,7 @@ class GitHub:
         """Branches (read from the scratch bare repository), pull requests, checks, releases, tags."""
         git = lambda *a: subprocess.run(["git", "-C", str(r["bare"]), *a], capture_output=True, text=True)
         head = lambda b: (git("rev-parse", "-q", "--verify", f"refs/heads/{b}").stdout.strip() or None) if r["bare"] else None
-        pull = lambda p: {**p, "head": {**p["head"], "sha": head(p["head"]["ref"]) or p["head"]["sha"]}}
+        pull = lambda p: {**{k: v for k, v in p.items() if k != "merged_sha"}, "head": {**p["head"], "sha": head(p["head"]["ref"]) or p["head"]["sha"]}}
         if mm := re.match(r"^/git/ref/heads/(.+)$", rest):
             sha = head(mm.group(1))
             return (200, {"object": {"sha": sha}}) if sha else (404, {"message": "Not Found"})
@@ -99,8 +99,10 @@ class GitHub:
         if rest == "/pulls" and method == "POST":
             n = 100 + len(r["pulls"]) + 1
             r["pulls"].append({"number": n, "title": body["title"], "body": body["body"], "html_url": f"https://github.test/pull/{n}", "head": {"ref": body["head"], "sha": head(body["head"])},
-                               "base": {"ref": body["base"]}, "state": "open", "merged_at": None, "merge_commit_sha": None, "user": {"login": "dev"}})
+                               "base": {"ref": body["base"]}, "state": "open", "merged_at": None, "user": {"login": "dev"}})
             return 201, pull(r["pulls"][-1])
+        if (mm := re.match(r"^/issues/(\d+)/events$", rest)) and (p := next((x for x in r["pulls"] if x["number"] == int(mm.group(1))), None)):
+            return 200, [{"event": "merged", "commit_id": p["merged_sha"]}] if p.get("merged_sha") else []
         if mm := re.match(r"^/pulls/(\d+)(/merge)?$", rest):
             p = next((x for x in r["pulls"] if x["number"] == int(mm.group(1))), None)
             if not p:
@@ -108,7 +110,7 @@ class GitHub:
             if mm.group(2) and method == "PUT":
                 sha = hashlib.sha1(f"merge {p['number']}".encode()).hexdigest()
                 r["main"].append((sha, body.get("commit_title") or p["title"]))
-                p.update(state="closed", merged_at="2026-11-21T00:00:00Z", merge_commit_sha=sha)
+                p.update(state="closed", merged_at="2026-11-21T00:00:00Z", merged_sha=sha)
                 return 200, {"sha": sha, "merged": True}
             if method == "PATCH":
                 p.update(body)
