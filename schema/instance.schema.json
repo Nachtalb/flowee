@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nachtalb/flowee/schema/instance.schema.json",
+  "title": "Flowee instance",
+  "type": "object",
+  "description": "A Flowee instance: its workspaces and, for the managed mode, the instance's bot and owner.",
+  "additionalProperties": false,
+  "required": [
+    "flowee",
+    "workspaces"
+  ],
+  "properties": {
+    "flowee": {
+      "const": 1,
+      "description": "Schema version of this document."
+    },
+    "workspaces": {
+      "type": "array",
+      "description": "The workspaces (see workspace.schema.json).",
+      "items": {
+        "type": "object"
+      }
+    },
+    "instance": {
+      "type": "object",
+      "description": "The instance itself (managed mode).",
+      "additionalProperties": false,
+      "required": [
+        "bot",
+        "publicUrl",
+        "owner"
+      ],
+      "properties": {
+        "bot": {
+          "type": "object",
+          "description": "The instance's bot.",
+          "additionalProperties": false,
+          "required": [
+            "token",
+            "webhookSecret"
+          ],
+          "properties": {
+            "token": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of the secret holding the instance bot's token (never the value).",
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            },
+            "webhookSecret": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of the secret holding the instance bot's webhook secret (never the value).",
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The bot's username."
+            }
+          }
+        },
+        "publicUrl": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The Worker's public base URL.",
+          "pattern": "^https://"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The instance owner's chat user id.",
+          "pattern": "^\\d+$"
+        },
+        "creators": {
+          "type": "array",
+          "description": "Chat user ids that may create workspaces (default: the owner).",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Chat user id.",
+            "pattern": "^\\d+$"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "description": "Limits.",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "workspacesPerUser": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 5,
+              "description": "Workspaces one user may own."
+            }
+          }
+        },
+        "profile": {
+          "type": "object",
+          "description": "The instance bot's profile.",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The bot's name.",
+              "default": "Flowee"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The bot's description."
+            },
+            "shortDescription": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The bot's short description."
+            },
+            "photo": {
+              "type": "string",
+              "minLength": 1,
+              "description": "URL of a PNG profile photo (default: the bundled one).",
+              "pattern": "^https://"
+            }
+          }
+        },
+        "trackerApi": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tracker API base URL for new workspaces.",
+          "pattern": "^https?://"
+        }
+      }
+    }
+  }
+}

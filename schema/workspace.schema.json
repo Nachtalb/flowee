@@ -573,6 +573,10 @@
           "minLength": 1,
           "description": "The instance's public base URL (webhook and profile are set from it).",
           "pattern": "^https://"
+        },
+        "managed": {
+          "type": "boolean",
+          "description": "The workspace's own bot, created and managed through the instance's bot (managed mode)."
         }
       }
     },

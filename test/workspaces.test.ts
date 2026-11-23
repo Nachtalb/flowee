@@ -90,9 +90,11 @@ describe("standalone mode", () => {
   });
 
   it("refuses to run in any other mode", async () => {
-    const r = await worker.fetch(new Request("https://flow.test/v1/whoami"), { ...env, FLOWEE_MODE: "managed" });
+    const r = await worker.fetch(new Request("https://flow.test/v1/whoami"), { ...env, FLOWEE_MODE: "kanban" });
     expect(r.status).toBe(501);
-    expect(await r.json()).toEqual({ ok: false, error: "unsupported", message: "FLOWEE_MODE 'managed' is not available in this version; use standalone." });
+    expect(await r.json()).toEqual({ ok: false, error: "unsupported", message: "FLOWEE_MODE 'kanban' is not available; use standalone or managed." });
+    const admin = await SELF.fetch("https://flow.test/admin/workspaces", { headers: { authorization: "Bearer x" } });
+    expect(admin.status).toBe(501);
   });
 });
 

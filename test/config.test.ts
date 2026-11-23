@@ -2,9 +2,10 @@
 // their JSON path, export/import round trips, secrets only ever by name.
 import { describe, expect, it } from "vitest";
 import committed from "../schema/workspace.schema.json";
+import committedInstance from "../schema/instance.schema.json";
 import type { WorkspaceDoc } from "../src/config/document";
 import { missingSecrets, StaticRegistry } from "../src/config/registry";
-import { SCHEMA, validate } from "../src/config/schema";
+import { INSTANCE, SCHEMA, validate } from "../src/config/schema";
 import { plain } from "../src/ports/chat";
 import workspaces from "./workspaces.json";
 
@@ -30,7 +31,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     { instance: "owner", role: "owner", secret: "T_OWNER" },
   ],
   owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
-  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example" },
+  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true },
   files: { url: "https://files.example/", token: "FILES", expire: "30d" },
   texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u" },
   schedule: { timezone: "Europe/Zurich", digestFrom: 8, digestTo: 11 },
@@ -52,6 +53,7 @@ const livedu = workspaces.workspaces[0] as unknown as WorkspaceDoc;
 describe("the schema", () => {
   it("is committed as generated (bun run schema)", () => {
     expect(committed).toEqual(SCHEMA);
+    expect(committedInstance).toEqual(INSTANCE);
   });
 
   it("has exactly the fields of the TypeScript types", () => {

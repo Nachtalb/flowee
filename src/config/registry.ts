@@ -7,6 +7,7 @@ import type { Settings, Texts } from "../core/settings";
 import { hex, sha256 } from "../core/text";
 import type { ChatRef } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
+import type { Store } from "../ports/store";
 import { type InstanceDoc, VERSION, type WorkspaceDoc } from "./document";
 import { resolve } from "../core/features";
 import { flowOf } from "./presets";
@@ -35,11 +36,11 @@ export function invalid(errs: string[]): Fail {
 
 /** Workspaces held in memory: the standalone instance's configuration, fixed at deploy. */
 export class StaticRegistry implements WorkspaceRegistry {
-  private docs = new Map<string, WorkspaceDoc>();
+  protected docs = new Map<string, WorkspaceDoc>();
   private digests = new Map<string, { id: string; instance: string; role: string }>();
 
   constructor(
-    private secrets: Secrets,
+    protected secrets: Secrets,
     config?: unknown,
   ) {
     if (config !== undefined) this.importAll(config);
@@ -87,13 +88,71 @@ export class StaticRegistry implements WorkspaceRegistry {
     this.docs = new Map((d as InstanceDoc).workspaces.map((w) => [w.id, clone(w)]));
     this.index();
   }
-  private index() {
+  protected index() {
     this.digests = new Map();
     for (const w of this.docs.values())
       for (const r of w.roles) {
         const h = this.secrets.get(r.secret)?.trim().toLowerCase();
         if (h) this.digests.set(h, { id: w.id, instance: r.instance, role: r.role });
       }
+  }
+}
+
+/**
+ * Workspaces kept in a store (the managed mode: the instance's Durable Object), each with the chat user who owns
+ * it and whether it is paused. Same validation as the static registry; every change is written through.
+ */
+export class StoredRegistry extends StaticRegistry {
+  constructor(
+    secrets: Secrets,
+    private db: Store,
+  ) {
+    super(secrets);
+    db.exec("CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, doc TEXT NOT NULL, owner TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0)");
+    for (const r of db.rows<{ id: string; doc: string }>("SELECT id, doc FROM workspaces")) this.docs.set(r.id, JSON.parse(r.doc));
+    this.index();
+  }
+
+  /** Re-reads the role digests (after a secret changed). */
+  reindex() {
+    this.index();
+  }
+
+  import(doc: unknown, owner = "") {
+    const d = super.import(doc);
+    const had = this.db.rows<{ owner: string }>("SELECT owner FROM workspaces WHERE id = ?", d.id)[0];
+    this.db.exec("INSERT OR REPLACE INTO workspaces (id, doc, owner, paused) VALUES (?, ?, ?, ?)", d.id, JSON.stringify(d), had?.owner || owner, this.paused(d.id) ? 1 : 0);
+    return d;
+  }
+
+  importAll(doc: unknown) {
+    super.importAll(doc);
+    const keep = new Set(this.docs.keys());
+    for (const r of this.db.rows<{ id: string }>("SELECT id FROM workspaces")) if (!keep.has(r.id)) this.db.exec("DELETE FROM workspaces WHERE id = ?", r.id);
+    for (const d of this.docs.values())
+      this.db.exec("INSERT INTO workspaces (id, doc, owner) VALUES (?, ?, '') ON CONFLICT (id) DO UPDATE SET doc = excluded.doc", d.id, JSON.stringify(d));
+  }
+
+  remove(id: string) {
+    this.docs.delete(id);
+    this.db.exec("DELETE FROM workspaces WHERE id = ?", id);
+    this.index();
+  }
+
+  owner(id: string) {
+    return this.db.rows<{ owner: string }>("SELECT owner FROM workspaces WHERE id = ?", id)[0]?.owner;
+  }
+
+  ownedBy(user: string) {
+    return this.db.rows<{ id: string }>("SELECT id FROM workspaces WHERE owner = ? ORDER BY id", user).map((r) => r.id);
+  }
+
+  paused(id: string) {
+    return !!this.db.rows<{ paused: number }>("SELECT paused FROM workspaces WHERE id = ?", id)[0]?.paused;
+  }
+
+  setPaused(id: string, paused: boolean) {
+    this.db.exec("UPDATE workspaces SET paused = ? WHERE id = ?", paused ? 1 : 0, id);
   }
 }
 
@@ -145,7 +204,9 @@ export function settings(d: WorkspaceDoc): Settings {
     chat: d.chat && { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username },
     timezone: s.timezone ?? "UTC",
     digest: { from: s.digestFrom ?? 9, to: s.digestTo ?? 12 },
-    webhook: d.chat?.publicUrl ? { url: d.chat.publicUrl, secret: d.chat.webhookSecret } : undefined,
+    // an own bot of the managed mode has its own path; the standalone bot is the instance's /telegram
+    webhook: d.chat?.publicUrl ? { url: `${d.chat.publicUrl}/telegram${d.chat.managed ? `/w/${d.id}` : ""}`, secret: d.chat.webhookSecret } : undefined,
     profile: d.profile,
+    ownBot: !!d.chat?.managed,
   };
 }

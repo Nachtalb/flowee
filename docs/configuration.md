@@ -7,10 +7,26 @@ An instance is one deployment of the Worker. Its configuration is **instance opt
 
 | Var | Values | Default | Meaning |
 |---|---|---|---|
-| `FLOWEE_MODE` | `standalone` | `standalone` | Standalone: exactly the workspaces configured at deploy, one bot, nothing creates or changes a workspace at run time; management commands and updates are ignored and no managed-bot method is ever called. `managed` (workspaces created in the chat, a bot per workspace) arrives later; this version answers `501 unsupported` to every request in any other mode. |
-| `FLOWEE_CONFIG` | JSON | `flowee.config.json` | The instance document below (or a single workspace document). As a var or a secret it wins over the committed `flowee.config.json` next to `wrangler.toml`. |
+| `FLOWEE_MODE` | `standalone`, `managed` | `standalone` | Standalone: exactly the workspaces configured at deploy, one bot, nothing creates or changes a workspace at run time; management commands and updates are ignored, `/admin/*` answers `501 unsupported` and no managed-bot method is ever called. Managed: workspaces are made in the chat (docs/managed.md) or imported, kept in the Instance Durable Object; each has the instance's bot or its own managed bot. Any other value: `501 unsupported` to every request. |
+| `FLOWEE_CONFIG` | JSON | `flowee.config.json` | The instance document below (or a single workspace document). As a var or a secret it wins over the committed `flowee.config.json` next to `wrangler.toml`. In the managed mode its workspaces are preconfigured: imported at start (owner: the instance owner) and kept up to date when the document changes. |
+| `FLOWEE_KEY` | secret | | Managed mode, required: the key secrets entered in the chat are sealed with (AES-GCM, key = SHA-256 of this value). Changing it makes every stored secret unreadable. |
+| `FLOWEE_ADMIN_TOKEN` | secret | | Managed mode: the bearer token of the configuration API (`/admin/*`, docs/api.md); without it that API answers 401. |
 
-The instance document is `{"flowee": 1, "workspaces": [<workspace>, …]}`. Workspace ids must be unique, and no
+The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "instance": {…}}`
+(`schema/instance.schema.json`); `instance` is required in the managed mode:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `instance.bot.token`, `instance.bot.webhookSecret` | secret names | required | The instance bot (Telegram: `@FloweeAgent`) with bot management enabled. |
+| `instance.bot.username` | string | | Its username, shown in the wizard. |
+| `instance.publicUrl` | `https://…` | required | The Worker's URL; webhooks: `<url>/telegram` (instance bot), `<url>/telegram/w/<workspace>` (own bots). |
+| `instance.owner` | chat user id | required | The instance owner; owns the preconfigured workspaces. |
+| `instance.creators` | chat user ids | `[owner]` | Who may create workspaces (the wizard and imports). Everyone else gets one sentence saying so. |
+| `instance.limits.workspacesPerUser` | integer ≥ 1 | `5` | Workspaces one user may own. |
+| `instance.profile` | `{name, description, shortDescription, photo}` | Flowee's own texts, the bundled photo | The instance bot's profile (docs/telegram.md). |
+| `instance.trackerApi` | URL | `https://api.github.com` | The tracker API of workspaces made in the wizard. |
+
+Workspace ids must be unique, and no Workspace ids must be unique, and no
 two workspaces may bind the same chat and topic. In standalone mode every workspace with a chat must name the
 same `chat.token` and `chat.webhookSecret` (one bot).
 
@@ -75,6 +91,7 @@ with its JSON path, e.g. `$.tracker.repos: must have at least 1 item(s).`
 | `chat.chatId` | numeric string | required | The bound chat: a private chat, a group or a supergroup. |
 | `chat.topicId` | integer ≥ 1 | | Bind only this forum topic of the chat (without it, the whole chat). |
 | `chat.publicUrl` | `https://…` | | The instance's public URL: `GET /setup` sets the webhook (`<url>/telegram`) and the bot profile from this workspace. Give it in one workspace only. |
+| `chat.managed` | boolean | `false` | Managed mode: the workspace's own bot, created through the instance bot; its webhook is `<publicUrl>/telegram/w/<id>` and its profile and settings come from this workspace. Without it the workspace uses the instance's bot. |
 | `files` | object | | Where files the owner sends are uploaded; without it files are refused. |
 | `files.url` | URL | required | A rustypaste-compatible endpoint (multipart `file`, `Authorization`, `expire` headers; answers the link). |
 | `files.token` | secret name | required | The upload token. |
@@ -190,6 +207,16 @@ docs/adapters.md lists the token permission each one needs; docs/anyfile-parity.
   "schedule": { "timezone": "Europe/Zurich" }
 }
 ```
+
+## Secrets in the managed mode
+
+Workspaces made in the chat name their own secret slots, `W_<ID>_TRACKER`, `W_<ID>_BOT`, `W_<ID>_HOOK` and
+`W_<ID>_<INSTANCE>`; the values are sealed in the Instance object's storage (AES-GCM under `FLOWEE_KEY`), never
+logged, echoed or exported. A slot named by a document that is neither sealed there nor a Worker secret is
+missing: the wizard asks for it (the tracker token as a message it deletes at once), generates it (agents'
+secrets: shown once, only the SHA-256 kept) or the API takes it (`PUT /admin/workspaces/<id>/secrets`). A
+document imported in the chat always gets the workspace's own slots, so it can never reach another workspace's
+token; the configuration API (the operator's) keeps the names it is given.
 
 ## Export and import
 

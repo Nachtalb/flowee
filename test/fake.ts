@@ -120,6 +120,7 @@ export class FakeGitHub {
         return ok({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "x" } } } });
       }
     }
+    if (method === "GET" && path === R) return ok({ full_name: this.repo });
     if (method === "GET" && path === `${R}/issues`)
       return ok(paged([...this.issues.values()].filter((i) => i.state === url.searchParams.get("state")).map(view)));
     if (method === "POST" && path === `${R}/issues`) {
@@ -159,7 +160,13 @@ export class FakeGitHub {
 }
 
 export class FakeTelegram {
-  calls: { method: string; params: Record<string, any>; id?: number }[] = [];
+  calls: { method: string; params: Record<string, any>; id?: number; bot: string }[] = [];
+  /** Results of methods that answer more than true (managed bots). */
+  answers: Record<string, unknown> = {
+    getManagedBotToken: "777:own-token",
+    replaceManagedBotToken: "777:new-token",
+    getManagedBotAccessSettings: { is_access_restricted: false },
+  };
   down = false;
   webhook = "";
   private id = 100;
@@ -169,22 +176,26 @@ export class FakeTelegram {
   }
 
   async handle(req: Request): Promise<Response> {
-    const method = new URL(req.url).pathname.split("/").pop()!;
+    const parts = new URL(req.url).pathname.split("/");
+    const method = parts.pop()!;
+    const bot = parts.pop()!.replace(/^bot/, "");
     const multipart = req.headers.get("content-type")?.startsWith("multipart/");
     const params = (multipart ? Object.fromEntries(await req.formData()) : await req.json()) as Record<string, any>;
-    const call: { method: string; params: Record<string, any>; id?: number } = { method, params };
+    const call: { method: string; params: Record<string, any>; id?: number; bot: string } = { method, params, bot };
     this.calls.push(call);
     if (method === "setWebhook") this.webhook = params.url;
     if (this.down) return Response.json({ ok: false, description: "Bad Gateway" }, { status: 502 });
     const result =
-      method === "getWebhookInfo"
+      method in this.answers
+        ? this.answers[method]
+        : method === "getWebhookInfo"
         ? { url: this.webhook }
         : method === "getFile"
           ? { file_path: `files/${params.file_id}` }
           : method.startsWith("send") || method === "editMessageText"
             ? { message_id: params.message_id ?? ++this.id }
             : true;
-    if (typeof result === "object" && "message_id" in result) call.id = result.message_id;
+    if (result && typeof result === "object" && "message_id" in result) call.id = result.message_id as number;
     return Response.json({ ok: true, result });
   }
 

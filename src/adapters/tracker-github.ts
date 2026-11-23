@@ -91,6 +91,17 @@ export class GitHub implements Tracker {
     return `/repos/${this.c.repo}`;
   }
 
+  /** The HTTP status of reading the repository (200: the token reaches it). */
+  async probe(): Promise<number> {
+    try {
+      await this.req("GET", this.r, "reading the repository");
+      return 200;
+    } catch (e) {
+      if ((e as GhFail).gh) return (e as GhFail).gh as number;
+      throw e;
+    }
+  }
+
   async issue(n: number): Promise<Issue> {
     try {
       const i = await this.req<GhIssue>("GET", `${this.r}/issues/${n}`, `reading #${n}`);

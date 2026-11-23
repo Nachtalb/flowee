@@ -42,6 +42,8 @@ export interface WorkspaceDoc {
     topicId?: number;
     /** The instance's public base URL: the bot's webhook and profile are set from here. */
     publicUrl?: string;
+    /** The workspace's own bot, created and managed through the instance's bot (managed mode). */
+    managed?: boolean;
   };
   files?: { url: string; token: string; expire?: string };
   texts?: Partial<Texts>;
@@ -52,4 +54,22 @@ export interface WorkspaceDoc {
 export interface InstanceDoc {
   flowee: 1;
   workspaces: WorkspaceDoc[];
+  /** The instance itself (managed mode): its bot, owner, who may create workspaces. */
+  instance?: InstanceConfig;
+}
+
+export interface InstanceConfig {
+  /** Secret names of the instance bot's token and webhook secret. */
+  bot: { token: string; webhookSecret: string; username?: string };
+  /** The Worker's public base URL; webhooks are set from it. */
+  publicUrl: string;
+  /** The instance owner's chat user id. */
+  owner: string;
+  /** Chat user ids that may create workspaces; default the owner only. */
+  creators?: string[];
+  limits?: { workspacesPerUser?: number };
+  /** The instance bot's profile; a workspace's own bot takes its profile from its workspace. */
+  profile?: { name?: string; description?: string; shortDescription?: string; photo?: string };
+  /** The tracker API base URL for workspaces made in the wizard (default https://api.github.com). */
+  trackerApi?: string;
 }

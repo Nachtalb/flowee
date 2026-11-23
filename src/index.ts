@@ -1,16 +1,19 @@
 // The Worker: resolves the workspace of every request (API token or /w/<id>/, chat binding) and hands it to that
-// workspace's Durable Object; the cron and the deploy's /setup go to every workspace.
+// workspace's Durable Object; the cron and the deploy's /setup go to every workspace. In the managed mode the
+// Instance object resolves (stored registry) and takes the wizard's updates first.
 import { json } from "./api/http";
 import { digestOf } from "./config/registry";
 import { Fail } from "./core/errors";
 import { same } from "./core/text";
 import { Telegram } from "./adapters/chat-telegram";
-import { bot, type Env, registry } from "./adapters/instance";
+import { bot, type Env, instanceDoc, mode, registry } from "./adapters/instance";
 import { envSecrets, WORKSPACE_HEADER } from "./adapters/store-durable-object";
 
+export { Instance } from "./adapters/instance-durable-object";
 export { Workspace } from "./adapters/store-durable-object";
 
 const stub = (env: Env, id: string) => env.WORKSPACE.get(env.WORKSPACE.idFromName(id));
+const instance = (env: Env) => env.INSTANCE.get(env.INSTANCE.idFromName("instance"));
 
 function forward(env: Env, id: string, req: Request, path?: string) {
   const url = new URL(req.url);
@@ -20,16 +23,73 @@ function forward(env: Env, id: string, req: Request, path?: string) {
   return stub(env, id).fetch(r);
 }
 
-const each = (env: Env, path: string) =>
+const ids = async (env: Env) => (mode(env) === "managed" ? await instance(env).active(instanceDoc(env)) : registry(env).list().map((w) => w.id));
+
+const each = async (env: Env, path: string) =>
   Promise.all(
-    registry(env)
-      .list()
-      .map(async (w) => [w.id, await (await forward(env, w.id, new Request(`https://flowee${path}`, { method: "POST" }))).text()] as const),
+    (await ids(env)).map(async (id) => [id, await (await forward(env, id, new Request(`https://flowee${path}`, { method: "POST" }))).text()] as const),
   );
 
 const unauthorized = () => json({ ok: false, error: "unauthorized", message: "Unknown or missing token." }, 401);
+const notFound = () => json({ ok: false, error: "not_found", message: "No such endpoint." }, 404);
+const paused = (id: string) => json({ ok: false, error: "paused", message: `The workspace '${id}' is paused; its owner resumes it with /workspaces.` }, 503);
+const bearer = (req: Request) => /^Bearer (.+)$/.exec(req.headers.get("authorization") ?? "")?.[1];
+const ABOUT = "Flowee: the ticket flow API for AI agent teams and its chat envoy.\n";
+
+async function managed(req: Request, env: Env): Promise<Response> {
+  const { pathname } = new URL(req.url);
+  const doc = instanceDoc(env);
+  const inst = instance(env);
+  const body = () => req.clone().json().catch(() => null);
+  if (pathname === "/telegram") {
+    const want = envSecrets(env).get(doc.instance?.bot.webhookSecret ?? "");
+    const got = req.headers.get("x-telegram-bot-api-secret-token");
+    if (req.method !== "POST" || !want || !got || !(await same(got, want))) return new Response("forbidden", { status: 403 });
+    const r = await inst.mainUpdate(doc, await body());
+    return r.forward ? forward(env, r.forward, req) : new Response("ok");
+  }
+  let m = /^\/telegram\/w\/([a-z0-9-]+)$/.exec(pathname);
+  if (m) {
+    if (req.method !== "POST") return new Response("forbidden", { status: 403 });
+    const r = await inst.ownUpdate(doc, m[1], req.headers.get("x-telegram-bot-api-secret-token") ?? "", await body());
+    if (r.status) return new Response("forbidden", { status: r.status });
+    return r.forward ? forward(env, r.forward, req) : new Response("ok");
+  }
+  m = /^\/w\/([a-z0-9-]+)(\/v1\/.*|\/config)$/.exec(pathname);
+  if (m) {
+    const hit = await inst.resolve(doc, { id: m[1] });
+    if (!hit) return json({ ok: false, error: "not_found", message: `There is no workspace '${m[1]}'.` }, 404);
+    if (m[2] === "/config") {
+      // any agent of the workspace may read its configuration (it holds no secret)
+      const t = bearer(req);
+      const who = t ? await inst.resolve(doc, { digest: await digestOf(t) }) : null;
+      if (who?.id !== m[1]) return unauthorized();
+      const r = await inst.admin(doc, "GET", `/admin/workspaces/${m[1]}`, null);
+      return json({ ok: true, workspace: (JSON.parse(r.json) as { workspace: unknown }).workspace });
+    }
+    return hit.paused ? paused(hit.id) : forward(env, m[1], req, m[2]);
+  }
+  if (pathname.startsWith("/v1/")) {
+    const t = bearer(req);
+    const hit = t ? await inst.resolve(doc, { digest: await digestOf(t) }) : null;
+    if (!hit) return unauthorized();
+    return hit.paused ? paused(hit.id) : forward(env, hit.id, req);
+  }
+  if (pathname.startsWith("/admin/")) {
+    const t = bearer(req);
+    if (!t || !env.FLOWEE_ADMIN_TOKEN || !(await same(t, env.FLOWEE_ADMIN_TOKEN))) return unauthorized();
+    const r = await inst.admin(doc, req.method, pathname, req.method === "PUT" ? await body() : null);
+    return new Response(r.json, { status: r.status, headers: { "content-type": "application/json" } });
+  }
+  if (pathname === "/setup" && req.method === "GET") {
+    const main = await inst.setup(doc);
+    return json({ instance: main, ...Object.fromEntries((await each(env, "/setup")).map(([id, t]) => [id, JSON.parse(t)])) });
+  }
+  return pathname === "/" ? new Response(ABOUT) : notFound();
+}
 
 async function route(req: Request, env: Env): Promise<Response> {
+  if (mode(env) === "managed") return managed(req, env);
   const { pathname } = new URL(req.url);
   const reg = registry(env);
   if (pathname === "/telegram") {
@@ -52,8 +112,9 @@ async function route(req: Request, env: Env): Promise<Response> {
   }
   // Idempotent and input-free: the deploy calls it to publish the bot profile and webhook of the new version.
   if (pathname === "/setup" && req.method === "GET") return json(Object.fromEntries((await each(env, "/setup")).map(([id, t]) => [id, JSON.parse(t)])));
-  if (pathname === "/") return new Response("Flowee: the ticket flow API for AI agent teams and its chat envoy.\n");
-  return json({ ok: false, error: "not_found", message: "No such endpoint." }, 404);
+  if (pathname === "/") return new Response(ABOUT);
+  if (pathname.startsWith("/admin/")) return json({ ok: false, error: "unsupported", message: "Configuration changes at run time need the managed mode." }, 501);
+  return notFound();
 }
 
 export default {

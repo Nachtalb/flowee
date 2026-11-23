@@ -15,9 +15,18 @@ crons = ["* * * * *"]
 name = "WORKSPACE"
 class_name = "Workspace"
 
+# Managed mode: one Instance object (idFromName("instance")) keeps the workspaces, sealed secrets and wizard.
+[[durable_objects.bindings]]
+name = "INSTANCE"
+class_name = "Instance"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Workspace"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Instance"]
 
 [version_metadata]
 binding = "VERSION"

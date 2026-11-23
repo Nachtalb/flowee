@@ -40,6 +40,14 @@ describe("architecture boundaries", () => {
     }
   });
 
+  it("the wizard imports only core, ports, config types, the envoy's rendering and itself", () => {
+    for (const [path, src] of Object.entries(files)) {
+      if (layer(path) !== "wizard") continue;
+      for (const i of imports(src)) expect(/^\.\.\/(core|ports|config)\/|^\.\.\/envoy\/render$|^\.\//.test(i), `${path} imports ${i}`).toBe(true);
+      expect(/sendMessage|request_managed_bot|setMySettings|api\.telegram/.test(src), path).toBe(false);
+    }
+  });
+
   it("nothing in src names a project, a person, a repository or a chat id", () => {
     for (const [path, src] of Object.entries(files))
       expect(/livedu|nachtalb(?!\/flowee)|\bNick\b|713276361|naa\.gg/i.exec(src)?.[0], path).toBeUndefined();

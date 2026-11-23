@@ -1,7 +1,23 @@
 // The Chat port over the Telegram Bot API: rich views as sendRichMessage HTML with tg-button rows, updates from
-// the webhook. Phase 1 runs one bot per instance (standalone); no managed-bot method is used here.
+// the webhook. The managed-bot methods are in `TelegramBots`; only the managed mode's wizard uses them.
 import { Fail } from "../core/errors";
-import type { Block, Button, Chat, ChatEvent, ChatRef, Command, Content, FileRef, TextOptions, View, ViewOptions } from "../ports/chat";
+import type { BotAccess, Bots } from "../ports/bots";
+import type {
+  Block,
+  BotSettings,
+  Button,
+  Chat,
+  ChatEvent,
+  ChatRef,
+  ChatRequest,
+  Command,
+  CommandScope,
+  Content,
+  FileRef,
+  TextOptions,
+  View,
+  ViewOptions,
+} from "../ports/chat";
 
 type User = { id: number };
 type Msg = {
@@ -9,6 +25,8 @@ type Msg = {
   message_thread_id?: number;
   chat: { id: number; type?: string };
   from?: User;
+  is_topic_message?: boolean;
+  chat_shared?: { chat_id: number };
   text?: string;
   caption?: string;
   reply_to_message?: { message_id: number; from?: User };
@@ -84,8 +102,15 @@ export class Telegram implements Chat {
   private to = (at: ChatRef) => ({ chat_id: at.chat, ...(at.topic ? { message_thread_id: at.topic } : {}) });
 
   parse(update: unknown): ChatEvent | null {
-    const u = update as { update_id?: unknown; message?: Msg; callback_query?: Query };
+    const u = update as { update_id?: unknown; message?: Msg; callback_query?: Query; managed_bot?: { user: User; bot: { id: number; username?: string; first_name?: string } } };
     if (typeof u?.update_id !== "number") return null;
+    if (u.managed_bot?.bot)
+      return {
+        kind: "managed",
+        update: u.update_id,
+        from: String(u.managed_bot.user?.id),
+        bot: { id: String(u.managed_bot.bot.id), username: u.managed_bot.bot.username, name: u.managed_bot.bot.first_name },
+      };
     const q = u.callback_query;
     if (q)
       return {
@@ -102,9 +127,12 @@ export class Telegram implements Chat {
     return {
       kind: "message",
       update: u.update_id,
-      at: ref(m.chat, m.message_thread_id),
+      // a reply in a group without topics carries a thread id too; only a topic message names its topic
+      at: ref(m.chat, m.chat.type === "private" || m.is_topic_message ? m.message_thread_id : undefined),
       from: String(m.from?.id),
       id: m.message_id,
+      chatKind: m.chat.type === "private" ? "private" : "group",
+      ...(m.chat_shared ? { shared: String(m.chat_shared.chat_id) } : {}),
       ...(typeof m.text === "string" ? { text: m.text } : {}),
       ...(r ? { replyTo: { id: r.message_id, fromBot: r.from?.id === this.botId } } : {}),
       ...(m.media_group_id ? { album: m.media_group_id } : {}),
@@ -114,7 +142,8 @@ export class Telegram implements Chat {
 
   /** The chat an update belongs to, for routing it to its workspace. */
   route(update: unknown): ChatRef | undefined {
-    return this.parse(update)?.at;
+    const e = this.parse(update);
+    return e && "at" in e ? e.at : undefined;
   }
 
   async view(at: ChatRef, view: View, o: ViewOptions = {}): Promise<number> {
@@ -185,10 +214,77 @@ export class Telegram implements Chat {
     form.append("f", new Blob([png], { type: "image/png" }), "profile.png");
     await this.call("setMyProfilePhoto", form);
   }
+  async setScopedCommands(commands: Command[], scope: CommandScope) {
+    const s =
+      scope === "default"
+        ? { type: "default" }
+        : scope === "private"
+          ? { type: "all_private_chats" }
+          : scope === "groups"
+            ? { type: "all_group_chats" }
+            : { type: "chat", chat_id: scope.chat };
+    await this.call("setMyCommands", { commands, scope: s });
+  }
+  async setSettings(s: BotSettings) {
+    await this.call("setMySettings", {
+      can_read_all_group_messages: s.readAllGroupMessages,
+      can_join_groups: s.canJoinGroups,
+      has_topics_enabled: s.topicsInPrivate,
+      has_topic_sidebar: s.topicsInPrivate,
+      supports_inline_queries: s.inline,
+      can_manage_bots: s.manageBots,
+      callback_query_mode: "default",
+    });
+  }
+  async request(at: ChatRef, html: string, r: ChatRequest): Promise<number> {
+    const button =
+      r.kind === "managedBot"
+        ? { text: r.label, request_managed_bot: { request_id: 1, suggested_name: r.name, suggested_username: r.username } }
+        : { text: r.label, request_chat: { request_id: 2, chat_is_channel: false, ...(r.forum === undefined ? {} : { chat_is_forum: r.forum }), bot_is_member: true } };
+    const p = { ...this.to(at), text: html, parse_mode: "HTML", reply_markup: { keyboard: [[button]], resize_keyboard: true, one_time_keyboard: true } };
+    return (await this.call("sendMessage", p)).message_id;
+  }
+  async dropKeyboard(at: ChatRef, text: string): Promise<number> {
+    return (await this.call("sendMessage", { ...this.to(at), text, reply_markup: { remove_keyboard: true } })).message_id;
+  }
+  async sendFile(at: ChatRef, name: string, data: string, caption?: string): Promise<number> {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(this.to(at))) form.append(k, String(v));
+    if (caption) form.append("caption", caption);
+    form.append("document", new Blob([data], { type: "application/json" }), name);
+    return (await this.call("sendDocument", form)).message_id;
+  }
+  async editHtml(at: ChatRef, id: number, html: string, buttons?: Button[][]) {
+    const p: Record<string, unknown> = { chat_id: at.chat, message_id: id, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: true } };
+    p.reply_markup = { inline_keyboard: (buttons ?? []).map((r) => r.map((b) => ({ text: b.label, callback_data: b.data }))) };
+    await this.call("editMessageText", p);
+  }
   async setWebhook(url: string, secret: string) {
     await this.call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query"] });
   }
   async webhookUrl() {
     return (await this.call<{ url: string }>("getWebhookInfo", {})).url;
+  }
+}
+
+/** Managed bots over the Bot API, called with the instance bot's token. */
+export class TelegramBots implements Bots {
+  constructor(private tg: Telegram) {}
+  token(botId: string) {
+    return this.tg.call<string>("getManagedBotToken", { user_id: Number(botId) });
+  }
+  replaceToken(botId: string) {
+    return this.tg.call<string>("replaceManagedBotToken", { user_id: Number(botId) });
+  }
+  async access(botId: string): Promise<BotAccess> {
+    const a = await this.tg.call<{ is_access_restricted: boolean; added_users?: { id: number }[] }>("getManagedBotAccessSettings", { user_id: Number(botId) });
+    return { restricted: a.is_access_restricted, users: (a.added_users ?? []).map((u) => String(u.id)) };
+  }
+  async setAccess(botId: string, a: BotAccess) {
+    await this.tg.call("setManagedBotAccessSettings", {
+      user_id: Number(botId),
+      is_access_restricted: a.restricted,
+      ...(a.restricted ? { added_user_ids: a.users.map(Number) } : {}),
+    });
   }
 }

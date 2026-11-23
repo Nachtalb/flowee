@@ -61,6 +61,10 @@ export interface ChatMessage {
   replyTo?: { id: number; fromBot: boolean };
   album?: string;
   content: Content;
+  /** A private chat or a group. */
+  chatKind?: "private" | "group";
+  /** The chat the user picked with a `chat` request. */
+  shared?: string;
 }
 
 export interface ChatPress {
@@ -74,7 +78,35 @@ export interface ChatPress {
   message?: number;
 }
 
-export type ChatEvent = ChatMessage | ChatPress;
+/** A bot the user created to be managed by this bot (Telegram: the `managed_bot` update). */
+export interface ChatManagedBot {
+  kind: "managed";
+  update: number;
+  from: string;
+  bot: { id: string; username?: string; name?: string };
+}
+
+export type ChatEvent = ChatMessage | ChatPress | ChatManagedBot;
+
+/** A reply-keyboard request the user answers by picking something in the chat app. */
+export type ChatRequest =
+  | { kind: "managedBot"; label: string; name: string; username: string }
+  | { kind: "chat"; label: string; forum?: boolean };
+
+/** Where a command list applies. */
+export type CommandScope = "default" | "private" | "groups" | ChatRef;
+
+/** Bot-wide settings (Telegram setMySettings); docs/telegram.md says why each value. */
+export interface BotSettings {
+  /** Read every message in groups (privacy mode off). */
+  readAllGroupMessages: boolean;
+  canJoinGroups: boolean;
+  /** Topics in private chats with the bot, shown in a sidebar. */
+  topicsInPrivate: boolean;
+  inline: boolean;
+  /** May create and manage other bots (the instance's bot only). */
+  manageBots: boolean;
+}
 
 export interface Command {
   command: string;
@@ -102,6 +134,16 @@ export interface Chat {
   answer(query: string, text?: string): Promise<void>;
   /** The command menu, for one chat or (no `to`) as the default. */
   setCommands(commands: Command[], to?: ChatRef): Promise<void>;
+  /** The command menu for a scope (all private chats, all groups, one chat). */
+  setScopedCommands?(commands: Command[], scope: CommandScope): Promise<void>;
+  setSettings?(settings: BotSettings): Promise<void>;
+  /** A message with a reply-keyboard request (the wizard: create a bot, pick a group). */
+  request?(to: ChatRef, html: string, request: ChatRequest): Promise<number>;
+  /** Removes a reply keyboard with a short note. */
+  dropKeyboard?(to: ChatRef, text: string): Promise<number>;
+  sendFile?(to: ChatRef, name: string, data: string, caption?: string): Promise<number>;
+  /** The HTML text and buttons of a sent message, replaced. */
+  editHtml?(to: ChatRef, id: number, html: string, buttons?: Button[][]): Promise<void>;
   download(file: FileRef): Promise<ArrayBuffer>;
   /** Profile items, each applied only when `changed(item, value)` says so. */
   setName(name: string): Promise<void>;

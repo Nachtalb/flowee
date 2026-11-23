@@ -16,6 +16,7 @@ import { Paste } from "./files-paste";
 import { GitHub } from "./tracker-github";
 import { Telegram } from "./chat-telegram";
 import { registry, type Env } from "./instance";
+import { unseal, vaultKey } from "./vault";
 
 export const WORKSPACE_HEADER = "x-flowee-workspace";
 
@@ -41,6 +42,8 @@ export class Workspace extends DurableObject<Env> {
   readonly store: SqlStore;
   private chain: Promise<unknown> = Promise.resolve();
   private rt?: { id: string; flow: Flowee; envoy?: Envoy };
+  /** Opened secrets of a managed workspace (sealed in its storage, opened once per object life). */
+  private plain?: Map<string, string>;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -57,6 +60,41 @@ export class Workspace extends DurableObject<Env> {
   /** Builds the workspace's runtime anew on the next request (config or env changed). */
   reset() {
     this.rt = undefined;
+    this.plain = undefined;
+  }
+
+  /** Managed mode: the instance hands over the document and the sealed secrets it names. */
+  async configure(doc: WorkspaceDoc, sealed: Record<string, string>) {
+    const stored = this.store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'workspace'")[0]?.v;
+    if (stored && stored !== doc.id) throw new Error(`this object belongs to the workspace '${stored}', not '${doc.id}'`);
+    this.store.exec("INSERT OR REPLACE INTO meta VALUES ('workspace', ?)", doc.id);
+    this.store.exec("INSERT OR REPLACE INTO meta VALUES ('doc', ?)", JSON.stringify(doc));
+    this.store.exec("DELETE FROM meta WHERE k LIKE 'vault:%'");
+    for (const [n, v] of Object.entries(sealed)) this.store.exec("INSERT INTO meta VALUES (?, ?)", `vault:${n}`, v);
+    this.reset();
+  }
+
+  /** Managed mode: the workspace was deleted; its storage goes. */
+  async wipe() {
+    this.reset();
+    await this.ctx.storage.deleteAll();
+    migrate(this.store);
+  }
+
+  private async unlock() {
+    if (this.plain) return;
+    const rows = this.store.rows<{ k: string; v: string }>("SELECT k, v FROM meta WHERE k LIKE 'vault:%'");
+    const m = new Map<string, string>();
+    if (rows.length) {
+      const key = await vaultKey(this.env.FLOWEE_KEY);
+      for (const r of rows) m.set(r.k.slice(6), await unseal(key, r.v));
+    }
+    this.plain = m;
+  }
+
+  private secrets(): Secrets {
+    const env = envSecrets(this.env);
+    return { get: (n) => this.plain?.get(n) ?? env.get(n) };
   }
 
   /** The runtime of this object's workspace (its id arrives with every request and is remembered for the alarm). */
@@ -67,9 +105,10 @@ export class Workspace extends DurableObject<Env> {
     if (!ws) throw new Error("this object belongs to no workspace yet");
     if (!stored) this.store.exec("INSERT OR REPLACE INTO meta VALUES ('workspace', ?)", ws);
     if (this.rt?.id === ws) return this.rt;
-    const doc = registry(this.env).get(ws);
+    const managed = this.store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'doc'")[0]?.v;
+    const doc = managed ? (JSON.parse(managed) as WorkspaceDoc) : registry(this.env).get(ws);
     if (!doc) throw new Error(`there is no workspace '${ws}'`);
-    this.rt = build(doc, this.env, this.store, {
+    this.rt = build(doc, this.env, this.store, this.secrets(), {
       now: () => Date.now(),
       wake: async (ms) => {
         const at = await this.ctx.storage.getAlarm();
@@ -84,19 +123,21 @@ export class Workspace extends DurableObject<Env> {
   }
 
   async alarm() {
+    await this.unlock();
     const e = this.runtime().envoy;
     if (e) await this.lock(() => e.onAlarm());
   }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    await this.unlock();
     const rt = this.runtime(req.headers.get(WORKSPACE_HEADER) ?? undefined);
     if (url.pathname === "/cron") {
       await this.lock(() => rt.flow.cron());
       return new Response("ok");
     }
     if (url.pathname === "/setup") return json(rt.envoy ? await this.lock(() => (rt.envoy as Envoy).setup()) : { chat: "none" });
-    if (url.pathname === "/telegram") {
+    if (url.pathname.startsWith("/telegram")) {
       const u = await req.json<Record<string, unknown>>().catch(() => null);
       if (u && rt.envoy) await this.lock(() => (rt.envoy as Envoy).onUpdate(u)).catch((e) => console.error("chat update", e));
       return new Response("ok");
@@ -106,8 +147,7 @@ export class Workspace extends DurableObject<Env> {
 }
 
 /** Wires a workspace document to its adapters. */
-export function build(doc: WorkspaceDoc, env: Env, store: Store, clock: Clock) {
-  const secrets = envSecrets(env);
+export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secrets, clock: Clock) {
   const s = settings(doc);
   const tracker = new Repos(
     repoList(doc).map((r) => ({

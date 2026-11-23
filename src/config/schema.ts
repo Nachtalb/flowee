@@ -120,6 +120,7 @@ export const SCHEMA: S = {
           chatId: str("The bound chat.", { pattern: "^-?\\d+$" }),
           topicId: { type: "integer", minimum: 1, description: "A forum topic in the chat." },
           publicUrl: str("The instance's public base URL (webhook and profile are set from it).", { pattern: "^https://" }),
+          managed: { type: "boolean", description: "The workspace's own bot, created and managed through the instance's bot (managed mode)." },
         },
         ["type", "token", "webhookSecret", "chatId"],
         "The owner's chat (the envoy).",
@@ -143,6 +144,46 @@ export const SCHEMA: S = {
     },
     ["flowee", "id", "flow", "tracker", "roles", "owners"],
     "A Flowee workspace: one flow over a repository, its roles, owners and chat.",
+  ),
+};
+
+export const INSTANCE: S = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://github.com/Nachtalb/flowee/schema/instance.schema.json",
+  title: "Flowee instance",
+  ...obj(
+    {
+      flowee: { const: 1, description: "Schema version of this document." },
+      workspaces: { type: "array", description: "The workspaces (see workspace.schema.json).", items: { type: "object" } },
+      instance: obj(
+        {
+          bot: obj(
+            { token: secret("the instance bot's token"), webhookSecret: secret("the instance bot's webhook secret"), username: str("The bot's username.") },
+            ["token", "webhookSecret"],
+            "The instance's bot.",
+          ),
+          publicUrl: str("The Worker's public base URL.", { pattern: "^https://" }),
+          owner: str("The instance owner's chat user id.", { pattern: "^\\d+$" }),
+          creators: { type: "array", description: "Chat user ids that may create workspaces (default: the owner).", items: str("Chat user id.", { pattern: "^\\d+$" }) },
+          limits: obj({ workspacesPerUser: { type: "integer", minimum: 1, default: 5, description: "Workspaces one user may own." } }, [], "Limits."),
+          profile: obj(
+            {
+              name: str("The bot's name.", { default: "Flowee" }),
+              description: str("The bot's description."),
+              shortDescription: str("The bot's short description."),
+              photo: str("URL of a PNG profile photo (default: the bundled one).", { pattern: "^https://" }),
+            },
+            [],
+            "The instance bot's profile.",
+          ),
+          trackerApi: str("Tracker API base URL for new workspaces.", { pattern: "^https?://" }),
+        },
+        ["bot", "publicUrl", "owner"],
+        "The instance itself (managed mode).",
+      ),
+    },
+    ["flowee", "workspaces"],
+    "A Flowee instance: its workspaces and, for the managed mode, the instance's bot and owner.",
   ),
 };
 
@@ -237,6 +278,8 @@ export function validate(doc: unknown): string[] {
 export function validateInstance(doc: unknown): string[] {
   const d = doc as InstanceDoc;
   if (kind(d) !== "object" || d.flowee !== 1 || !Array.isArray(d.workspaces)) return ["$: must be {\"flowee\": 1, \"workspaces\": [...]}."];
+  const top = check(INSTANCE, d);
+  if (top.length) return top;
   const errs = d.workspaces.flatMap((w, i) => validate(w).map((e) => e.replace(/^\$/, `$.workspaces[${i}]`)));
   const ids = new Set<string>();
   const chats = new Set<string>();

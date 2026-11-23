@@ -43,7 +43,9 @@ export interface Settings {
   /** IANA time zone of the digest and "answered today". */
   timezone: string;
   digest: { from: number; to: number };
-  /** The webhook base URL and the secret name for its token (the bot profile is set from here when given). */
+  /** The webhook URL and the secret name for its token (the bot profile is set from here when given). */
   webhook?: { url: string; secret: string };
   profile?: { photo?: string };
+  /** The workspace's own bot (managed mode): its bot-wide settings are the workspace's to set. */
+  ownBot?: boolean;
 }

@@ -57,6 +57,8 @@ export const COMMANDS: Command[] = [
   { command: "postponed", description: "postponed tickets" },
   { command: "new", description: "new ticket" },
 ];
+/** A workspace's own bot: no inline mode, no bot management, joins groups, privacy mode on (docs/telegram.md). */
+export const OWN_BOT = { readAllGroupMessages: false, canJoinGroups: true, topicsInPrivate: false, inline: false, manageBots: false };
 const NAMES = ["start", "todo", "postponed", "new", "next", "prev", "skip", "stats", "help", "search"];
 const SEARCH_USAGE = "Usage: /search words to find";
 
@@ -760,7 +762,7 @@ export class Envoy implements Inbox {
     const u = this.chat.parse(raw);
     if (!u || this.rows("SELECT 1 FROM updates WHERE update_id = ?", u.update).length) return;
     this.exec("INSERT INTO updates VALUES (?, ?)", u.update, this.now());
-    if (!this.f.s.owners.includes(u.from)) return;
+    if (u.kind === "managed" || !this.f.s.owners.includes(u.from)) return;
     if (u.kind === "press") return this.run(() => this.onPress(u));
     if (!this.here(u.at)) return;
     const c = this.command(u.text);
@@ -921,9 +923,12 @@ export class Envoy implements Inbox {
       await step("description", t.about, () => this.chat.setDescription(t.about));
       await step("short_description", t.shortAbout, () => this.chat.setShortDescription(t.shortAbout));
       await step("commands", COMMANDS, () => this.chat.setCommands(COMMANDS));
+      const set = this.chat.setSettings;
+      // only a workspace's own bot: the standalone bot's settings stay as its owner made them in BotFather
+      if (s.ownBot && set) await step("settings", OWN_BOT, () => set.call(this.chat, OWN_BOT));
       const png = await this.photo?.();
       if (png) await step("photo", hex(await sha256(png)), () => this.chat.setPhoto(png));
-      const url = `${hook.url}/telegram`;
+      const url = hook.url;
       await step(
         "webhook",
         { url, secret: hex(await sha256(secret)), ALLOWED_UPDATES: ["message", "callback_query"] },
