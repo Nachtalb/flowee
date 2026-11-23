@@ -6,7 +6,7 @@ import type { SyncStatus } from "../core/events";
 import { btn, esc, facts, heading, option, options, question, row, text } from "../envoy/render";
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
-import { chatLabel, ROLES, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
+import { chatLabel, extName, ROLES, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
   /** Whether the user manages the document by other means than being its creator or a manager (a terminal key). */
@@ -159,6 +159,7 @@ export class Manager {
         ...(d.tui ? [{ cells: ["🖥 Terminal people", d.tui.people.map((p) => esc(p.name ?? p.id)).join(", ")], buttons: [b("👥 People", `ppl:${d.id}`)] }] : []),
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
         ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
+        { cells: ["🧩 Custom steps", (d.extensions ?? []).map((e) => code(extName(e))).join(", ") || "none"], buttons: [edit("ext" as Step)] },
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),
       options(

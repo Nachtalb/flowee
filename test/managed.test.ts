@@ -10,6 +10,7 @@ import worker from "../src/index";
 import type { FakeGitHub, FakeTelegram } from "./fake";
 import { setup } from "./helpers";
 import workspaces from "./workspaces.json";
+import security from "./fixtures/security-review.json";
 
 const CFG = {
   flowee: 1,
@@ -166,6 +167,7 @@ const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "",
     TABLE(TOGGLE("releases", on, lines)),
     "<p><b>More options</b></p>",
     TABLE(...["uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
+    TABLE(OPT("🧩 Custom steps", `Add your own states and rules with an extension file${lines.ext ? `: ${lines.ext}` : ""}.`, CB(lines.ext ? "🧩 Change" : "🧩 Add", "w:ext:open"))),
     NEXT("w:flow:done"),
   ].join("");
 const WHERE_HERE = [
@@ -606,6 +608,53 @@ describe("the setup wizard: one living message", () => {
     expect((await admin("GET", "/admin/workspaces/app")).body.workspace.features).toEqual({ userFeedback: { label: "from users", autoTriage: false } });
   });
 
+  it("custom steps: an extension file sent in the wizard is validated, listed by name, its role offered; the menu shows and removes it", async () => {
+    await dm(100, "/setup");
+    await dm(100, "acme/app");
+    await tap(100, "w:bot:shared");
+    await tap(100, "w:branch:single");
+    await tap(100, "w:ext:open");
+    expect(screen()).toBe(
+      [
+        "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+        "<p><b>Custom steps</b></p>",
+        "<p>An extension adds your own states, roles and rules to the flow, written as a small chart file (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send its <code>.json</code> file here; an agent can write one from the base chart at <code>https://flowee.test/flows/flow.json</code>.</p>",
+        "<p>None added yet.</p>",
+        ROW(CB("◀ Back", "w:ext:back"), CB("✖ Cancel", "w:cancel")),
+      ].join(""),
+    );
+    files["ext-bad"] = JSON.stringify({ name: "broken", states: { ready: { meta: { label: "x" } } }, on: { ready: { poke: { target: "nowhere" } } } });
+    await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "ext-bad", file_name: "broken.json", file_size: 10 } }));
+    expect(screen()).toContain("<p>⚠️ The file was not added: one problem.</p>");
+    expect(screen()).toContain(FACT("$.extensions[0].states.ready: extension &#39;broken&#39; adds the state &#39;ready&#39;, which the flow has already; change a state with on, replace or remove.".replace(/&#39;/g, "'")));
+    files["ext-ok"] = JSON.stringify(security);
+    await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "ext-ok", file_name: "security-review.json", file_size: 10 } }));
+    expect(screen()).toContain("<p>⚠️ 🧩 security-review is added; its roles appear in the agents step.</p>");
+    expect(screen()).toContain(OPT("🧩 security-review", "A security reviewer looks at a ticket the board sends before it closes.", CB("✖ Remove", "w:ext:rm:0")));
+    await tap(100, "w:ext:back");
+    expect(screen()).toBe(OPTIONS("Single branch", {}, "", { ext: "<code>security-review</code>" }));
+    await tap(100, "w:flow:done");
+    await tap(100, "w:bind:here");
+    await dm(100, TOKEN);
+    expect(screen()).toContain(OPT("🧩 security", "Works as the security reviewer.", CB("−", "w:role:security:-1"), DIS("1"), CB("+", "w:role:security:1")));
+    await tap(100, "w:roles:done");
+    await tap(100, "w:confirm");
+    const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
+    expect(doc.extensions).toEqual([security]);
+    expect(doc.roles.map((r: { instance: string }) => r.instance)).toEqual(["board", "dev1", "tester", "security", "owner"]);
+    await dm(100, "/workspaces");
+    await tap(100, "m:ws:app");
+    expect(screen()).toContain(FACT("🧩 Custom steps", "<code>security-review</code>", CB("✏️ Change", "m:edit:app:ext")));
+    await tap(100, "m:edit:app:ext");
+    await tap(100, "w:ext:rm:0");
+    await tap(100, "w:ext:back");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:confirm");
+    const after = (await admin("GET", "/admin/workspaces/app")).body.workspace;
+    expect(after.extensions).toBeUndefined();
+    expect(after.roles.map((r: { instance: string }) => r.instance)).toEqual(["board", "dev1", "tester", "owner"]);
+  });
+
   it("a workspace with an extension keeps its extension and the extension's agents through a wizard edit", async () => {
     const doc = {
       flowee: 1,
@@ -685,7 +734,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:bind:here");
     await dm(100, TOKEN);
     at("agents");
-    const rows = { bot: 2, branching: 2, options: 4, where: 2, group: 2, agents: 3 };
+    const rows = { bot: 2, branching: 2, options: 5, where: 2, group: 2, agents: 3 };
     for (const [name, n] of Object.entries(rows)) {
       const options = (seen[name].match(/<tr><td><b>.*?<\/tr>/g) ?? []).filter((tr) => tr.includes("</b> · "));
       expect(options.length, name).toBe(n);
@@ -905,6 +954,7 @@ describe("the management menu: one living message", () => {
         FACT("💬 Tickets appear", "your private chat with this bot", CB("✏️ Change", "m:edit:app:bind")),
         FACT("🔑 GitHub token", "never shown", CB("✏️ Change", "m:edit:app:credential")),
         FACT("👥 Agents", "board, dev1, tester"),
+        FACT("🧩 Custom steps", "none", CB("✏️ Change", "m:edit:app:ext")),
         FACT("⚡ Instant updates", "off for app (not set up yet); the tracker is checked every minute", CB("⚡ Turn on", "m:hook:app")),
       ),
       TABLE(

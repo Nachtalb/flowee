@@ -1205,11 +1205,11 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ 🖥 Terminal people  Mia                                       [ 👥 People ]  ┃
 ┃ 🔑 GitHub token     never shown                               [ ✏️ Change ]  ┃
 ┃ 👥 Agents           board, dev1, tester                                      ┃
+┃ 🧩 Custom steps     none                                      [ ✏️ Change ]  ┃
 ┃ ⚡ Instant updates  off for app (not set up yet); the track…  [ ⚡ Turn on ] ┃
 ┃                                                                              ┃
 ┃ ➕ Add an agent · A new identity with its own secret; the other              ┃
 ┃ agents keep theirs.                                               [ ➕ Add ] ┃
-┃ ➖ Remove an agent · Its secret stops working, and the                       ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -2819,9 +2819,9 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
 │                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
+│                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3074,9 +3074,9 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
 │                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
+│                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3280,6 +3280,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ 🖥 Terminal people  Mia                                                 [ 👥 People ]  ┃
 │                                                │┃ 🔑 GitHub token     never shown                                         [ ✏️ Change ]  ┃
 │                                                │┃ 👥 Agents           board, dev1, tester                                                ┃
+│                                                │┃ 🧩 Custom steps     none                                                [ ✏️ Change ]  ┃
 │                                                │┃ ⚡ Instant updates  off for app (not set up yet); the tracker is chec…  [ ⚡ Turn on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ ➕ Add an agent · A new identity with its own secret; the other agents                 ┃
@@ -3296,7 +3297,6 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ stay.                                                                    [ 🗑 Delete ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                  [ « All workspaces ]                                  ┃
-│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃

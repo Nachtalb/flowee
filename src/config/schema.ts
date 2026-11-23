@@ -301,6 +301,16 @@ export function check(schema: S, v: unknown, path = "$"): string[] {
   return out;
 }
 
+/** Problems of extensions merged into the built-in chart, one sentence each with its JSON path (none: usable). */
+export function extensionProblems(extensions: WorkspaceDoc["extensions"], features: WorkspaceDoc["features"] = {}): string[] {
+  const d = { flow: { preset: "trunk" }, extensions, features } as WorkspaceDoc;
+  const shipped = (extensions ?? []).flatMap((e, i) => (typeof e === "string" && !BUILTIN[e.replace(/^builtin:/, "")] ? [`$.extensions[${i}]: Flowee ships no extension '${e}'.`] : []));
+  const raw = rawFlow(d);
+  if (shipped.length || raw.problems.length) return [...shipped, ...raw.problems];
+  const f = flowOf(d);
+  return flowProblems(f.chart, f.options, Object.keys(GUARDS), Object.keys(ACTIONS)).map((x) => `${pathOf(d, x)}: ${x}`);
+}
+
 /** Where a flow problem belongs: the extension that added the state it names, else the flow. */
 function pathOf(d: WorkspaceDoc, problem: string): string {
   const state = /^State '([^']+)'/.exec(problem)?.[1];

@@ -5,7 +5,7 @@
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
 import { FLOW, rawFlow } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
-import { repoClashes, repoIdent, repoList, secretNames, validate } from "../config/schema";
+import { extensionProblems, repoClashes, repoIdent, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
 import { list } from "../core/chart";
 import { type FeaturesDoc, featuresOf } from "../core/features";
@@ -118,6 +118,7 @@ export class InstanceHost implements InstanceApi {
       roles: Object.keys(options.roles),
       ownerRole: options.ownerRole as string,
       features: [...featuresOf(chart, options)],
+      who: Object.fromEntries(Object.entries(options.roles).map(([r, o]) => [r, o.who])),
       roleFeatures: Object.fromEntries(Object.entries(options.roles).flatMap(([r, o]) => (o.features ? [[r, list(o.features)]] : []))),
     };
   }
@@ -209,6 +210,7 @@ export class InstanceHost implements InstanceApi {
         return seen.filter((r) => !want.has(r.toLowerCase()));
       },
       tokenDays: cfg.tokenDays,
+      extensionProblems: (exts, features) => extensionProblems(exts, features as FeaturesDoc),
       repoTaken: (repo, except, t) => {
         const ident = repoIdent(t.kind, t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined) ?? TRACKER_KINDS[t.kind].api, repo);
         return reg.list().find((w) => w.id !== except && repoList(w).some((r) => r.ident === ident))?.id;

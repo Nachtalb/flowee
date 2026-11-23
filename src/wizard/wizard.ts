@@ -73,7 +73,9 @@ export interface Session {
   /** The steps this setup asks, for "Step k of n". */
   plan?: Step[];
   /** A second screen of the step: the group instructions of the bind step, the options after the branching, a token wider than needed. */
-  sub?: "group" | "options" | "wide" | "input";
+  sub?: "group" | "options" | "wide" | "input" | "ext";
+  /** Sub `ext`: the problems of the extension file just sent, one sentence each. */
+  extProblems?: string[];
   /** The repositories a pasted token reaches besides the workspace's (sub `wide`). */
   wide?: string[];
   /** Sub `input`: the option whose values are asked, and the one value the next typed message is for. */
@@ -99,6 +101,8 @@ export interface FlowInfo {
   roles: string[];
   ownerRole: string;
   features: string[];
+  /** How the texts name each role (`the tester`); an extension's role is described by it. */
+  who?: Record<string, string>;
   /** Roles that exist only with some features: `uiReview`, `!uiReview`, `pullRequests.merger=flow`. */
   roleFeatures?: Record<string, string[]>;
 }
@@ -125,6 +129,8 @@ export interface WizardHost {
   checkRepos(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
   /** Repositories besides `repos` the sealed token reaches (none, or unknown: empty). */
   wider?(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
+  /** Problems of these extensions merged into the flow, one sentence each with its JSON path (none: usable). */
+  extensionProblems?(exts: ExtensionRef[], features: Record<string, unknown>): string[];
   /** Days a new tracker token lives when the document names none (`tracker.tokenDays`). */
   tokenDays?: number | "none";
   /** The workspace other than `except` that already has this repository. */
@@ -147,6 +153,8 @@ export interface WizardHost {
 }
 
 const b = (label: string, data: string) => btn(label, `w:${data}`);
+/** An extension's name on the screens. */
+export const extName = (e: ExtensionRef | undefined) => (typeof e === "string" ? e.replace(/^builtin:/, "") : String((e as { name?: unknown } | undefined)?.name ?? "unnamed"));
 export const aliasOf = (repo: string) => (repo.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
 const code = (s: string) => `<code>${esc(s)}</code>`;
 
@@ -400,6 +408,11 @@ export class Wizard {
       s.single = true;
       if (only === "bind") delete draft.bind;
       if (only === "credential") delete draft.tokenStored;
+      if (only === ("ext" as Step)) {
+        s.step = "flow";
+        s.sub = "ext";
+        return this.show(s, o);
+      }
       return this.go(s, only, false, o);
     }
     s.plan = COUNTED.filter((x) => this.needed(s, x) || (x === "bot" && this.needed(s, "botCreate")));
@@ -529,7 +542,7 @@ export class Wizard {
         };
       }
       case "flow": {
-        if (s.sub !== "options" && s.sub !== "input")
+        if (s.sub !== "options" && s.sub !== "input" && s.sub !== "ext")
           return {
             body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
             rows: [
@@ -540,6 +553,7 @@ export class Wizard {
             ],
           };
         if (s.sub === "input") return this.inputScreen(s);
+        if (s.sub === "ext") return this.extScreen(s);
         const offered = Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
         const toggle = (f: string) =>
           option(
@@ -560,6 +574,7 @@ export class Wizard {
             ...(feature ? [options(option(`⚙️ ${BRANCHING.feature[1]}`, this.inputLine(d, "pullRequests"), b("⚙️ Change", "in:open:pullRequests")))] : []),
             ...(offered.includes("releases") ? [options(toggle("releases"))] : []),
             ...(more.length ? [text("<b>More options</b>"), options(...more.map(toggle))] : []),
+            options(option("🧩 Custom steps", `Add your own states and rules with an extension file${d.extensions?.length ? `: ${d.extensions.map((e) => code(extName(e))).join(", ")}` : ""}.`, b(d.extensions?.length ? "🧩 Change" : "🧩 Add", "ext:open"))),
             this.nav(s, "flow:done"),
           ],
         };
@@ -645,7 +660,7 @@ export class Wizard {
             question("Agent identities"),
             text("Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start with these; you can add or remove agents any time."),
           ],
-          rows: [options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? "", b("−", `role:${r}:-1`), { label: String(d.roles[r] ?? 0) }, b("+", `role:${r}:1`)))), this.nav(s, "roles:done")],
+          rows: [options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? `Works as ${esc(this.host.flow(d).who?.[r] ?? r)}.`, b("−", `role:${r}:-1`), { label: String(d.roles[r] ?? 0) }, b("+", `role:${r}:1`)))), this.nav(s, "roles:done")],
         };
       }
       case "summary": {
@@ -656,6 +671,61 @@ export class Wizard {
         };
       }
     }
+  }
+
+  /** The custom steps screen: what an extension is, the ones added (each removable), and a file to send. */
+  private extScreen(s: Session): Screen {
+    const d = s.draft;
+    const exts = d.extensions ?? [];
+    return {
+      body: [
+        this.top(s),
+        question("Custom steps"),
+        text(`An extension adds your own states, roles and rules to the flow, written as a small chart file (${code(`${this.host.publicUrl}/docs/flows.md`)}, “Extending the flow”). Send its ${code(".json")} file here; an agent can write one from the base chart at ${code(`${this.host.publicUrl}/flows/flow.json`)}.`),
+        ...(s.extProblems?.length ? [warning(`The file was not added: ${s.extProblems.length > 1 ? `${s.extProblems.length} problems` : "one problem"}.`), facts(s.extProblems.map((x) => [esc(x)]))] : []),
+        ...(exts.length ? [] : [text("None added yet.")]),
+      ],
+      rows: [
+        ...(exts.length ? [options(...exts.map((e, i) => option(`🧩 ${esc(extName(e))}`, esc((typeof e === "object" && e.description) || "A shipped extension."), b("✖ Remove", `ext:rm:${i}`))))] : []),
+        row(b("◀ Back", "ext:back"), b("✖ Cancel", "cancel")),
+      ],
+    };
+  }
+
+  /** A press on the custom steps screen. */
+  private async extPress(s: Session, what: string, i: string | undefined) {
+    const d = s.draft;
+    delete s.extProblems;
+    if (what === "open") s.sub = "ext";
+    else if (what === "back") s.sub = "options";
+    else if (what === "rm") {
+      d.extensions = (d.extensions ?? []).filter((_, k) => k !== Number(i));
+      for (const r of Object.keys(d.roles)) if (!this.agentRoles(d).includes(r)) delete d.roles[r];
+    }
+    return this.show(s);
+  }
+
+  /** A sent extension file: validated with the draft's other extensions; problems in the living message. */
+  private async extFile(s: Session, text: string) {
+    const d = s.draft;
+    let e: unknown;
+    try {
+      e = JSON.parse(text);
+    } catch (err) {
+      s.extProblems = [`The file is not JSON (${err instanceof Error ? err.message : String(err)}).`];
+      return this.show(s);
+    }
+    const name = extName(e as ExtensionRef);
+    const others = (d.extensions ?? []).filter((x) => extName(x) !== name);
+    const next = [...others, e as ExtensionRef];
+    const problems = this.host.extensionProblems?.(next, this.switches(d)) ?? [];
+    if (problems.length) {
+      s.extProblems = problems;
+      return this.show(s);
+    }
+    delete s.extProblems;
+    d.extensions = next;
+    return this.show(s, { note: `🧩 ${name} is added; its roles appear in the agents step.` });
   }
 
   /** An option's values now: defaults, the document's, then what was asked here. */
@@ -837,10 +907,11 @@ export class Wizard {
     }
     if (i.kind === "text") return this.text(s, i.text, i.message);
     if (i.kind === "file") {
-      // a file is the wizard's only while an option asks for its values; otherwise it is an import
-      if (s.step !== "flow" || s.sub !== "input") return false;
+      // a file is the wizard's only while an option asks for its values or custom steps are open; otherwise an import
+      if (s.step !== "flow" || (s.sub !== "input" && s.sub !== "ext")) return false;
       await this.chat.remove(s.at, i.message).catch(() => {});
-      await this.inputText(s, i.text, true);
+      if (s.sub === "ext") await this.extFile(s, i.text);
+      else await this.inputText(s, i.text, true);
       return true;
     }
     if (!i.data.startsWith("w:")) return false;
@@ -896,6 +967,8 @@ export class Wizard {
         return this.show(s);
       case "in":
         return this.inputPress(s, v, w, data.split(":").slice(3).join(":") || undefined);
+      case "ext":
+        return this.extPress(s, v, w);
       case "bind":
         if (v === "group") {
           s.sub = "group";
