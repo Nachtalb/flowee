@@ -20,7 +20,7 @@ you (a `.key` file from *Add a person*) works the same: `--key-file <file>`, or 
 
 The URL and the last workspace are remembered in `$XDG_CONFIG_HOME/flowee-tui/config.json` (default
 `~/.config/flowee-tui/`); the key in `<config>/key`, mode 600, never printed or shown. Files the server hands
-over (the agents' secrets, an export, a new person's key) are saved to `<config>/files/` with mode 600, and the
+over (the project key, an export, a new person's key) are saved to `<config>/files/` with mode 600, and the
 status line says where once. `NO_COLOR=1` or `--no-color` drops colours (focus and buttons stay visible by
 bold, reverse and heavy borders); the colours used are the terminal's own eight, so a light or dark theme keeps
 its contrast.
@@ -103,7 +103,7 @@ People listed in the instance's `instance.tui.people`, and every manager of a wo
 seat **Setup and management** (`w`). It is the instance bot's private chat in the terminal: the welcome, the
 setup wizard (`/setup`), your workspaces (`/workspaces`), export (`/export`: the file is saved) and import (`Ctrl+O`
 a `.json` file, or `/import` and paste it). A workspace set up here gets the terminal as its inbox and you as its
-first manager; the agents' secrets are saved as a file (mode 600). Its menu has **👥 People**: *Add a member* or
+first manager; the project key is saved as a file (mode 600). Its menu has **👥 People**: *Add a member* or
 *Add a manager* makes a key and hands it over once as a `.key` file for you to pass on; *Remove* stops a key at
 once. The admin API does the same (docs/api.md, "Configuration API").
 

@@ -220,7 +220,7 @@ function edited(id: number, html: string, chat = "100") {
   expect(edit).toEqual({ chat_id: chat, message_id: id, rich_message: { html } });
 }
 
-/** This bot, one repository, this private chat; returns the agents' secrets. */
+/** This bot, one repository, this private chat; returns the project key and the agents made with it. */
 async function sharedSetup(user = 100, repo = "acme/app") {
   await dm(user, "/setup");
   await dm(user, repo);
@@ -860,7 +860,7 @@ describe("the setup wizard: one living message", () => {
     expect((await admin("GET", "/admin/workspaces/web")).status).toBe(200);
   });
 
-  it("agents' secrets the chat refuses as a file come as a rich message: they are shown once", async () => {
+  it("a project key the chat refuses as a file comes as a rich message: it is shown once", async () => {
     tg.refuse = { sendDocument: "Bad Request: file is too big" };
     await sharedSetup(100);
     const last = tg.sent("sendRichMessage").at(-1)?.rich_message.html as string;

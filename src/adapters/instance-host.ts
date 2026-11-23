@@ -261,7 +261,7 @@ export class InstanceHost implements InstanceApi {
         for (const n of before ? secretNames(before) : []) if (!keep.has(n)) self.dropSecret(n);
         reg.reindex();
         await self.push(doc.id);
-        // the workspace exists now: a refused profile must not undo it or hide the agents' secrets
+        // the workspace exists now: a refused profile must not undo it or hide the project key
         const warning = await self.stub(doc.id)
           .fetch(new Request("https://flowee/setup", { method: "POST", headers: { [WORKSPACE_HEADER]: doc.id } }))
           .then(
@@ -488,7 +488,7 @@ export class InstanceHost implements InstanceApi {
       // every press is answered, a failure as its toast (docs/chat-style.md)
       let toast: string | undefined;
       try {
-        // a secrets file's button: that message is no living one
+        // a key file's button: that message is no living one
         if (e.data !== "m:rmfile") await wizard.living.adopt(e.from, at, e.message);
         if (e.data.startsWith("w:")) await wizard.input(e.from, at, { kind: "press", data: e.data, message: e.message });
         else toast = (await manager.press(e.from, at, e.data, e.message)) ?? undefined;

@@ -7,7 +7,7 @@ through `python3 <client>` (`flowee.py`). Add your project's own rules (architec
 ## Where you work
 
 - Your own clone only; the run prompt names it. Never another agent's clone, never a shared worktree.
-- Scratch files go to a directory outside the clone (e.g. `<scratch>/<project>/<instance>/`). Write, rename or
+- Scratch files go to a directory outside the clone (e.g. `<scratch>/<project>/<agent>/`). Write, rename or
   delete nothing outside your clone and that directory.
 - Never `sudo`, never install system packages, never touch infrastructure the ticket does not name.
 - A helper process you start (a dev server, a daemon) runs on a free port, is health-checked with a short timeout

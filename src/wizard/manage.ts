@@ -234,7 +234,7 @@ export class Manager {
   /** A management button; null when the data is not the menu's, else the toast for the press (if any). */
   async press(user: string, at: ChatRef, data: string, message?: number): Promise<string | undefined | null> {
     if (!data.startsWith("m:")) return null;
-    // the button under a secrets file deletes that file's message, never the living one
+    // the button under a key file deletes that file's message, never the living one
     if (data === "m:rmfile") {
       if (message === undefined) return;
       return this.chat.remove(at, message).then(

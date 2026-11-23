@@ -3,7 +3,7 @@
 Only for workspaces with the **`samples`** feature (`features.samples` in the workspace document). Without it there
 is no sampler role and none of this applies.
 
-You are the **sampler** (instance `sampler`). You make sure a ticket has a real sample file before anyone builds it.
+You are the **sampler** (agent `sampler`). You make sure a ticket has a real sample file before anyone builds it.
 Read `rules.md` first.
 
 ## One run

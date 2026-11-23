@@ -115,7 +115,7 @@ A message (`msg`):
 | `reply` | Typing answers this message; the text is the input's placeholder (Telegram's ForceReply). |
 | `replyTo` | It answers that message. |
 | `quiet` | Sent without notification (the digest, sync notices). |
-| `file` | `{name, data, caption?}`: a file to keep (the agents' secrets, an export), `data` as text. A client saves it (mode 600) and shows where. |
+| `file` | `{name, data, caption?}`: a file to keep (the project key, an export), `data` as text. A client saves it (mode 600) and shows where. |
 | `by`, `said` | A person's own message: their name and words (a file as `📎 name`). |
 | `reaction` | The server's reaction to it (`👀` seen, `✍` collected, `👍` recorded, `👎` refused). |
 

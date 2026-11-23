@@ -1,5 +1,5 @@
 // The managed mode's setup and menu in the terminal: a person of the instance's `tui` sets up a workspace (no chat:
-// its inbox is the terminal), gets the agents' secrets as a file, adds a person with a key of their own, exports and
+// its inbox is the terminal), gets the project key as a file, adds a person with a key of their own, exports and
 // imports, all through the same wizard and menu as on Telegram.
 import { env, runInDurableObject } from "cloudflare:test";
 import { createHash } from "node:crypto";

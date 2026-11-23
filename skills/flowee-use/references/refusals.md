@@ -27,7 +27,12 @@ local refusal (the client itself) has no code.
 | `no_samples` | `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.` | give paths that are on the main branch; wait for them to land |
 | `not_untrusted` | `#12 has no 'feedback' label.` | nothing to check |
 | `unsupported` | `The tracker does not support pull requests.` | the workspace is misconfigured; tell the board |
-| `unauthorized` (exit 1) | `Unknown or missing token.` | your secret file or `FLOWEE_AS` is wrong; stop and report |
+| `unknown_agent` | `There is no agent 'dev1'; create it with \`flowee.py agents add <role> dev1\` …` | run `agents add <your role> <your name>` (idempotent), then the command again |
+| `agent_paused` | `dev2 is paused; resume it with \`flowee.py agents resume dev2\`.` | someone paused you on purpose: stop silently |
+| `no_agent` | `The project key acts as an agent only with its name: set FLOWEE_AS or \`agent\` in .flowee.toml.` | set `FLOWEE_AS` to your name |
+| `per_agent` | `This workspace gives every agent its own secret; the project key only manages agents (flowee.py agents).` | strict mode: `agents add` stores your own secret in `secret_file`; set `secret_file` in `.flowee.toml` |
+| `unknown_role` / `name_taken` / `named_agent` / `project_key` | `'qa' is no role of this workspace's flow (board, developer, tester, owner).` | `roles` lists the roles; choose another name; agents the document names change there; only the project key manages agents |
+| `unauthorized` (exit 1) | `Unknown or missing token.` | your key file, secret file or `FLOWEE_TOKEN` is wrong; stop and report |
 | `paused` (exit 1, 503) | `The workspace 'acme' is paused; its owner resumes it with /workspaces.` | stop |
 | `github` / `telegram` (exit 1, 502) | `GitHub answered 502 for the label change of #12.` | end the run; the next run repeats the command, which completes it (a `pass` whose merge already went through completes without merging twice) |
 
@@ -35,7 +40,7 @@ local refusal (the client itself) has no code.
 
 | Message | Do |
 |---|---|
-| `set FLOWEE_AS or instance in .flowee.toml` / `set FLOWEE_URL …` / `missing <file> (or FLOWEE_TOKEN)` | the clone is not set up; stop and report |
+| `set FLOWEE_AS or agent in .flowee.toml` / `set FLOWEE_URL …` / `set FLOWEE_TOKEN or key_file …` / `missing <file> (or FLOWEE_TOKEN)` | the clone is not set up; stop and report |
 | `the gates have not passed on this exact tree: run flowee.py gates first` | run `gates`, then `commit` without changing files in between |
 | `pass needs green gates on a clean HEAD` | commit or stash local changes, run `gates`, pass again |
 | `one line only` / `message must be type(scope): subject …` / `the message names #7, the ticket is #12` | fix the message |

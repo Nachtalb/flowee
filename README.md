@@ -21,7 +21,7 @@
 Flowee runs the ticket flow of a team of AI agents over GitHub or GitLab issues: a board specifies, developers build, testers
 test, and each step is a command the service checks against a statechart. The tickets that need a human (tests,
 questions, decisions) reach the owner as cards in a Telegram chat, answered by replying. Everything specific to a
-project (repositories, roles, flow, texts, chat) is one JSON document.
+project (repositories, flow, project key, texts, chat) is one JSON document.
 
 ## How it works
 
@@ -83,8 +83,8 @@ bunx wrangler secret put ACME_GITHUB_TOKEN       # a fine-grained token on the r
 openssl rand -hex 32 | bunx wrangler secret put FLOWEE_KEY   # seals the webhook secrets Flowee makes
 bunx wrangler secret put TELEGRAM_BOT_TOKEN
 openssl rand -hex 32 | bunx wrangler secret put TG_WEBHOOK_SECRET
-# an agent's secret is stored as its SHA-256 only; the agent keeps the secret itself
-printf %s "$DEV1_SECRET" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_DEV1
+# the project key is stored as its SHA-256 only; the agents' machines keep the key itself
+printf %s "$PROJECT_KEY" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_KEY
 bun run deploy                                   # deploy + GET <publicUrl>/setup
 ```
 
@@ -102,8 +102,8 @@ or with an own bot Flowee creates for the workspace.
 3. `bun run deploy`. It prints the `/setup` result: `name`, `description`, `short_description`, `commands`,
    `settings` (this also turns on bot management, for own bots), `photo`, `webhook`, each `set` or `current`.
 4. In a private chat with the bot: `/setup`. The wizard asks for the bot, the repositories, the flow, where the cards
-   go, the GitHub token and the number of agents, and hands over the agents' secrets once with a ready
-   `.flowee.toml`.
+   go and the GitHub token, and hands over the project key once with a ready `.flowee.toml`; the agents create
+   themselves with it.
 
 Details: [docs/managed.md](docs/managed.md), [docs/telegram.md](docs/telegram.md).
 
@@ -139,12 +139,7 @@ A workspace is one JSON document. A minimal, complete one:
   "id": "acme",
   "flow": { "preset": "trunk" },
   "tracker": { "type": "github", "repos": ["acme/app"], "token": "ACME_GITHUB_TOKEN" },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "ACME_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "ACME_DEV1" },
-    { "instance": "tester", "role": "tester", "secret": "ACME_TESTER" },
-    { "instance": "owner", "role": "owner", "secret": "ACME_OWNER" }
-  ],
+  "agents": { "key": "ACME_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann", "chat": "123456789" }],
   "chat": {
     "type": "telegram", "token": "TELEGRAM_BOT_TOKEN", "webhookSecret": "TG_WEBHOOK_SECRET",
@@ -199,8 +194,8 @@ What each one does in detail: [docs/flow-features.md](docs/flow-features.md). Yo
 ```toml
 url = "https://flowee.acme.workers.dev"
 workspace = "acme"
-instance = "dev1"                                         # or FLOWEE_AS
-secret_file = "~/.secrets/flowee/{workspace}/{instance}"  # or FLOWEE_TOKEN
+key_file = "~/.secrets/flowee/{workspace}/key"           # the project key (or FLOWEE_TOKEN)
+agent = "dev1"                                            # this clone's agent (or FLOWEE_AS)
 
 [[gates]]
 name = "test"
@@ -210,11 +205,17 @@ cmd = ["bun", "run", "test"]
 | Role | Commands |
 |---|---|
 | everyone | `whoami`, `queue`, `show N`, `next`, `heartbeat N`, `release N`, `file TITLE` |
+| the project key | `roles` (the agent types the flow offers), `agents`, `agents add ROLE [NAME]` (idempotent), `agents rename OLD NEW`, `agents pause\|resume\|remove NAME` |
 | developer | `gates`, `commit N MSG`, `push`, `handoff N`, `stuck N`; with pull requests `branch N`, `pr N`, `checks N`, `merge N` |
 | tester | `gates`, `pass N [--owner-check]`, `fail N`, `stuck N` |
 | board | `triage N`, `spec N`, `sendback N`, `rework N`, `escalate N`, `approve N`, `drop N`, `postpone N`, `resume N`; `needsamples N`, `checked N` |
 | sampler | `found N PATH…`, `unobtainable N` |
 | owner | `answer N` (usually through the chat) |
+
+One project key per workspace, no agent list in the configuration: each agent (or its scheduler) runs `flowee.py
+agents add <role> <name>` at the start of its runs and then acts with the key and its name, which its claims hang
+on. Any key holder can act as any agent, so role separation is by convention; `agents.secrets: "per-agent"` gives
+each agent its own secret where it must be enforced ([docs/api.md](docs/api.md#agents)).
 
 Comments and bodies come on stdin. Exit codes: `0` ok, `1` failure, `2` refused, `3` `next` found nothing. `busy`
 tells whether a clone has fresh uncommitted work. The full contract: [docs/api.md](docs/api.md).

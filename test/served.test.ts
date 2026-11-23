@@ -176,10 +176,14 @@ describe("the root document", () => {
     expect(md).toContain("- New workspaces by the user: no:");
     expect(md).toContain("1. Get the material: `curl -fsSL https://flowee.test/bundle.tar.gz | tar -xz`");
     expect(md).toContain("ALL IN ONE MESSAGE");
-    for (const q of ["Which repository", "feature branch", "Versioning", "optional parts", "tickets appear", "own bot", "Which agents", "clones and secrets", "how often"])
+    for (const q of ["Which repository", "feature branch", "Versioning", "optional parts", "tickets appear", "own bot", "clones and the project key", "how often"])
       expect(md, q).toContain(q);
+    // no question how many agents: they read the roles and create themselves
+    expect(md).not.toContain("Which agents");
+    expect(md).toContain("6. The agents: read the roles this workspace's flow offers with `python3 scripts/flowee.py roles`");
+    expect(md).toContain("`python3 scripts/flowee.py agents add <role> <name>`");
     expect(md).toContain("hand the validated document to its operator");
-    expect(md).toMatch(/\n7\. Never: print, log or echo a secret/);
+    expect(md).toMatch(/\n8\. Never: print, log or echo a secret/);
     const etag = r.headers.get("etag") ?? "";
     expect((await get("/", { "if-none-match": etag })).status).toBe(304);
   });

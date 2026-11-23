@@ -48,6 +48,7 @@ without any, and `missingSecrets(doc, secrets)` lists the names the instance sti
 | Field naming a secret | The secret's value |
 |---|---|
 | `tracker.token` | the tracker token (GitHub: a fine-grained token with Issues read/write and Contents read on the repository; a classic token with `repo` + `project` when `tracker.project` is set. GitLab: a project or personal access token with `api` scope and at least the Planner role, Developer for the code features: docs/gitlab.md) |
+| `agents.key` | the SHA-256 hex of the project key (`printf %s "$KEY" \| sha256sum`), never the key |
 | `roles[].secret` | the SHA-256 hex of the instance's API secret (`printf %s "$SECRET" \| sha256sum`), never the secret |
 | `chat.token` | the bot token |
 | `chat.webhookSecret` | a random string; Telegram sends it back with every update |
@@ -216,7 +217,8 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
 
 ### Invalid combinations (one sentence each)
 
-- A `roles[].role` that is no role of the flow; an `instance` used twice.
+- A `roles[].role` that is no role of the flow; an `instance` used twice; neither `agents.key` nor `roles`; `roles`
+  without the owner role and without `agents`.
 - Two repositories with the same alias, the same repository twice on one tracker, or a name that gives no usable alias.
 - A repository path that is not of its tracker's form (GitHub: `owner/name`); a repository whose `type` differs from
   `tracker.type` without its own `token`; `tracker.project` (a GitHub board) without any GitHub repository.
@@ -256,13 +258,23 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
 }
 ```
 
+## Agents
+
+A workspace names a project key (`"agents": {"key": "ACME_KEY"}`), not its agents: the agents are identities kept in
+the workspace's storage, created, renamed, paused and removed through the API with the key (docs/api.md, "Agents";
+`flowee.py roles`, `flowee.py agents add <role> <name>`). An export therefore holds no agents; an imported copy gets
+its own key, and its agents create themselves again. A document may still list agents with their own secrets
+(`roles`, the former way): they keep working, beside the key or without it. `agents.secrets: "per-agent"` (strict)
+gives every agent created its own secret and keeps the key from acting as an agent; docs/api.md, "One key or a
+secret per agent", has the trade-off.
+
 ## Secrets in the managed mode
 
-Workspaces made in the chat name their own secret slots, `W_<ID>_TRACKER`, `W_<ID>_BOT`, `W_<ID>_HOOK` and
-`W_<ID>_<INSTANCE>`; the values are sealed in the Instance object's storage (AES-GCM under `FLOWEE_KEY`), never
+Workspaces made in the chat name their own secret slots, `W_<ID>_TRACKER`, `W_<ID>_BOT`, `W_<ID>_HOOK`,
+`W_<ID>_KEY` (the project key) and `W_<ID>_<INSTANCE>` (agents a document names with their own secrets); the values are sealed in the Instance object's storage (AES-GCM under `FLOWEE_KEY`), never
 logged, echoed or exported. A slot named by a document that is neither sealed there nor a Worker secret is
-missing: the wizard asks for it (the tracker token as a message it deletes at once), generates it (agents'
-secrets: shown once, only the SHA-256 kept) or the API takes it (`PUT /admin/workspaces/<id>/secrets`). A
+missing: the wizard asks for it (the tracker token as a message it deletes at once), generates it (the project key: shown
+once, only the SHA-256 kept) or the API takes it (`PUT /admin/workspaces/<id>/secrets`). A
 document imported in the chat always gets the workspace's own slots, so it can never reach another workspace's
 token; the configuration API (the operator's) keeps the names it is given.
 

@@ -15,7 +15,8 @@ Run each check and compare with what it prints. Commands never put a secret on t
 | served version | `curl -fsS https://<worker>/version` | `{"ok": true, "flowee": "<version>", "commit": "<commit>", "client": {...}}`, the commit just deployed |
 | the client's version | in the project: `python3 scripts/flowee.py version` | `client X`, `server X (commit …)`, `up to date`; a newer served client names `update` |
 | bot profile and webhook | `bun run deploy` (its last line), or `curl -fsS https://<worker>/setup` | standalone: `{"<id>": {"name": "set", "description": "set", "short_description": "set", "commands": "set", "photo": "set", "webhook": "set", …}}`; a second call says `"current"` for each. Managed: an `"instance"` entry with the instance bot's steps (also `settings`) plus one per workspace |
-| an agent's secret | in the agent's clone: `python3 <client> whoami` | `{"instance": "dev1", "role": "developer"}`; a wrong secret: `failed: Unknown or missing token.`, exit 1 |
+| the project key | in a clone: `python3 <client> roles` | one entry per role, `board (one): …`, `developer (several): …` with `claims:` and `commands:`; a wrong key: `failed: Unknown or missing token.`, exit 1 |
+| the agents | `python3 <client> agents add developer dev1`, then `FLOWEE_AS=dev1 python3 <client> whoami` | `{"agent": {"name": "dev1", "role": "developer", …}}` (again: `"existed": true`, exit 0); `{"instance": "dev1", "role": "developer"}`. An agent not created: `refused: unknown_agent: There is no agent 'dev1'; create it with …`, exit 2 |
 | the queue | `python3 <client> queue` | `{"role": "developer", "queue": [], "claim": null}` (board and owner also `"inbox"`) |
 | the chat | the owner sends `/start` to the bot | the bar (`✨ Inbox empty`) or the first open card |
 | webhooks registered | a minute after `/setup`: `curl -fsS -H @"$TMP/agent" https://<worker>/v1/sync` (an agent's `Authorization` header in a file) | each repository `"mode": "webhook", "via": "api"` and `"lastDelivery"` set (GitHub's ping arrived; GitLab: press **Test** on the hook once). `"mode": "poll"` names the `reason` (e.g. `the token lacks …`): add that permission, or set the hook up by hand ([docs/webhooks.md](../../../docs/webhooks.md)) |
@@ -46,7 +47,8 @@ shows `can_manage_bots: true`, `can_join_groups: true`, `can_read_all_group_mess
 `has_topics_enabled: false`; `getMyCommands` with scope `all_private_chats` lists start, setup, workspaces, import,
 export; `getWebhookInfo` shows `<publicUrl>/telegram` with `allowed_updates` message, callback_query, managed_bot.
 
-`secrets.json` is `{"ACME_GITHUB_TOKEN": "…", "ACME_DEV1": "<the agent's secret>"}`; an agent's secret is given as
-the secret itself and stored only as its SHA-256. A document with problems answers `400` with
+`secrets.json` is `{"ACME_GITHUB_TOKEN": "…", "ACME_KEY": "<the project key>"}`; the project key (and an agent's
+secret) is given as the key itself and stored only as its SHA-256. `POST /admin/workspaces/<id>/key` makes a new
+project key and answers it once (`{"ok": true, "id": …, "key": …}`); a workspace without one gets `agents.key` then. A document with problems answers `400` with
 `"error": "bad_config"` and `"problems": ["$.path: sentence.", …]`; nothing changed. In standalone mode every
 `/admin/` path answers `501 unsupported`.

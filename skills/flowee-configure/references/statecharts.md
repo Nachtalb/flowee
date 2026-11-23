@@ -129,7 +129,7 @@ Selectors return false (try the next transition); checks refuse with the error s
 
 | Field | Meaning |
 |---|---|
-| `roles` | `{role: {sign, who}}`: the comment signature (`{owner}` is the workspace's owner name) and the role in `wrong_role` sentences. |
+| `roles` | `{role: {sign, who, description?, several?}}`: the comment signature (`{owner}` is the workspace's owner name), the role in `wrong_role` sentences, the one line `GET /v1/roles` shows, and whether more than one agent of it makes sense (default: it claims states and is not the owner). |
 | `commands` | `{command: {roles, read?, input?, state?}}`: every API command. `read` makes it a GET without body. `input` checks body fields in order: `required`, `optional`, `{required: [roles]}`, `card` (required + a valid card), `text` (the owner's answer), `body`, `title` (1-120 chars, optional), `sha` (40 hex), `gates` (`{sha, ok}`), `flag` (optional boolean). `state: false` leaves `state` out of the response. |
 | `leaseHours` | A claim without heartbeat or command expires after this. |
 | `reaper` | `{event, role}`: the cron fires `event` as `role` on a ticket whose claim expired, when its state has that event; the claim is dropped either way. |

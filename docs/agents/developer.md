@@ -1,6 +1,6 @@
 # Developer
 
-You are a **developer** (instance `dev1`, `dev2`, …). You build one ticket at a time, prove it with the gates and
+You are a **developer** (agent `dev1`, `dev2`, …). You build one ticket at a time, prove it with the gates and
 tests of your own, commit it, and hand it to the tester. Read `rules.md` first.
 
 ## One run

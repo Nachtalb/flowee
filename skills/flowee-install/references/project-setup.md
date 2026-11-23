@@ -15,7 +15,7 @@ update` then replaces the file (checked to parse first; it never updates by itse
 ```toml
 url = "https://flowee.acme.workers.dev"
 workspace = "acme"                                        # → /w/acme/v1/…
-secret_file = "~/.secrets/flowee/{workspace}/{instance}"  # per agent, outside the repository
+key_file = "~/.secrets/flowee/{workspace}/key"           # the project key, outside the repository
 main_branch = "main"
 ticket_suffix = " (#{n})"
 busy_hours = 2
@@ -28,14 +28,15 @@ dir = "."
 cmd = ["bun", "run", "test"]
 ```
 
-`instance` is left out on purpose: it differs per clone and comes from `FLOWEE_AS` in each agent's environment.
-The gates are the project's checks that must be green before any commit (typecheck, lint, tests); `commit` and
-`pass` refuse without them. The managed wizard's secrets file contains a ready `.flowee.toml` too.
+`agent` (the agent's name) is left out on purpose: it differs per clone and comes from `FLOWEE_AS` in each agent's
+environment. The gates are the project's checks that must be green before any commit (typecheck, lint, tests);
+`commit` and `pass` refuse without them. The managed wizard's key file contains a ready `.flowee.toml` too. A
+workspace in strict mode (`agents.secrets: "per-agent"`) also sets `secret_file = "~/.secrets/flowee/{workspace}/{instance}"`.
 
 Copy Flowee's `docs/agents/` folder ([docs/agents/README.md](../../../docs/agents/README.md); also in
 `<url>/bundle.tar.gz`) into the project as the agents' instructions and fill in its placeholders.
 
-## 2. One clone per agent instance
+## 2. One clone per agent
 
 ```sh
 for i in board dev1 dev2 tester; do
@@ -46,19 +47,33 @@ done
 Never share a clone between agents: one agent's uncommitted work is another's surprise, and `busy` reads the clone.
 Configure each clone's commit identity and signing the way the project signs commits.
 
-## 3. Secrets files
+## 3. The project key and the agents
 
-One file per instance, holding the agent's API secret (the value whose SHA-256 the Worker stores):
+One file holding the project key (the value whose SHA-256 the instance stores), on every machine an agent runs on:
 
 ```sh
 umask 077; mkdir -p ~/.secrets/flowee/acme
-# standalone: you generated the secret when storing its digest; managed: the wizard's secrets file has it
-cat > ~/.secrets/flowee/acme/dev1        # paste, then Ctrl-D; never echo it
-chmod 600 ~/.secrets/flowee/acme/*
+# standalone: you generated the key when storing its digest; managed: the wizard's key file has the ready line
+cat > ~/.secrets/flowee/acme/key         # paste, then Ctrl-D; never echo it
+chmod 600 ~/.secrets/flowee/acme/key
 ```
 
+Then the agents, from any clone (the roles first: what each does, which states it claims, whether several make sense):
+
+```sh
+python3 scripts/flowee.py roles
+for a in "board board" "developer dev1" "developer dev2" "tester tester" "owner owner"; do
+  python3 scripts/flowee.py agents add $a           # idempotent: an existing agent of that role exits 0
+done
+python3 scripts/flowee.py agents                    # name, role, last seen, what each holds
+```
+
+Put the `agents add` of an agent at the start of its scheduled run as well: the first run creates it, every later
+run finds it. In strict mode `agents add` writes the new agent's own secret to its `secret_file` (mode 600) and
+prints only the path; run it on the machine where that agent runs.
+
 Check from the clone: `FLOWEE_AS=dev1 python3 scripts/flowee.py whoami` prints `{"instance": "dev1", "role":
-"developer"}`. Delete the wizard's secrets file after distributing it.
+"developer"}`. Delete the wizard's key file after storing the key.
 
 ## 4. Scheduled runs
 

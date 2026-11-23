@@ -51,7 +51,8 @@ Configuration and secrets: docs/configuration.md; the operator's steps: skills/f
 src/
   core/       the flow: statechart loader (chart.ts), extensions merged into it (extend.ts), engine (engine.ts), guards.ts, actions.ts, repos.ts (the
               workspace's repositories as one tracker, ticket ids and alias#n), the service
-              (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts,
+              (service.ts: commands, queues, reaper), agents.ts (the agents as identities in the store, the roles
+              a flow offers: `/v1/roles`, `/v1/agents`), owner card (card.ts), storage schema (schema.ts), settings.ts,
               features.ts (feature switches: defaults, terms, pruning a tagged chart), code.ts (the guards, actions
               and cron work of the code features: pull requests, checks, releases, tested tag, paths on the main branch, UI review,
               dependency and untrusted tickets), housekeeping.ts (what the cron runs for them), events.ts
@@ -65,7 +66,8 @@ src/
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
               digest, profile), render.ts (the view building blocks every screen uses, cards, bar, lists,
               navigation, search)
-  api/        http.ts: the agents' HTTP API (auth, idempotency, dispatch)
+  api/        http.ts: the agents' HTTP API (auth: the project key + X-Flowee-Agent, or an agent's own secret;
+              idempotency, dispatch, the agents' paths)
   wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps and their screens, the
               living message, drafts, the document a draft makes), manage.ts (welcome, /workspaces menu, export,
               import)
@@ -171,6 +173,21 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
   and sealed secrets (`Workspace.configure`), so a workspace object never reads the registry there. `wizard/`
   imports only `core`, `ports`, `config` types and `envoy/render`; the Telegram specifics stay in the adapter.
 
+## Agents decision: one project key, agents as identities
+
+A workspace names one project key (`agents.key`, a digest like every secret), not its agents. Agents are rows in the
+workspace's store (`agents`, `src/core/agents.ts`): a name and a role, created, renamed, paused and removed through
+`/v1/agents` with the key; claims, leases, origins and resuming hang on the name exactly as on the former instance.
+A request acts as the agent named in `X-Flowee-Agent` (the client's `FLOWEE_AS`/`agent`); the role comes from the
+record, never the request. The router finds the workspace from the key's digest like any token (the registry indexes
+`agents.key`); the workspace resolves the agent. Considered: keeping a secret per agent handed out at setup (the
+owner had to count agents up front and redistribute files to add one) and agents in the document (every change a
+configuration edit). Trade-off, stated in docs/api.md: any key holder can act as any agent, so role separation is
+by convention; `agents.secrets: "per-agent"` (strict) gives each agent created its own secret (stored as a digest in
+the row) and stops the key from acting. Documents with `roles` (per-agent digests) work unchanged beside it. A
+removed agent's claims get `touched = 0` and the alarm's reaper hands them back (one path for every lapse); so does
+`configure()` for names neither the document nor the store knows.
+
 ## Terminal interface decisions
 
 - **Transport: one HTTP request for data, a WebSocket as the doorbell.** `POST /tui/v1/w/<id>/sync` carries the
@@ -262,6 +279,9 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   `test/managed.test.ts` hold it. The terminal draws it too: `test/tui-parity.test.ts` renders every view the walks
   produce at 80x24 and 140x40 and snapshots them; after a wording change, `npx vitest run test/tui-parity.test.ts -u`
   and read the diff of `test/__snapshots__/tui-parity.test.ts.snap`.
+- **a role:** a `roles` entry in the flow's options (or an extension's) with `sign`, `who`, a one-line
+  `description` and `several` (whether more than one agent makes sense; default: it claims states and is not the
+  owner); `GET /v1/roles` lists it with its commands and the states it claims. Agents of it are created through the API.
 - **a wizard step:** add it to `Step` and `STEPS` (and `COUNTED`) in `src/wizard/wizard.ts`, then its three parts:
   `needed()` (does a draft still lack it: imports and edits skip answered steps), `screen()` (the view, built from
   the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line

@@ -113,7 +113,7 @@ The screens of the wizard and the menu follow docs/chat-style.md; the adapter's 
 
 The wizard and the management menu (`src/wizard/`, docs/managed.md) use `view` and `editView` (button data `w:…`,
 `m:…`), `remove`, `answer`, `download` (an imported `.json` file) and these optional methods: `sendFile` (exports
-and the agents' secrets; without it they are sent as a rich message), `setScopedCommands(commands, scope)`
+and the project key; without it it is sent as a rich message), `setScopedCommands(commands, scope)`
 (`default`, `private`, `groups` or one chat) and `setSettings` (bot-wide settings, docs/telegram.md). `parse` must
 also give `managed` events (a bot the user created), `chatKind` (private or group), `chatTitle` and `service` (a
 note the chat added, deleted by the wizard), and `/bind <code>` or `/start <code>` arrives as a plain message.

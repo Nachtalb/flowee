@@ -22,13 +22,7 @@ token with `repo` + `project`); the digest arrives between 08:00 and 11:00 Berli
     "token": "SHOP_GITHUB_TOKEN",
     "project": { "owner": "ann", "number": 3 }
   },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "SHOP_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "SHOP_DEV1" },
-    { "instance": "dev2", "role": "developer", "secret": "SHOP_DEV2" },
-    { "instance": "tester", "role": "tester", "secret": "SHOP_TESTER" },
-    { "instance": "owner", "role": "owner", "secret": "SHOP_OWNER" }
-  ],
+  "agents": { "key": "SHOP_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann", "chat": "123456789" }],
   "chat": {
     "type": "telegram",
@@ -65,12 +59,7 @@ pull request.
     "dependencyTickets": { "authors": ["dependabot[bot]"], "labels": ["dependencies"] }
   },
   "tracker": { "type": "github", "repos": ["acme/viewer"], "token": "VIEWER_GITHUB_TOKEN" },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "VIEWER_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "VIEWER_DEV1" },
-    { "instance": "tester", "role": "tester", "secret": "VIEWER_TESTER" },
-    { "instance": "owner", "role": "owner", "secret": "VIEWER_OWNER" }
-  ],
+  "agents": { "key": "VIEWER_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann", "chat": "123456789" }],
   "chat": { "type": "telegram", "token": "TELEGRAM_BOT_TOKEN", "webhookSecret": "TG_WEBHOOK_SECRET", "chatId": "123456789" }
 }
@@ -97,13 +86,7 @@ and has its own token. Pull requests on with the defaults; releases without hold
       { "repo": "partner/sdk", "alias": "sdk", "token": "PLATFORM_SDK_TOKEN" }
     ]
   },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "PLATFORM_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "PLATFORM_DEV1" },
-    { "instance": "dev2", "role": "developer", "secret": "PLATFORM_DEV2" },
-    { "instance": "tester", "role": "tester", "secret": "PLATFORM_TESTER" },
-    { "instance": "owner", "role": "owner", "secret": "PLATFORM_OWNER" }
-  ],
+  "agents": { "key": "PLATFORM_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann", "chat": "123456789" }, { "name": "Bo", "chat": "987654321" }],
   "chat": { "type": "telegram", "token": "TELEGRAM_BOT_TOKEN", "webhookSecret": "TG_WEBHOOK_SECRET", "chatId": "-1001234567890" }
 }
@@ -130,12 +113,7 @@ over both. Merge requests need the project's pipeline green (`checks: ["pipeline
     ],
     "token": "ACME_GITLAB_TOKEN"
   },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "ACMEMIX_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "ACMEMIX_DEV1" },
-    { "instance": "tester", "role": "tester", "secret": "ACMEMIX_TESTER" },
-    { "instance": "owner", "role": "owner", "secret": "ACMEMIX_OWNER" }
-  ],
+  "agents": { "key": "ACMEMIX_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann" }]
 }
 ```
@@ -145,7 +123,8 @@ over both. Merge requests need the project's pipeline green (`checks: ["pipeline
 The cards go to topic 42 of a forum group, sent by a bot made just for this workspace (`chat.managed`). A sampler
 finds real sample files before development; developers merge their own pull requests. The secret names are the
 slots the chat import would give the workspace `game` anyway. Submit it to the instance bot: it creates the own bot
-(the user taps one button), asks for the GitHub token and hands over the five agents' secrets. Then add the new bot to the group.
+(the user taps one button), asks for the GitHub token and hands over the project key once; the agents (a sampler among them) then create
+themselves with it. Then add the new bot to the group.
 
 ```json
 {
@@ -155,13 +134,7 @@ slots the chat import would give the workspace `game` anyway. Submit it to the i
   "flow": { "preset": "pr-release" },
   "features": { "samples": { "root": "Samples/", "notNeededLabel": "no sample" }, "pullRequests": { "merger": "developer" } },
   "tracker": { "type": "github", "repos": ["acme/game"], "token": "W_GAME_TRACKER" },
-  "roles": [
-    { "instance": "board", "role": "board", "secret": "W_GAME_BOARD" },
-    { "instance": "dev1", "role": "developer", "secret": "W_GAME_DEV1" },
-    { "instance": "tester", "role": "tester", "secret": "W_GAME_TESTER" },
-    { "instance": "sampler", "role": "sampler", "secret": "W_GAME_SAMPLER" },
-    { "instance": "owner", "role": "owner", "secret": "W_GAME_OWNER" }
-  ],
+  "agents": { "key": "W_GAME_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann", "chat": "123456789" }],
   "chat": {
     "type": "telegram",
@@ -250,10 +223,7 @@ sends them back. Two roles, four states; the owner answers through the API (no c
     }
   },
   "tracker": { "type": "github", "repos": ["acme/notes"], "token": "NOTES_GITHUB_TOKEN" },
-  "roles": [
-    { "instance": "worker1", "role": "worker", "secret": "NOTES_WORKER1" },
-    { "instance": "owner", "role": "owner", "secret": "NOTES_OWNER" }
-  ],
+  "agents": { "key": "NOTES_KEY" },
   "owners": [{ "name": "Ann", "tracker": "ann" }]
 }
 ```
@@ -463,33 +433,7 @@ The trunk flow plus a security reviewer: the board sends a reviewed ticket to `a
     ],
     "token": "ACME_GITHUB_TOKEN"
   },
-  "roles": [
-    {
-      "instance": "board",
-      "role": "board",
-      "secret": "ACME_BOARD"
-    },
-    {
-      "instance": "dev1",
-      "role": "developer",
-      "secret": "ACME_DEV1"
-    },
-    {
-      "instance": "tester",
-      "role": "tester",
-      "secret": "ACME_TESTER"
-    },
-    {
-      "instance": "sec",
-      "role": "security",
-      "secret": "ACME_SEC"
-    },
-    {
-      "instance": "owner",
-      "role": "owner",
-      "secret": "ACME_OWNER"
-    }
-  ],
+  "agents": { "key": "ACME_KEY" },
   "owners": [
     {
       "name": "Ann",

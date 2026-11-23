@@ -201,11 +201,12 @@ secret; without it every call is 401). In the standalone mode every `/admin/` pa
 | `GET /admin/workspaces` | | `flowee: 1`, `workspaces: [<document>…]`: the instance document, no secrets |
 | `GET /admin/workspaces/<id>` | | `workspace`, `missing: [<secret name>…]`, `owner`, `paused` |
 | `PUT /admin/workspaces/<id>` | the workspace document (`id` must be `<id>`) | `id`, `created`, `missing` (the secret names still needed). Invalid: `400 bad_config` with `problems: ["$.path: one sentence.", …]`, nothing changed. Owner: the instance owner (kept when replacing). |
-| `PUT /admin/workspaces/<id>/secrets` | `{"<SECRET_NAME>": "<value>", …}` | `stored`, `missing`. Names the document does not reference are refused. An agent's secret (`roles[].secret`) is given as the secret itself and stored only as its SHA-256; the rest is sealed (AES-GCM). |
+| `PUT /admin/workspaces/<id>/secrets` | `{"<SECRET_NAME>": "<value>", …}` | `stored`, `missing`. Names the document does not reference are refused. The project key (`agents.key`) and an agent's secret (`roles[].secret`) are given as themselves and stored only as their SHA-256; the rest is sealed (AES-GCM). |
+| `POST /admin/workspaces/<id>/key` | | `id`, `key`: a new project key, answered only this once; the old one stops working at once. A workspace without `agents` gets `agents.key` (its slot `W_<ID>_KEY`); its agents with their own secrets keep them |
 | `DELETE /admin/workspaces/<id>` | | `deleted: true` |
 | `POST /admin/workspaces/<id>/people` | `{"id"?, "name"?, "role"?: "member" \| "manager"}` | `person`, `key`: a terminal person (docs/tui.md) with a new key, answered only this once; the document keeps its SHA-256 (`tui.people[].key`) |
 | `DELETE /admin/workspaces/<id>/people/<person>` | | `removed: true`; the key stops working at once (the last person stays: `409`) |
-| `GET /w/<id>/config` | (an agent token of that workspace) | `workspace`: its document, no secrets; `sync`: as `GET /v1/sync` |
+| `GET /w/<id>/config` | (the project key or an agent token of that workspace) | `workspace`: its document, no secrets; `sync`: as `GET /v1/sync` |
 
 The documents keep the secret names they are given (the operator's API); the chat import gives a workspace its
 own slot names instead (docs/configuration.md, "Secrets in the managed mode").

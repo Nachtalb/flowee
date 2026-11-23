@@ -106,6 +106,7 @@ a non-GitHub repository are kept by `<type>:<host>/<path>`.
 | Field naming a secret | The secret's value |
 |---|---|
 | `tracker.token` | the tracker token (GitHub: a fine-grained token with Issues read/write and Contents read on the repository; a classic token with `repo` + `project` when `tracker.project` is set. GitLab: a project or personal access token with `api` scope and at least the Planner role, Developer for the code features: docs/gitlab.md) |
+| `agents.key` | the SHA-256 hex of the project key (`printf %s "$KEY" \| sha256sum`), never the key |
 | `roles[].secret` | the SHA-256 hex of the instance's API secret (`printf %s "$SECRET" \| sha256sum`), never the secret |
 | `chat.token` | the bot token |
 | `chat.webhookSecret` | a random string; Telegram sends it back with every update |
@@ -155,7 +156,8 @@ configuration API's bearer token).
 
 ## Invalid combinations (the validator says each in one sentence)
 
-- A `roles[].role` that is no role of the flow; an `instance` used twice.
+- A `roles[].role` that is no role of the flow; an `instance` used twice; neither `agents.key` nor `roles`; `roles`
+  without the owner role and without `agents`.
 - Two repositories with the same alias, the same repository twice on one tracker, or a name that gives no usable alias.
 - A repository path that is not of its tracker's form (GitHub: `owner/name`); a repository whose `type` differs from
   `tracker.type` without its own `token`; `tracker.project` (a GitHub board) without any GitHub repository.

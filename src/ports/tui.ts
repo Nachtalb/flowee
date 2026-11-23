@@ -26,7 +26,7 @@ export interface TuiMessage {
   reply?: string;
   replyTo?: number;
   quiet?: boolean;
-  /** A file to keep (the agents' secrets, an export): saved by the client, never shown. */
+  /** A file to keep (the project key, an export): saved by the client, never shown. */
   file?: { name: string; data: string; caption?: string };
   /** A person's own message: their name and words (files as their names). */
   by?: string;

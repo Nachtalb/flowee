@@ -85,8 +85,8 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
 
 1. Telegram refuses the edit (too old, deleted, another kind of message): the screen is sent anew and the old one
    deleted (`live()`).
-2. The content must stay in the chat history by its nature: the agents' secrets (a file, or a rich message where
-   files are refused), an exported configuration, the envoy's cards and bar (docs/envoy.md). A secrets file
+2. The content must stay in the chat history by its nature: the project key (a file, or a rich message where
+   files are refused), an exported configuration, the envoy's cards and bar (docs/envoy.md). A key file
    carries its own buttons: 🗑 Delete this file from the chat (deletes that message, answered with a toast; a
    refusal is one sentence in the toast) and ❓ How do I use these? (the served `/docs/agents/`). A press on it is
    never taken as the living message.

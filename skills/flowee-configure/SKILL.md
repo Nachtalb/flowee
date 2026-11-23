@@ -18,7 +18,7 @@ to submit. The full specification is in `references/`:
 ## Rules
 
 - **Ask only what the description cannot answer**: the repositories (`owner/name`), whether pull requests and
-  releases are used (branching, versioning), how many developers, who the owner is (tracker login, Telegram user id), where the cards go.
+  releases are used (branching, versioning), who the owner is (tracker login, Telegram user id), where the cards go.
   Default the rest from `references/fields.md`; a field at its default is left out.
 - **Never put a secret in the document.** Every secret is a NAME matching `^[A-Z][A-Z0-9_]*$` (`ACME_GITHUB_TOKEN`).
   The values are set separately (`wrangler secret put`, the chat wizard, or `PUT /admin/workspaces/<id>/secrets`).
@@ -29,9 +29,11 @@ to submit. The full specification is in `references/`:
   the starting point that matches (`trunk` or `pr-release`, the same chart) and write every switch in `features`.
   Write an inline statechart only when no preset plus switches fits (`references/statecharts.md`); it is long and
   every rule of the loader applies.
-- **One role instance per agent**, with the flow's owner role always present (`{"instance": "owner", "role":
-  "owner", …}`): without it the owner cannot answer through the API. Roles an extension adds (the
-  `sampler` of `builtin:samples`) exist only with it.
+- **One project key, no agent list**: `"agents": {"key": "ACME_KEY"}`. The agents are not part of the document: they
+  read `GET /v1/roles` and create themselves with the key (`flowee.py agents add <role> <name>`). Roles an extension
+  adds (the `sampler` of `builtin:samples`) are offered only with it. `agents.secrets: "per-agent"` (strict) gives each
+  agent its own secret instead of letting the key act as any agent; ask the user only when they want role separation
+  enforced. `roles` (one secret per agent, the owner role among them) is the former way and still read.
 - **Custom states are an extension**, not a new chart: `"extensions": [{"name": …, "states": …, "on": …}]`
   (`references/statecharts.md`, "Extensions"); start from the instance's `/flows/flow.json`.
 - **Name the tracker.** `tracker.type` is `github` (default) or `gitlab`; a repository on the other one gives its
@@ -68,12 +70,12 @@ curl -fsS -H 'content-type: application/json' --data @workspace.json https://<in
 
 | Instance mode | Submit | Then |
 |---|---|---|
-| managed, in the chat | send the `.json` file to the instance bot in a private chat (or `/import`, then paste it) | the bot lists what it will create or replace; it asks only what is missing (the own bot when `chat.managed` is set and none exists yet, the GitHub token), then hands over the agents' secrets once |
-| managed, over HTTP | `PUT /admin/workspaces/<id>` with the document, `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` | the answer lists `missing` secret names; `PUT /admin/workspaces/<id>/secrets` with `{"NAME": "value"}` (an agent's secret is given as the secret, only its SHA-256 is stored) |
+| managed, in the chat | send the `.json` file to the instance bot in a private chat (or `/import`, then paste it) | the bot lists what it will create or replace; it asks only what is missing (the own bot when `chat.managed` is set and none exists yet, the GitHub token), then hands over the project key once |
+| managed, over HTTP | `PUT /admin/workspaces/<id>` with the document, `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` | the answer lists `missing` secret names; `PUT /admin/workspaces/<id>/secrets` with `{"NAME": "value"}` (the project key, or an agent's secret, is given as the key itself, only its SHA-256 is stored); `POST /admin/workspaces/<id>/key` makes a new key and answers it once |
 | standalone | put it in `flowee.config.local.json` (git-ignored; `{"flowee": 1, "workspaces": [<doc>]}`) | `wrangler secret put` each name, `bun run deploy` (skill `flowee-install`) |
 
 A document imported in the chat gets the workspace's own secret slot names (`W_<ID>_TRACKER`, `W_<ID>_BOT`,
-`W_<ID>_HOOK`, `W_<ID>_<INSTANCE>`), whatever it named; the admin API keeps the names given.
+`W_<ID>_HOOK`, `W_<ID>_KEY`, and `W_<ID>_<INSTANCE>` for agents with their own secrets), whatever it named; the admin API keeps the names given.
 
 The inbox: Telegram (`chat`), the terminal (`tui`: `flowee-tui`, docs/tui.md), or both (the same conversation in
 both). For the terminal each person runs `flowee-tui --new-key` and gives you the digest it prints: one
@@ -91,7 +93,8 @@ in the chat (`/workspaces` → the workspace → ✏️ Where tickets appear →
   `polling` (self-hosted: getUpdates, no public address; the self-hosted default when no public URL is configured).
 - In a standalone instance every workspace with a chat names the SAME `chat.token` and `chat.webhookSecret` (one
   bot); give `chat.publicUrl` in one workspace only.
-- `roles[].secret` names the secret that holds the SHA-256 hex of the agent's API secret, never the secret itself.
+- `agents.key` (and `roles[].secret`) names the secret that holds the SHA-256 hex of the project key (the agent's
+  secret), never the key itself.
 - `features.releases.source: "tag"` needs `releases.tag`; `testedTag` must differ from `tag`.
 - `features.uiReview` needs at least one of `paths`, `addedFiles`, `addedLines`.
 - A GitHub Projects board (`tracker.project`) needs a classic token with `repo` + `project`: a fine-grained token

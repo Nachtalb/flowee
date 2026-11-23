@@ -138,8 +138,8 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
   const submit =
     f.mode === "managed"
       ? [
-          `   - In the chat (the usual way): the user sends the \`.json\` file to ${bot ?? "the instance bot"} in a private chat (or \`/import\`, then pastes it). The bot lists what it will create, asks only for what is missing and then sends the agents' secrets ONCE as a file with a ready \`.flowee.toml\`.`,
-          `   - Over HTTP, only when the user gave you the instance's admin token: \`PUT ${u("/admin/workspaces/<id>")}\` with the document, then \`PUT ${u("/admin/workspaces/<id>/secrets")}\` (${u("/docs/api.md")}, "Configuration API").`,
+          `   - In the chat (the usual way): the user sends the \`.json\` file to ${bot ?? "the instance bot"} in a private chat (or \`/import\`, then pastes it). The bot lists what it will create, asks only for what is missing and then sends the project key ONCE as a file with a ready \`.flowee.toml\`.`,
+          `   - Over HTTP, only when the user gave you the instance's admin token: \`PUT ${u("/admin/workspaces/<id>")}\` with the document, then \`PUT ${u("/admin/workspaces/<id>/secrets")}\` and \`POST ${u("/admin/workspaces/<id>/key")}\` (the project key, answered once; ${u("/docs/api.md")}, "Configuration API").`,
           "   - What only the user can do: create the tracker token (fine-grained, limited to the repositories, the permissions in " +
             `${u("/skills/flowee-install/references/project-setup.md")}) and paste it when the bot asks; press **🤖 Create the bot** when the workspace gets its own bot; add the bot to the group (and enable topics) when the tickets go to a group; answer the cards.`,
         ]
@@ -186,20 +186,20 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     "   - With Telegram: where should the tickets appear: a private chat with the bot, a group, or a topic in a group? Why: `chat` and who sees the cards. Default: a private chat with the owner. With the terminal: who signs in (each person runs `flowee-tui --new-key` and gives you the digest it prints)? Default: the owner alone.",
     `   - The instance's bot (${bot ?? "none here"}) or the workspace's own bot? Why: an own bot carries the project's name and photo. Default: the instance's bot.`,
     "   - Who is the owner (tracker login, chat user id)? Why: only the owner's answers count. Default: the user you are talking to.",
-    "   - Which agents: board, developers, testers (and the roles an extension adds)? Why: each agent is one identity with its own secret and clone, which its claims hang on. Default: 1 board, 1 developer, 1 tester.",
     "   - The project's checks before every commit (typecheck, lint, tests)? Why: `flowee.py commit` refuses without green gates. Default: the project's own typecheck and test commands.",
-    "   - Where on this machine do the agents' clones and secrets live? Why: one clone per agent, secrets outside the repository. Default: clones next to this one as `<project>-<instance>`, secrets in `~/.secrets/flowee/<workspace>/<instance>` (mode 600).",
+    "   - Where on this machine do the agents' clones and the project key live? Why: one clone per agent, the key outside the repository. Default: clones next to this one as `<project>-<agent>`, the key in `~/.secrets/flowee/<workspace>/key` (mode 600).",
     `   - Who starts the agents' runs and how often (cron, a CI schedule, an agent runner's jobs)? Why: agents are scheduled runs, not processes (${u("/docs/agents/README.md")}). Default: every 5 minutes with the cheap pre-check, staggered, the board more often.`,
     `3. Write the workspace document following ${u("/skills/flowee-configure/SKILL.md")}. Validate it here: \`curl -fsS -H 'content-type: application/json' --data @workspace.json ${u("/validate")}\` must answer \`{"ok": true, ...}\`; otherwise fix every line of \`problems\` and validate again. Show the document to the user before submitting it.`,
     "4. Submit it:",
     ...submit,
-    `5. The project side (${u("/skills/flowee-install/references/project-setup.md")}): \`curl -fsSL ${u("/client/flowee.py")} -o scripts/flowee.py\`; write \`.flowee.toml\` (url \`${f.base}\`, the workspace id, \`secret_file\`, the gates); put each agent's secret from the bot's secrets file into its own file of mode 600, then delete that file; copy \`flowee/docs/agents/\` into the project as the agents' instructions and fill in the placeholders; make one clone per agent; set up the scheduled runs as \`docs/agents/README.md\` says.`,
-    "6. Verify, and report what the commands printed:",
+    `5. The project side (${u("/skills/flowee-install/references/project-setup.md")}): \`curl -fsSL ${u("/client/flowee.py")} -o scripts/flowee.py\`; write \`.flowee.toml\` (url \`${f.base}\`, the workspace id, \`key_file\`, the gates); store the project key from the bot's key file with mode 600 as that file says, then delete the file; copy \`flowee/docs/agents/\` into the project as the agents' instructions and fill in the placeholders; make one clone per agent; set up the scheduled runs as \`docs/agents/README.md\` says.`,
+    `6. The agents: read the roles this workspace's flow offers with \`python3 scripts/flowee.py roles\` (what each does, the states it claims, whether several make sense; an extension's roles included), then create the agents you run, one per clone: \`python3 scripts/flowee.py agents add <role> <name>\` (e.g. \`agents add developer dev1\`). It is idempotent: put the same line at the start of each agent's scheduled run (${u("/docs/agents/README.md")}, "Creating the agents"). \`python3 scripts/flowee.py agents\` lists them.`,
+    "7. Verify, and report what the commands printed:",
     `   - \`python3 scripts/flowee.py version\` prints the client's and this server's version (${f.version}) and no update hint.`,
-    "   - In each clone: `FLOWEE_AS=<instance> python3 scripts/flowee.py whoami` prints `{\"instance\": \"<instance>\", \"role\": \"<role>\"}`; `queue` prints `{\"role\": ..., \"queue\": [...], \"claim\": null}`.",
+    "   - In each clone: `FLOWEE_AS=<agent> python3 scripts/flowee.py whoami` prints `{\"instance\": \"<agent>\", \"role\": \"<role>\"}`; `queue` prints `{\"role\": ..., \"queue\": [...], \"claim\": null}`.",
     "   - The owner sends `/start` to the bot: the bar (`✨ Inbox empty`) or the first card appears.",
     `   - More checks: ${u("/skills/flowee-install/references/verify.md")}.`,
-    "7. Never: print, log or echo a secret; commit a secret or put one in the workspace document (it names secrets, it never holds them); push test commits to a real remote or let a test reach a real tracker or chat; give the service a broad personal token when a fine-grained one limited to the repositories works; message the user's chat yourself to test it.",
+    "8. Never: print, log or echo a secret (the project key included); commit a secret or put one in the workspace document (it names secrets, it never holds them); push test commits to a real remote or let a test reach a real tracker or chat; give the service a broad personal token when a fine-grained one limited to the repositories works; message the user's chat yourself to test it.",
     "",
   ].join("\n");
 }

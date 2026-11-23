@@ -2,7 +2,7 @@
 
 `N` is a ticket: `12` (or `#12`) in a workspace with one repository, `alias#12` with several. Comments and bodies
 come on stdin. Output is the API's JSON without `ok`. Which commands exist depends on the workspace's flow:
-`python3 flowee.py whoami` names your instance and role; a command your flow lacks answers `404 not_found`.
+`python3 flowee.py whoami` names your agent and role; a command your flow lacks answers `404 not_found`.
 
 ## Everyone
 
@@ -63,14 +63,26 @@ come on stdin. Output is the API's JSON without `ok`. Which commands exist depen
 | `found N PATH…` | the sample files are on the main branch → `ready` |
 | `unobtainable N` | tried everything; report with a `Kind: sample` card draft → `board review` |
 
+## Agents (the project key)
+
+| Command | When | Notes |
+|---|---|---|
+| `roles` | once, before creating agents | each role: `name (several\|one): description`, the states it `claims`, its `commands`; `--json` for the raw list |
+| `agents add ROLE [NAME]` | at the start of every run (idempotent) | creates the agent (NAME default: the next free one, `dev1`, `dev2` …); an agent of that name and role exits 0 with `"existed": true`; strict mode writes its own secret to `secret_file` (mode 600) and prints only the path |
+| `agents` | see who exists | one line each: name, role, `paused`, last seen, the tickets it holds; `--json` |
+| `agents rename OLD NEW` / `agents pause NAME` / `agents resume NAME` | the scheduler retires or renames an agent | a new name keeps the claims; a paused agent's commands answer `agent_paused` |
+| `agents remove NAME` | an agent is no longer run | its tickets go back to their queues at once (`released`) |
+
 ## Owner
 
 `answer N` records the owner's words (text on stdin); usually the chat does this.
 
 ## Configuration
 
-`.flowee.toml` in the repository root (or the file `FLOWEE_CONFIG` names): `url`, `workspace`, `instance`,
-`secret_file` (template with `{workspace}`, `{instance}`), `main_branch`, `commit_types`, `ticket_suffix`,
+`.flowee.toml` in the repository root (or the file `FLOWEE_CONFIG` names): `url`, `workspace`, `key_file` (the
+project key; `{workspace}`), `agent` (your name; the former `instance` is read too), `secret_file` (an agent's own
+secret: strict mode or the former way; template with `{workspace}`, `{instance}`), `main_branch`, `commit_types`, `ticket_suffix`,
 `busy_hours`, `git_config` (extra `-c` values for fetch and push), `[[gates]]` (`name`, `dir`, `cmd`). Environment
-wins: `FLOWEE_URL`, `FLOWEE_WORKSPACE`, `FLOWEE_AS`, `FLOWEE_TOKEN`. Gate logs go under `FLOWEE_GATES_LOGS` (default
+wins: `FLOWEE_URL`, `FLOWEE_WORKSPACE`, `FLOWEE_AS` (your agent's name, sent as `X-Flowee-Agent`), `FLOWEE_TOKEN`
+(the key or secret). Gate logs go under `FLOWEE_GATES_LOGS` (default
 the temp directory).

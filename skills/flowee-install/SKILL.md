@@ -19,7 +19,7 @@ deployment.
 
 The workspace document itself: skill [flowee-configure](../flowee-configure/SKILL.md). Agents' daily use: skill
 [flowee-use](../flowee-use/SKILL.md). The exact verification commands and what they print:
-[references/verify.md](references/verify.md). Project repository, role clones, secrets files and scheduled runs:
+[references/verify.md](references/verify.md). Project repository, role clones, the project key, the agents and scheduled runs:
 [references/project-setup.md](references/project-setup.md). These files read the same from a clone of the repository
 and from an instance (`<url>/skills/flowee-install/SKILL.md`): every relative link resolves in both.
 
@@ -38,8 +38,8 @@ you deploy nothing: the "Standalone", "Managed" and "Self-hosted" sections below
    ([flowee-configure](../flowee-configure/SKILL.md)); check it with `POST <url>/validate` (no token; nothing is
    stored) until it answers `{"ok": true, ...}`; show it to the user, who submits it the way the root document says.
 4. The project side ([references/project-setup.md](references/project-setup.md)) with the client from
-   `<url>/client/flowee.py`; verify with `python3 scripts/flowee.py version` and the rows "an agent's secret" and
-   "the queue" of [references/verify.md](references/verify.md).
+   `<url>/client/flowee.py`; verify with `python3 scripts/flowee.py version` and the rows "the project key", "the
+   agents" and "the queue" of [references/verify.md](references/verify.md).
 
 ## Rules
 
@@ -72,8 +72,11 @@ you deploy nothing: the "Standalone", "Managed" and "Self-hosted" sections below
    wrangler answers its "create a new Worker?" question with yes when stdin is not a terminal).
    - tracker and bot tokens: `wrangler secret put <NAME>` with the value on stdin;
    - `chat.webhookSecret`: a random string (`openssl rand -hex 32 | bunx wrangler secret put TG_WEBHOOK_SECRET`);
-   - each agent: generate a secret, give it to the agent's secrets file, and store only its SHA-256:
-     `printf %s "$S" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_DEV1`.
+   - the project key (`agents.key`): generate it, give it to the machines the agents run on (mode 600, the
+     `key_file`), and store only its SHA-256:
+     `printf %s "$K" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_KEY`. The agents then create
+     themselves with it (`flowee.py roles`, `flowee.py agents add <role> <name>`; references/project-setup.md). A new
+     key: the same command with a new value and `bun run deploy`.
 6. `bun run deploy`: it prints `GET <url>/setup: 200 {...}` with each profile step `set` or `current` and exits
    non-zero when the deploy or `/setup` failed. `chat.publicUrl` must be the Worker's URL
    (`https://<worker>.<subdomain>.workers.dev`; wrangler prints it). Webhooks (`sync.webhooks: auto`) need the Worker
@@ -101,10 +104,12 @@ you deploy nothing: the "Standalone", "Managed" and "Self-hosted" sections below
 5. Check the configuration API (`references/verify.md`, "Managed"): the workspace list empty, a wrong token 401.
 6. Hand over to the user: in a private chat with the bot, `/setup` (or send a document an agent wrote). The wizard
    is one message edited step by step: the repository (its link as pasted), the bot, the way of working, where the
-   tickets appear, the GitHub token (the message is deleted at once) and agent counts; then it sends the agents'
-   secrets once as a file with a ready `.flowee.toml`. That part is the user's; you do not see the secrets.
+   tickets appear and the GitHub token (the message is deleted at once); then it sends the project key once as a file
+   with a ready `.flowee.toml` and the three commands that create the agents. That part is the user's; you do not see
+   the key.
    Do not message the user's chat yourself to test it.
-7. Automation instead of the chat: `PUT /admin/workspaces/<id>` and `PUT /admin/workspaces/<id>/secrets` with
+7. Automation instead of the chat: `PUT /admin/workspaces/<id>`, `PUT /admin/workspaces/<id>/secrets` and
+   `POST /admin/workspaces/<id>/key` (a new project key, answered once) with
    `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` (`references/verify.md`).
 
 ## Self-hosted (no Cloudflare)
@@ -120,7 +125,7 @@ Cloudflare account or wants the data on their own machine.
 2. Run it: the image (`docker build -t flowee .` in a clone, or the operator's registry), `compose.yaml` as the
    template, or the executable (`bun run compile -- --target bun-linux-x64 --outfile flowee`). Configuration by
    environment: `FLOWEE_CONFIG_FILE` (the document), `FLOWEE_DATA` (one directory, one volume), every secret the
-   document names as a variable or as `<NAME>_FILE` (Docker secrets). Agents' secrets: the SHA-256 hex, as on the Worker.
+   document names as a variable or as `<NAME>_FILE` (Docker secrets). The project key (and agents' secrets): the SHA-256 hex, as on the Worker.
 3. `FLOWEE_KEY`: leave it out and the first start generates `<data>/flowee.key` and says so in the log; tell the
    operator to back that file up with the data directory (backup = copy the directory while stopped).
 4. Behind a reverse proxy (https): `FLOWEE_PUBLIC_URL=https://…` (and `FLOWEE_TRUST_PROXY=1`); Telegram and tracker
@@ -140,8 +145,10 @@ Cloudflare account or wants the data on their own machine.
   tokens again. Keep the key in a password manager.
 - A fine-grained GitHub token cannot write a user-owned Project (v2). Without `tracker.project` the labels are the
   state and the narrow token suffices.
-- `roles[].secret` holds the SHA-256 hex of the agent's secret, never the secret: a raw secret there means no agent
+- `agents.key` (and `roles[].secret`) holds the SHA-256 hex of the key, never the key: a raw key there means no agent
   can authenticate (`401 unauthorized`).
+- The project key acts as any agent of the workspace: role separation is by convention. Where it must be enforced, the
+  document says `agents.secrets: "per-agent"` (docs/api.md, "One key or a secret per agent").
 - One repository belongs to one workspace per instance; a second workspace naming it is refused.
 - In a group, the bot runs in privacy mode: the owner answers by replying to a card.
 - A changed document takes effect only with a new `bun run deploy` (standalone: the workspaces; managed: the instance
