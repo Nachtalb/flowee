@@ -1,8 +1,9 @@
 # Statecharts: writing or changing a flow
 
-A flow is two JSON files: a **statechart** in XState v5 JSON (`flows/<name>.json`, drawable and editable in
-Stately's editor) and its **options** (`flows/<name>.options.json`). A workspace names a preset
-(`"flow": {"preset": "trunk"}`) or carries both inline (`"flow": {"chart": {…}, "options": {…}}`).
+A flow is two JSON files: a **statechart** in XState v5 JSON (drawable and editable in Stately's editor) and its
+**options**. Flowee ships one, `flows/flow.json` + `flows/flow.options.json`, whose parts are tagged with the
+switches that keep them; a workspace names it by a starting point (`"flow": {"preset": "trunk"}` or
+`"pr-release"`, the same chart) or carries its own inline (`"flow": {"chart": {…}, "options": {…}}`).
 
 ## The statechart
 
@@ -56,7 +57,7 @@ Stately's editor) and its **options** (`flows/<name>.options.json`). A workspace
 
 **Deviation from XState:** XState runs exit actions before transition actions. Flowee runs them after, so a
 tracker write that fails (502) leaves the stored state as it was and a retry completes it. The chart stays valid
-XState: a test loads `flows/trunk.json` with xstate's `createMachine` and walks it with `transition()`.
+XState: a test loads `flows/flow.json` with xstate's `createMachine` and walks it with `transition()`.
 
 **Why not the xstate runtime:** the service is request/response over a tracker that is the record: each command
 re-reads the ticket, evaluates async guards (tracker reads), runs async actions and must report *why* a

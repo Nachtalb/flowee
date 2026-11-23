@@ -107,10 +107,11 @@ Leaving `board review` drops the recorded origin; every state change drops the c
 developer/tester claim back in its queue with a `Board:` comment and drops an expired board claim silently.
 `(answered)`: only when an owner answer was recorded after the ticket last entered that state.
 
-## The `pr-release` preset
+## The switches' commands and states
 
-The full flow (docs/flow-features.md). Every part beyond `trunk` belongs to a feature of the workspace document
-(docs/configuration.md, "Features"); with every feature off it is `trunk`'s states and commands. The commands and
+Branching, versioning and the other options (docs/flow-features.md). Every part beyond the base belongs to a
+feature of the workspace document (docs/configuration.md, "Features"); with every feature off the flow is the base
+above, whatever the starting point (`trunk` or `pr-release`) is called. The commands and
 states below exist only with their feature; the rest is as in `trunk`, with `sampler` added where it applies.
 
 | State label | Feature | Means | Board | Owner assigned |

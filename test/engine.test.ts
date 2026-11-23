@@ -1,8 +1,10 @@
 // The statechart engine: the trunk preset loads, XState itself interprets the same file, load-time validation.
 import { createMachine, initialTransition, transition } from "xstate";
 import { describe, expect, it } from "vitest";
-import chart from "../flows/trunk.json";
-import options from "../flows/trunk.options.json";
+import { flowOf } from "../src/config/presets";
+
+// the base flow: the one chart with every switch off
+const { chart, options } = flowOf({ flow: { preset: "trunk" } });
 import { ACTIONS } from "../src/core/actions";
 import { type Chart, type FlowOptions, loadFlow } from "../src/core/chart";
 import { from } from "../src/core/engine";
@@ -68,9 +70,9 @@ describe("the trunk preset", () => {
 describe("validation at load", () => {
   it("reports every problem in one sentence naming the state or event", () => {
     const c = copy();
-    c.states.ready.on.spec.guard = "isFriday";
-    c.states.ready.on.next.actions = ["setStatus", "dance"];
-    c.states.testing.on.fail.target = "limbo";
+    c.states.ready.on.spec[0].guard = "isFriday";
+    c.states.ready.on.next[0].actions = ["setStatus", "dance"];
+    c.states.testing.on.fail[0].target = "limbo";
     c.states.orphan = { meta: { label: "orphan" } };
     const m = problems(c);
     expect(m).toContain("State 'ready', event 'spec': unknown guard 'isFriday'.");
@@ -82,7 +84,7 @@ describe("validation at load", () => {
   it("checks guards nested in all, roles, labels, the initial state and the options", () => {
     const c = copy();
     c.initial = "nowhere";
-    c.states.ready.on.next.guard = { type: "all", params: { guards: ["holdsClaim", "nope"] } };
+    c.states.ready.on.next[0].guard = { type: "all", params: { guards: ["holdsClaim", "nope"] } };
     c.states.testing.meta.label = "ready";
     c.states.testing.meta.holder = "sampler";
     c.states.ready.on.dance = { target: "testing" };

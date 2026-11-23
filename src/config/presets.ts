@@ -1,14 +1,19 @@
-import trunkChart from "../../flows/trunk.json";
-import trunkOptions from "../../flows/trunk.options.json";
-import prChart from "../../flows/pr-release.json";
-import prOptions from "../../flows/pr-release.options.json";
+import flowChart from "../../flows/flow.json";
+import flowOptions from "../../flows/flow.options.json";
 import type { Chart, FlowOptions } from "../core/chart";
 import { type FeaturesDoc, prune, resolve } from "../core/features";
 
-/** Flow presets by name: a statechart plus its options. */
-export const PRESETS: Record<string, { chart: Chart; options: FlowOptions }> = {
-  trunk: { chart: trunkChart as unknown as Chart, options: trunkOptions as unknown as FlowOptions },
-  "pr-release": { chart: prChart as unknown as Chart, options: prOptions as unknown as FlowOptions },
+/** The one statechart: every part beyond the base is tagged with the switch that keeps it (docs/flows.md). */
+export const FLOW = { chart: flowChart as unknown as Chart, options: flowOptions as unknown as FlowOptions };
+
+/**
+ * Named starting points. Both load the one chart; `start` is the switches a new document starts with (the wizard,
+ * the configure skill). A document's own `features` are always its switches, so a document written before keeps
+ * its meaning: a preset name never switches anything on by itself.
+ */
+export const PRESETS: Record<string, { chart: Chart; options: FlowOptions; start: FeaturesDoc }> = {
+  trunk: { ...FLOW, start: {} },
+  "pr-release": { ...FLOW, start: { pullRequests: true, releases: true } },
 };
 
 type FlowDoc = { flow: { preset: string } | { chart: Chart; options: FlowOptions }; features?: FeaturesDoc };

@@ -55,7 +55,7 @@ src/
               capabilities), schema.ts (JSON Schema + validator; `problems()` behind
               `bun run validate`; repositories unique per instance), features.ts (the
               features' schema and rules), registry.ts (WorkspaceRegistry, StoredRegistry, settings from a
-              document), presets.ts (presets, flowOf: a workspace's pruned flow)
+              document), presets.ts (the one chart, the starting points, flowOf: a workspace's pruned flow)
   adapters/   trackers.ts (the tracker adapters by kind), tracker-github.ts (+ tracker-github-code.ts: branches,
               pulls, checks, releases, tags), tracker-gitlab.ts (REST v4: merge requests, pipelines, tags, releases),
               hooks-github.ts / hooks-gitlab.ts (each tracker's webhooks: verify, parse, register),
@@ -66,7 +66,8 @@ src/
               photo: assets/logo-square.svg rendered at 256 px, base64)
   index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup,
               /hooks/<workspace>/<alias> (tracker webhooks, verified in the workspace's object)
-flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
+flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
+              starting points trunk and pr-release (src/config/presets.ts) only preset switches
 schema/       workspace.schema.json, instance.schema.json (generated)
 scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`)
 client/       flowee.py + test_flowee.py
@@ -134,13 +135,13 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 - **a guard or an action:** `src/core/guards.ts` (`kind: "selector" | "check"`) / `src/core/actions.ts` (code
   features: `src/core/code.ts`); a row in docs/flows.md and in skills/flowee-configure/references/statecharts.md
   (a test checks both); a test. Reach the tracker, store and clock through `c.f` only.
-- **a flow preset:** `flows/<name>.json` + `flows/<name>.options.json`, register in `src/config/presets.ts` (the
-  wizard offers it and its feature tags by itself), `bun run schema`, tests that walk it, a row in README.md and
-  skills/flowee-configure/references/features.md.
+- **a starting point:** a name and its `start` switches in `src/config/presets.ts`, `bun run schema`, a row in
+  README.md, docs/flow-features.md and skills/flowee-configure/references/features.md. A new flow part is a tagged
+  part of `flows/flow.json` (a feature switch, below), never a second chart.
 - **a feature switch:** its type and default in `src/core/features.ts` (`DEFAULTS`, `NEEDS` capabilities), its schema
   and rules in `src/config/features.ts`, rows in docs/configuration.md (a test checks); tag the chart's states,
   transitions and the options' roles/commands/ticks with `meta.features` / `features`; its guards and actions read
-  `c.f.s.features` and pass or do nothing when it is off. Keep `flows/pr-release.json` openable in Stately: only `meta`
+  `c.f.s.features` and pass or do nothing when it is off. Keep `flows/flow.json` openable in Stately: only `meta`
   carries the tags. Also: its token permission in docs/adapters.md and the wizard's token prompt
   (`src/wizard/wizard.ts`, step `credential`), a section in docs/flow-features.md, its options in
   skills/flowee-configure/references/features.md (a test checks), a row in README.md.

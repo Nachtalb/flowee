@@ -18,13 +18,15 @@ to submit. The full specification is in `references/`:
 ## Rules
 
 - **Ask only what the description cannot answer**: the repositories (`owner/name`), whether pull requests and
-  releases are used, how many developers, who the owner is (tracker login, Telegram user id), where the cards go.
+  releases are used (branching, versioning), how many developers, who the owner is (tracker login, Telegram user id), where the cards go.
   Default the rest from `references/fields.md`; a field at its default is left out.
 - **Never put a secret in the document.** Every secret is a NAME matching `^[A-Z][A-Z0-9_]*$` (`ACME_GITHUB_TOKEN`).
   The values are set separately (`wrangler secret put`, the chat wizard, or `PUT /admin/workspaces/<id>/secrets`).
   An exported or shared document is therefore safe to paste anywhere. Use one prefix per workspace so names never
   collide on a shared instance.
-- **Start from a preset**: `trunk` (commits to the main branch) or `pr-release` with the features the project uses.
+- **Choose branching, versioning, more options** (`references/features.md`): Single branch (`pullRequests` off) or
+  Feature branches (`pullRequests` on); Versioning (`releases`) with either; the other switches on their own. Name
+  the starting point that matches (`trunk` or `pr-release`, the same chart) and write every switch in `features`.
   Write an inline statechart only when no preset plus switches fits (`references/statecharts.md`); it is long and
   every rule of the loader applies.
 - **One role instance per agent**, with the flow's owner role always present (`{"instance": "owner", "role":
@@ -47,7 +49,7 @@ bun run validate path/to/workspace.json   # also takes an instance document {"fl
 ```
 
 It runs the Worker's own validator. Output: `ok <file>: <ids>` and exit 0, or one problem per line, each one
-sentence starting with its JSON path (`$.features.samples: the 'trunk' flow has no feature 'samples'.`), exit 1;
+sentence starting with its JSON path (`$.features.uiReview: name at least one of paths, addedFiles or addedLines.`), exit 1;
 exit 2 when the file is no JSON. Fix every line and run it again. Without bun: the JSON Schema
 `schema/workspace.schema.json` checks the shape only, not the cross-field rules.
 

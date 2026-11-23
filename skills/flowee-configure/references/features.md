@@ -1,22 +1,34 @@
-# Flow presets and feature switches
+# Ways of working: branching, versioning, more options
 
-## Presets
+One flow, three independent choices, each written as switches under `features`:
 
-| `flow.preset` | Flow | Roles |
+| Choice | Options | Switch |
 |---|---|---|
-| `trunk` | Developers commit straight to the main branch (subject ending ` (#n)`); the tester tests the main branch; the board triages, answers and escalates; the owner answers in the chat. No feature switches. | `board`, `developer`, `tester`, `owner` |
-| `pr-release` | `trunk` plus six optional parts, each a switch below; with every switch off it is `trunk`. | the same, plus `sampler` with `samples` |
+| **Branching**, exactly one | **Single branch**: commits straight to the main branch (subject ending ` (#n)`), the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
+| **Versioning**, with either branching | Off, or on: a test card reaches the owner only once a published version contains the ticket's code, saying `📦 In <version> or later`; the `tested` tag follows. | `releases` |
+| **More options**, each on its own | `samples` (adds the `sampler` role), `uiReview` (needs `paths`, `addedFiles` or `addedLines`), `dependencyTickets` (needs a tracker with pull requests), `untrustedReports`. | as named |
 
-States of both (labels on the issue): `needs triage` (also: no label), `ready`, `in development`, `ready for testing`,
+## Starting points
+
+| `flow.preset` | Starts as | Write |
+|---|---|---|
+| `trunk` | Single branch, Versioning off | `features` left out |
+| `pr-release` | Feature branches with Versioning | `"features": {"pullRequests": true, "releases": true}` |
+
+Both names load the same chart, and a preset name never switches anything on by itself: write every switch the
+project uses in `features` (a `trunk` document may switch Versioning on, a `pr-release` one may leave everything
+off). Roles: `board`, `developer`, `tester`, `owner`, plus `sampler` with `samples`.
+
+States (labels on the issue): `needs triage` (also: no label), `ready`, `in development`, `ready for testing`,
 `testing`, `back to development`, `board review`, `human review` (the owner's inbox), `postponed`, closed.
-`pr-release` adds `needs samples`, `in procurement`, `samples unobtainable` (`samples`) and `awaiting release`
+The switches add `needs samples`, `in procurement`, `samples unobtainable` (`samples`) and `awaiting release`
 (`releases` with `hold`).
 
 ## Switches
 
 Each feature is off unless the document gives it: `true` switches it on with the defaults, an object with options,
-`false` or absence leaves it off. A feature the flow has no states for (`trunk` has none) or that the tracker cannot
-do is refused.
+`false` or absence leaves it off. A feature an inline flow has no states for, or that the tracker cannot do, is
+refused.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|

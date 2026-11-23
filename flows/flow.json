@@ -1,5 +1,5 @@
 {
-  "id": "pr-release",
+  "id": "flowee",
   "initial": "needs triage",
   "description": "The full ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency and untrusted tickets; each part tagged with its feature in meta.features and pruned when switched off.",
   "states": {
@@ -1106,695 +1106,6 @@
         }
       }
     },
-    "in development": {
-      "meta": {
-        "label": "in development",
-        "status": "In progress",
-        "holder": "developer",
-        "untested": true
-      },
-      "on": {
-        "next": {
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "board"
-                    ]
-                  }
-                },
-                "untrusted"
-              ]
-            }
-          },
-          "actions": [
-            "claim"
-          ],
-          "meta": {
-            "features": [
-              "untrustedReports"
-            ]
-          }
-        },
-        "heartbeat": {
-          "guard": "holdsClaim",
-          "actions": [
-            "touchClaim"
-          ]
-        },
-        "release": [
-          {
-            "target": "back to development",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "roleIs",
-                    "params": {
-                      "roles": [
-                        "developer"
-                      ]
-                    }
-                  },
-                  "holdsClaim",
-                  "hasCommits"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim"
-            ]
-          },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "roleIs",
-                    "params": {
-                      "roles": [
-                        "developer"
-                      ]
-                    }
-                  },
-                  "holdsClaim"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim"
-            ]
-          }
-        ],
-        "pr": {
-          "guard": "holdsClaim",
-          "actions": [
-            "openPull"
-          ],
-          "meta": {
-            "features": [
-              "pullRequests"
-            ]
-          }
-        },
-        "merge": [
-          {
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "isDependencyTicket",
-                  "pullRequestOpen",
-                  "checksGreen"
-                ]
-              }
-            },
-            "actions": [
-              "mergePull"
-            ],
-            "meta": {
-              "features": [
-                "dependencyTickets"
-              ]
-            }
-          },
-          {
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "pullRequestOpen",
-                  "checksGreen"
-                ]
-              }
-            },
-            "actions": [
-              "mergePull"
-            ],
-            "meta": {
-              "features": [
-                "pullRequests.merger=developer"
-              ]
-            }
-          }
-        ],
-        "handoff": [
-          {
-            "target": "ready for testing",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "isDependencyTicket",
-                  "merged"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nPull request: {pull}"
-                }
-              },
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "dependencyTickets"
-              ]
-            }
-          },
-          {
-            "target": "ready for testing",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "commitsOnMain"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nCommits: {commits}"
-                }
-              },
-              "setLabel",
-              "releaseClaim",
-              "recordHanded"
-            ],
-            "meta": {
-              "features": [
-                "!pullRequests"
-              ]
-            }
-          },
-          {
-            "target": "ready for testing",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "merged"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nPull request: {pull}"
-                }
-              },
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "pullRequests.merger=developer"
-              ]
-            }
-          },
-          {
-            "target": "ready for testing",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "pullRequestOpen",
-                  "checksGreen"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nPull request: {pull}"
-                }
-              },
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "pullRequests.merger=flow"
-              ]
-            }
-          }
-        ],
-        "stuck": {
-          "target": "board review",
-          "guard": "holdsClaim",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "recordOrigin"
-          ]
-        },
-        "expire": [
-          {
-            "target": "back to development",
-            "guard": "hasCommits",
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
-                }
-              },
-              "setLabel",
-              "releaseClaim"
-            ]
-          },
-          {
-            "target": "ready",
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
-                }
-              },
-              "setLabel",
-              "releaseClaim"
-            ]
-          }
-        ],
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "untrustedReports"
-            ]
-          }
-        },
-        "answer": {
-          "actions": [
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "recordAnswer"
-          ]
-        }
-      }
-    },
-    "ready for testing": {
-      "meta": {
-        "label": "ready for testing",
-        "status": "In progress",
-        "claimable": {
-          "role": "tester",
-          "rank": 1,
-          "when": {
-            "type": "all",
-            "params": {
-              "guards": [
-                "dependenciesClosed",
-                "trusted"
-              ]
-            }
-          }
-        },
-        "untested": true
-      },
-      "on": {
-        "next": [
-          {
-            "target": "testing",
-            "guard": {
-              "type": "roleIs",
-              "params": {
-                "roles": [
-                  "tester"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "setLabel",
-              "claim"
-            ]
-          },
-          {
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "roleIs",
-                    "params": {
-                      "roles": [
-                        "board"
-                      ]
-                    }
-                  },
-                  "untrusted"
-                ]
-              }
-            },
-            "actions": [
-              "claim"
-            ],
-            "meta": {
-              "features": [
-                "untrustedReports"
-              ]
-            }
-          }
-        ],
-        "rework": {
-          "target": "back to development",
-          "guard": {
-            "type": "notClaimedBy",
-            "params": {
-              "roles": [
-                "tester"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "untrustedReports"
-            ]
-          }
-        },
-        "answer": {
-          "actions": [
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "recordAnswer"
-          ]
-        }
-      }
-    },
-    "testing": {
-      "meta": {
-        "label": "testing",
-        "status": "In progress",
-        "holder": "tester",
-        "untested": true
-      },
-      "on": {
-        "next": {
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "board"
-                    ]
-                  }
-                },
-                "untrusted"
-              ]
-            }
-          },
-          "actions": [
-            "claim"
-          ],
-          "meta": {
-            "features": [
-              "untrustedReports"
-            ]
-          }
-        },
-        "heartbeat": {
-          "guard": "holdsClaim",
-          "actions": [
-            "touchClaim"
-          ]
-        },
-        "release": {
-          "target": "ready for testing",
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "tester"
-                    ]
-                  }
-                },
-                "holdsClaim"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "pass": [
-          {
-            "target": "board review",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "gatesMatchBuild",
-                  "buildTested",
-                  "uiChanged",
-                  "cardValid"
-                ]
-              }
-            },
-            "actions": [
-              "mergePull",
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
-                }
-              },
-              "setLabel",
-              "releaseClaim",
-              {
-                "type": "recordOrigin",
-                "params": {
-                  "from": "passed"
-                }
-              },
-              "moveTag"
-            ],
-            "meta": {
-              "features": [
-                "uiReview"
-              ]
-            }
-          },
-          {
-            "target": "board review",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "gatesMatchBuild",
-                  {
-                    "type": "flag",
-                    "params": {
-                      "name": "owner_check"
-                    }
-                  },
-                  "cardValid",
-                  "buildTested"
-                ]
-              }
-            },
-            "actions": [
-              "mergePull",
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
-                }
-              },
-              "setLabel",
-              "releaseClaim",
-              {
-                "type": "recordOrigin",
-                "params": {
-                  "from": "passed"
-                }
-              },
-              "moveTag"
-            ]
-          },
-          {
-            "target": "closed",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  "holdsClaim",
-                  "gatesMatchBuild",
-                  "buildTested"
-                ]
-              }
-            },
-            "actions": [
-              "mergePull",
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
-                }
-              },
-              {
-                "type": "setLabel",
-                "params": {
-                  "reason": "completed"
-                }
-              },
-              "releaseClaim",
-              "moveTag"
-            ]
-          }
-        ],
-        "fail": {
-          "target": "back to development",
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                "holdsClaim",
-                {
-                  "type": "buildTested",
-                  "params": {
-                    "contains": false
-                  }
-                }
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "stuck": {
-          "target": "board review",
-          "guard": "holdsClaim",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "recordOrigin"
-          ]
-        },
-        "expire": {
-          "target": "ready for testing",
-          "actions": [
-            "setStatus",
-            {
-              "type": "comment",
-              "params": {
-                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
-              }
-            },
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "untrustedReports"
-            ]
-          }
-        },
-        "answer": {
-          "actions": [
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "recordAnswer"
-          ]
-        }
-      }
-    },
     "board review": {
       "meta": {
         "label": "board review",
@@ -2794,6 +2105,695 @@
               }
             },
             "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "in development": {
+      "meta": {
+        "label": "in development",
+        "status": "In progress",
+        "holder": "developer",
+        "untested": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": [
+          {
+            "target": "back to development",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "developer"
+                      ]
+                    }
+                  },
+                  "holdsClaim",
+                  "hasCommits"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "developer"
+                      ]
+                    }
+                  },
+                  "holdsClaim"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          }
+        ],
+        "pr": {
+          "guard": "holdsClaim",
+          "actions": [
+            "openPull"
+          ],
+          "meta": {
+            "features": [
+              "pullRequests"
+            ]
+          }
+        },
+        "merge": [
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "isDependencyTicket",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull"
+            ],
+            "meta": {
+              "features": [
+                "dependencyTickets"
+              ]
+            }
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=developer"
+              ]
+            }
+          }
+        ],
+        "handoff": [
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "isDependencyTicket",
+                  "merged"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "dependencyTickets"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "commitsOnMain"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nCommits: {commits}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              "recordHanded"
+            ],
+            "meta": {
+              "features": [
+                "!pullRequests"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "merged"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=developer"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=flow"
+              ]
+            }
+          }
+        ],
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": [
+          {
+            "target": "back to development",
+            "guard": "hasCommits",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "ready",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ]
+          }
+        ],
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "testing": {
+      "meta": {
+        "label": "testing",
+        "status": "In progress",
+        "holder": "tester",
+        "untested": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "target": "ready for testing",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "tester"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "pass": [
+          {
+            "target": "board review",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  "buildTested",
+                  "uiChanged",
+                  "cardValid"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "recordOrigin",
+                "params": {
+                  "from": "passed"
+                }
+              },
+              "moveTag"
+            ],
+            "meta": {
+              "features": [
+                "uiReview"
+              ]
+            }
+          },
+          {
+            "target": "board review",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  {
+                    "type": "flag",
+                    "params": {
+                      "name": "owner_check"
+                    }
+                  },
+                  "cardValid",
+                  "buildTested"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "recordOrigin",
+                "params": {
+                  "from": "passed"
+                }
+              },
+              "moveTag"
+            ]
+          },
+          {
+            "target": "closed",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  "buildTested"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              {
+                "type": "setLabel",
+                "params": {
+                  "reason": "completed"
+                }
+              },
+              "releaseClaim",
+              "moveTag"
+            ]
+          }
+        ],
+        "fail": {
+          "target": "back to development",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "holdsClaim",
+                {
+                  "type": "buildTested",
+                  "params": {
+                    "contains": false
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": {
+          "target": "ready for testing",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "ready for testing": {
+      "meta": {
+        "label": "ready for testing",
+        "status": "In progress",
+        "claimable": {
+          "role": "tester",
+          "rank": 1,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        },
+        "untested": true
+      },
+      "on": {
+        "next": [
+          {
+            "target": "testing",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "tester"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "untrustedReports"
+              ]
+            }
+          }
+        ],
+        "rework": {
+          "target": "back to development",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "tester"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
             "recordAnswer"
           ]
         }

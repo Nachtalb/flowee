@@ -113,7 +113,7 @@ export class Instance extends DurableObject<Env> {
       roles: Object.keys(p.options.roles),
       ownerRole: p.options.ownerRole,
       // the switches a preset offers: every feature its chart or options name
-      features: [...new Set([...JSON.stringify(p).matchAll(/"features":(?:"(\w+)"|\[([^\]]*)\])/g)].flatMap((m) => (m[1] ? [m[1]] : m[2].match(/\w+/g) ?? [])))].filter((f) => f in DEFAULTS),
+      features: name === "trunk" ? [] : [...new Set([...JSON.stringify(p).matchAll(/"features":(?:"(\w+)"|\[([^\]]*)\])/g)].flatMap((m) => (m[1] ? [m[1]] : m[2].match(/\w+/g) ?? [])))].filter((f) => f in DEFAULTS),
       roleFeatures: Object.fromEntries(Object.entries(p.options.roles).flatMap(([r, o]) => ((o as { features?: string[] }).features ? [[r, (o as { features: string[] }).features]] : []))),
     }));
   }

@@ -61,7 +61,7 @@ valid, 1 a problem, 2 unreadable).
 | `id` | string `^[a-z0-9][a-z0-9-]{0,62}$` | required | Workspace id; the API base is `/w/<id>`. |
 | `name` | string | | Display name. |
 | `flow` | object | required | `{"preset": "trunk"}` or `{"chart": {…}, "options": {…}}` (inline XState statechart and options, see docs/flows.md). |
-| `flow.preset` | `"trunk"`, `"pr-release"` | | A preset in `flows/`: `trunk` (commits straight to main) or `pr-release` (the full flow; its parts switch with `features`, docs/flow-features.md). |
+| `flow.preset` | `"trunk"`, `"pr-release"` | | A named starting point; both load the one chart `flows/flow.json`, whose parts switch with `features` only (docs/flow-features.md): `trunk` starts as Single branch, `pr-release` as Feature branches with Versioning. |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see Features below. |
 | `tracker` | object | required | The tracker that keeps the record. |
@@ -146,8 +146,9 @@ a non-GitHub repository are kept by `<type>:<host>/<path>`.
 ### Features
 
 Each feature is off unless the document gives it: `true` switches it on with the defaults, an object with options,
-`false` or absence leaves it off. A feature the workspace's flow has no states for (`trunk` has none; `pr-release`
-has all) or that its tracker cannot do is refused. docs/flows.md ("Features") says how a flow tags them;
+`false` or absence leaves it off. Branching is `pullRequests` (off: Single branch, on: Feature branches); Versioning
+is `releases`, available with either; the rest are independent options (docs/flow-features.md). A feature an inline
+flow has no states for, or that its tracker cannot do, is refused. docs/flows.md ("Features") says how a flow tags them;
 docs/adapters.md lists the token permission each one needs; docs/flow-features.md says what each one adds.
 
 | Field | Type | Default | Meaning |
@@ -192,7 +193,7 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
 - `files` without `chat`; `profile` without `chat.publicUrl`.
 - `schedule.digestFrom` not before `schedule.digestTo`; a `schedule.timezone` that is no IANA zone.
 - An inline `flow` that does not load (every problem of docs/flows.md's checks).
-- A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the 'trunk' flow has no
+- A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the inline flow has no
   feature 'samples'.`); `releases.source: "tag"` without `releases.tag`; `releases.testedTag` equal to `releases.tag`;
   `uiReview` without any of `paths`, `addedFiles`, `addedLines`, or with an `addedLines` entry that is no regular
   expression; `untrustedReports.role` that is no role of the flow; an instance of a role whose feature is off.

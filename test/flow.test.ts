@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import options from "../flows/trunk.options.json";
+import { flowOf } from "../src/config/presets";
 import type { FakeGitHub, FakeTelegram } from "./fake";
 import { CARD_Q, CARD_TEST, call, claim, inFlow, inObject, setup, wipe, type Who } from "./helpers";
 
+const { options } = flowOf({ flow: { preset: "trunk" } });
 const COMMANDS = Object.fromEntries(Object.entries(options.commands).filter(([, o]) => !(o as { read?: boolean }).read));
 
 let gh: FakeGitHub;

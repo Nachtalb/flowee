@@ -256,7 +256,9 @@ export function install() {
   const relweb = new FakeGitHub("acme/relweb");
   const hk = new FakeGitHub("acme/hooks");
   const hk2 = new FakeGitHub("acme/hooks2");
-  const repos = [gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2];
+  const relmain = new FakeGitHub("acme/relmain");
+  const branchy = new FakeGitHub("acme/branchy");
+  const repos = [gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy];
   // GitLab projects on gitlab.com (gl, and those of the mixed workspaces) and on a self-managed instance (glself)
   const gl = new FakeGitLab();
   const glmix = new FakeGitLab("acme/backend/api", 501);
@@ -278,5 +280,5 @@ export function install() {
     if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, gl, glmix, glrel, glself, glhk, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy, gl, glmix, glrel, glself, glhk, tg, paste };
 }

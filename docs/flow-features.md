@@ -1,14 +1,30 @@
 # Flow features: the catalogue
 
-Flowee has two flow presets. `trunk` is the base: developers commit straight to the main branch, a tester tests the
-main branch, the board specifies and decides, the owner answers in the chat. `pr-release` is one statechart that
-holds `trunk` plus six optional parts; each part is a **feature switch** of the workspace document
-(`features.<name>`, docs/configuration.md). With every switch off, `pr-release` is `trunk`'s states and commands.
+Flowee has one flow: the statechart `flows/flow.json` with its options `flows/flow.options.json`. Its base: the
+board specifies and decides, developers build, a tester tests, the owner answers in the chat. Every part beyond the
+base is a **switch** of the workspace document (`features.<name>`, docs/configuration.md), and the user chooses
+them as three independent things:
+
+| Choice | Options | Switch |
+|---|---|---|
+| **Branching**, exactly one | **Single branch**: the agents commit straight to the main branch, the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, its checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
+| **Versioning**, with either branching | Off, or on: the owner gets a test card only once a published version contains the ticket's code, the card says `📦 In <version> or later`, and the `tested` tag follows the tested tickets. | `releases` |
+| **More options**, each on its own | Samples (a `sampler` finds a real sample file first), UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), outside reports. | `samples`, `uiReview`, `dependencyTickets`, `untrustedReports` |
+
+Every combination loads and walks (test/branching.test.ts: 3 branchings, counting both mergers, × versioning on
+and off × the 16 combinations of the other four). A combination is refused only for a real dependency, in one
+sentence with its JSON path: a tracker that cannot do what a switch needs, `uiReview` without paths,
+`releases.source: "tag"` without `releases.tag`.
+
+Two **named starting points** preset the switches of a new document: `trunk` starts as Single branch without
+Versioning (`features: {}`), `pr-release` as Feature branches with Versioning (`features: {"pullRequests": true,
+"releases": true}`). Both names load the same chart; a document's `features` are always its switches, so a preset
+name never switches anything on by itself and every document written before keeps its meaning.
 docs/flows.md says how a chart tags its parts; docs/adapters.md lists the token permission each feature needs.
 On GitLab every feature works the same way with GitLab's names: a pull request is a merge request, checks are the
 commit's pipeline and its jobs, the `tested` tag moves by delete + create (docs/gitlab.md).
 
-## The base (both presets)
+## The base (every combination)
 
 | Rule | How |
 |---|---|
@@ -30,7 +46,10 @@ commit's pipeline and its jobs, the `tested` tag moves by delete + create (docs/
 | A closed ticket refuses everything but `show` and `answer` | the closed state's transitions |
 | Pull requests are never tickets (GitLab: neither tasks, incidents nor test cases) | the tracker adapter |
 
-## `pullRequests`: a branch and a pull request per ticket
+## Branching: Single branch (`pullRequests` off) or Feature branches (`pullRequests` on)
+
+Single branch is the base: `handoff` needs a commit on the main branch whose subject ends with the ticket suffix,
+the tester tests the main branch. Feature branches adds:
 
 | Adds | How |
 |---|---|
@@ -41,7 +60,10 @@ commit's pipeline and its jobs, the `tested` tag moves by delete + create (docs/
 | `merger: developer`: the developer merges with `merge` (checks green) before `handoff`; the tester tests the main branch | `merged` |
 | `show` adds `branch` and `pull: {number, url, state, head, checks}` | `codeView` |
 
-## `releases`: which release contains a ticket
+## Versioning (`releases`): a test card only once a version has the code
+
+Independent of the branching: with Single branch the ticket's commits are its commits on main, with Feature
+branches its merge commit.
 
 | Adds | How |
 |---|---|

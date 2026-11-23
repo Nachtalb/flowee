@@ -3,8 +3,7 @@
 // sampler, untrusted-text, dependency-ticket and developer-merges variants against the Worker.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMachine, initialTransition, transition } from "xstate";
-import chart from "../flows/pr-release.json";
-import options from "../flows/pr-release.options.json";
+import { FLOW } from "../src/config/presets";
 import { ACTIONS } from "../src/core/actions";
 import { type Chart, type FlowOptions, loadFlow } from "../src/core/chart";
 import { uiReasons } from "../src/core/code";
@@ -14,8 +13,8 @@ import type { FakeGitHub, FakeTelegram } from "./fake";
 import { FakeCode } from "./fake-code";
 import { call, claim, inFlow, setup, wipe } from "./helpers";
 
-const C = chart as unknown as Chart;
-const O = options as unknown as FlowOptions;
+const C = FLOW.chart;
+const O = FLOW.options;
 const load = (f: FeaturesDoc) => {
   const x = prune(C, O, resolve(f));
   return loadFlow(x.chart, x.options, Object.keys(GUARDS), Object.keys(ACTIONS));

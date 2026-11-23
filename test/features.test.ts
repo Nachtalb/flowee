@@ -1,12 +1,13 @@
 // Feature switches: terms, pruning a tagged chart, and the workspace document's feature rules.
 import { describe, expect, it } from "vitest";
-import trunk from "../flows/trunk.json";
-import trunkOptions from "../flows/trunk.options.json";
+import { flowOf } from "../src/config/presets";
 import { featureProblems } from "../src/config/features";
 import { validate } from "../src/config/schema";
 import type { Chart, FlowOptions } from "../src/core/chart";
 import { featuresOf, glob, holds, prune, resolve } from "../src/core/features";
 import workspaces from "./workspaces.json";
+
+const { chart: trunk, options: trunkOptions } = flowOf({ flow: { preset: "trunk" } });
 
 const base = JSON.parse(JSON.stringify(workspaces.workspaces[1]));
 
@@ -49,7 +50,7 @@ describe("terms", () => {
 describe("pruning", () => {
   it("removes the states, transitions, roles, commands and ticks of a switched-off feature", () => {
     const { chart, options } = tagged();
-    expect([...featuresOf(chart, options)]).toEqual(["samples"]);
+    expect([...featuresOf(chart, options)]).toEqual(["samples", "pullRequests"]);
     const off = prune(chart, options, resolve({}));
     expect(off.chart.states.parked).toBeUndefined();
     expect(off.chart.states.ready.on?.park).toBeUndefined();
@@ -78,7 +79,6 @@ describe("the workspace document's features", () => {
   });
 
   it("refuse a feature the flow does not have, and contradicting options, in one sentence with the path", () => {
-    expect(validate({ ...base, features: { samples: true } })).toEqual(["$.features.samples: the 'trunk' flow has no feature 'samples'."]);
     const t = tagged();
     const f = (features: unknown) => featureProblems(doc(features) as never, t);
     expect(f({ releases: { source: "tag" } })).toEqual(["$.features.releases: the inline flow has no feature 'releases'.", "$.features.releases.tag: is required when source is 'tag'."]);

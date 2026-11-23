@@ -704,6 +704,120 @@
         "chatId": "702",
         "publicUrl": "https://flow.test"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "relmain",
+      "flow": {
+        "preset": "trunk"
+      },
+      "features": {
+        "releases": true
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/relmain"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "RELMAIN_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "RELMAIN_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "RELMAIN_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "RELMAIN_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "904"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "904"
+      },
+      "sync": {
+        "webhooks": "off"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "branchy",
+      "flow": {
+        "preset": "pr-release"
+      },
+      "features": {
+        "pullRequests": {
+          "checks": [
+            "build"
+          ]
+        }
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/branchy"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "BRANCHY_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "BRANCHY_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "BRANCHY_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "BRANCHY_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "905"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "905"
+      },
+      "sync": {
+        "webhooks": "off"
+      }
     }
   ]
 }

@@ -131,17 +131,28 @@ A workspace is one JSON document. A minimal, complete one:
 - Every field, default and rule: [docs/configuration.md](docs/configuration.md);
   JSON Schema: [schema/workspace.schema.json](schema/workspace.schema.json).
 
-### Flow presets and feature switches
+### Ways of working: branching, versioning, more options
 
-| Preset | Flow |
+| Choice | Options | Switch |
+|---|---|---|
+| **Branching**, exactly one | **Single branch**: the agents commit straight to the main branch, the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, its checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
+| **Versioning**, with either branching | Off, or on: the owner gets a test card only once a published version contains the ticket's code, the card says `📦 In <version> or later`, and the `tested` tag follows the tested tickets. | `releases` |
+| **More options**, each on its own | Samples (a `sampler` finds a real sample file first), UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), outside reports. | `samples`, `uiReview`, `dependencyTickets`, `untrustedReports` |
+
+Two **named starting points** preset the switches of a new document: `trunk` starts as Single branch without
+Versioning (`features: {}`), `pr-release` as Feature branches with Versioning (`features: {"pullRequests": true,
+"releases": true}`). Both names load the same chart; a document's `features` are always its switches, so a preset
+name never switches anything on by itself and every document written before keeps its meaning.
+
+| Starting point (`flow.preset`) | Presets |
 |---|---|
-| `trunk` | Developers commit to the main branch; the tester tests it; the board reviews and escalates. |
-| `pr-release` | `trunk` plus the feature switches below, each off unless the document turns it on. |
+| `trunk` | Single branch, Versioning off: `features: {}` |
+| `pr-release` | Feature branches and Versioning: `features: {"pullRequests": true, "releases": true}` |
 
 | Feature | Adds |
 |---|---|
-| `pullRequests` | A branch and a pull request per ticket; hand-off needs the checks green; `pass` merges (or the developer does). |
-| `releases` | Which release contains a ticket; test cards held until it is released; a version line; a `tested` tag. |
+| `pullRequests` | Feature branches: a branch and a pull request per ticket; hand-off needs the checks green; `pass` merges (or the developer does). |
+| `releases` | Versioning: which release contains a ticket; test cards held until it is released; a version line; a `tested` tag. |
 | `samples` | A `sampler` role that finds a real sample file before development starts. |
 | `uiReview` | A `pass` that changes the UI goes past the owner first. |
 | `dependencyTickets` | One ticket per dependency pull request (e.g. Dependabot). |

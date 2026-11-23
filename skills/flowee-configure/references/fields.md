@@ -11,7 +11,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `id` | string `^[a-z0-9][a-z0-9-]{0,62}$` | required | Workspace id; the API base is `/w/<id>`. |
 | `name` | string | | Display name. |
 | `flow` | object | required | `{"preset": "trunk"}` or `{"chart": {…}, "options": {…}}` (inline XState statechart and options, see `statecharts.md`). |
-| `flow.preset` | `"trunk"`, `"pr-release"` | | A preset in `flows/`: `trunk` (commits straight to main) or `pr-release` (`trunk` plus the feature switches, `features.md`). |
+| `flow.preset` | `"trunk"`, `"pr-release"` | | A named starting point; both load the one chart, whose parts switch with `features` only (`features.md`): `trunk` starts as Single branch, `pr-release` as Feature branches with Versioning. |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see `features.md`. |
 | `tracker` | object | required | The tracker that keeps the record. |
@@ -140,7 +140,7 @@ configuration API's bearer token).
 - `files` without `chat`; `profile` without `chat.publicUrl`.
 - `schedule.digestFrom` not before `schedule.digestTo`; a `schedule.timezone` that is no IANA zone.
 - An inline `flow` that does not load (every loading check of `statecharts.md`).
-- A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the 'trunk' flow has no
+- A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the inline flow has no
   feature 'samples'.`); `releases.source: "tag"` without `releases.tag`; `releases.testedTag` equal to `releases.tag`;
   `uiReview` without any of `paths`, `addedFiles`, `addedLines`, or with an `addedLines` entry that is no regular
   expression; `untrustedReports.role` that is no role of the flow; an instance of a role whose feature is off.
