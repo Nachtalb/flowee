@@ -246,6 +246,18 @@ describe("the setup wizard", () => {
     expect(lib.last(1)).toBe("Owner: Green.");
   });
 
+  it("a Telegram refusal in the wizard reaches the user as one sentence", async () => {
+    await dm(200, "/setup");
+    await tap(200, "w:bot:own");
+    await dm(200, "acme/widget");
+    tg.refuse.getManagedBotToken = "Bad Request: bot not found";
+    await post("/telegram", { update_id: ++uid, managed_bot: { user: { id: 200 }, bot: { id: 777, is_bot: true, first_name: "Widget", username: "WidgetEnvoyBot" } } });
+    expect(tg.of("sendMessage").at(-1)).toEqual({ chat_id: "200", text: "⚠️ Telegram refused getManagedBotToken: Bad Request: bot not found." });
+    tg.refuse = { sendMessage: "Forbidden: bot was blocked by the user" };
+    await tap(200, "w:back");
+    expect(tg.calls.at(-1)?.method).toBe("sendMessage"); // nothing else to try: the notice itself was refused, quietly
+  });
+
   it("Back, Cancel, resume and expiry", async () => {
     await dm(100, "/setup");
     await tap(100, "w:bot:shared");

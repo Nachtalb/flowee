@@ -168,6 +168,8 @@ export class FakeTelegram {
     getManagedBotAccessSettings: { is_access_restricted: false },
   };
   down = false;
+  /** Methods Telegram refuses, with its description. */
+  refuse: Record<string, string> = {};
   /** The webhook URL per bot token. */
   hooks: Record<string, string> = {};
   private id = 100;
@@ -186,6 +188,7 @@ export class FakeTelegram {
     this.calls.push(call);
     if (method === "setWebhook") this.hooks[bot] = params.url;
     if (this.down) return Response.json({ ok: false, description: "Bad Gateway" }, { status: 502 });
+    if (method in this.refuse) return Response.json({ ok: false, error_code: 400, description: this.refuse[method] }, { status: 400 });
     const result =
       method in this.answers
         ? this.answers[method]

@@ -10,7 +10,7 @@ import { repoClashes, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
-import type { Button, ChatMessage, ChatRef, Command } from "../ports/chat";
+import type { Button, ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
 import { Manager, type ManageHost } from "../wizard/manage";
 import { type Draft, fromDoc, type Preset, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
@@ -302,6 +302,23 @@ export class Instance extends DurableObject<Env> {
     const tg = this.main();
     const e = tg.parse(update);
     if (!e) return {};
+    try {
+      return await this.onMain(tg, e);
+    } catch (err) {
+      await this.failed(tg, e, err);
+      return {};
+    }
+  }
+
+  /** A failed update of the wizard or the menu reaches its user as one sentence, never as silence. */
+  private async failed(tg: Telegram, e: ChatEvent, err: unknown) {
+    console.error("update failed", err);
+    const at = ("at" in e && e.at) || { chat: e.from };
+    const why = err instanceof Error ? err.message : String(err);
+    await tg.text(at, `⚠️ ${why}`).catch(() => {});
+  }
+
+  private async onMain(tg: Telegram, e: ChatEvent): Promise<Routed> {
     const { wizard, manager, say } = this.tools(tg);
     const dm = (user: string): ChatRef => ({ chat: user });
     if (e.kind === "managed") {
@@ -390,7 +407,12 @@ export class Instance extends DurableObject<Env> {
     if (this.seen(`w:${id}`, update)) return {};
     const tg = new Telegram(token, "the workspace bot's token");
     const e = tg.parse(update);
-    if (e?.kind === "message" && (await this.bind(e, tg))) return {};
+    try {
+      if (e?.kind === "message" && (await this.bind(e, tg))) return {};
+    } catch (err) {
+      await this.failed(tg, e as ChatEvent, err);
+      return {};
+    }
     return ws ? this.to(id) : {};
   }
 
