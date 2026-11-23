@@ -10,6 +10,7 @@
 [![Runtime: Cloudflare Workers](https://img.shields.io/badge/runtime-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![Client: Python 3.11+ stdlib](https://img.shields.io/badge/client-Python%203.11%2B%20stdlib-3776AB?logo=python&logoColor=white)](client/flowee.py)
+[![Trackers: GitHub, GitLab](https://img.shields.io/badge/trackers-GitHub%20%C2%B7%20GitLab-FC6D26?logo=gitlab&logoColor=white)](docs/gitlab.md)
 [![Chat: Telegram](https://img.shields.io/badge/chat-Telegram-26A5E4?logo=telegram&logoColor=white)](docs/telegram.md)
 [![Tests: vitest + unittest](https://img.shields.io/badge/tests-vitest%20%2B%20unittest-6E9F18?logo=vitest&logoColor=white)](CLAUDE.md#build-test-run)
 
@@ -17,7 +18,7 @@
 
 ## What it is
 
-Flowee runs the ticket flow of a team of AI agents over GitHub issues: a board specifies, developers build, testers
+Flowee runs the ticket flow of a team of AI agents over GitHub or GitLab issues: a board specifies, developers build, testers
 test, and each step is a command the service checks against a statechart. The tickets that need a human (tests,
 questions, decisions) reach the owner as cards in a Telegram chat, answered by replying. Everything specific to a
 project (repositories, roles, flow, texts, chat) is one JSON document.
@@ -30,7 +31,7 @@ flowchart LR
     B[board] & D[developer] & T[tester]
   end
   Agents -- "flowee.py next / handoff / pass …" --> W
-  W["Flowee Worker<br/>statechart · claims · cron"] -- "labels, comments,<br/>pull requests, releases" --> G[(GitHub)]
+  W["Flowee Worker<br/>statechart · claims · cron"] -- "labels, comments,<br/>pull requests, releases" --> G[("GitHub / GitLab")]
   W -- "cards" --> C["Telegram chat<br/>(the Envoy)"]
   C -- "answers, new tickets" --> W
   O((owner)) <--> C
@@ -43,7 +44,7 @@ flowchart LR
 
 ## Quick start
 
-Flowee is a Cloudflare Worker. You need a Cloudflare account, `bun`, a GitHub token and a Telegram bot. It runs in one
+Flowee is a Cloudflare Worker. You need a Cloudflare account, `bun`, a GitHub or GitLab token and a Telegram bot. It runs in one
 of two modes.
 
 Your deployment's configuration goes into `flowee.config.local.json`: it is git-ignored, so the chat ids and URLs
@@ -65,7 +66,7 @@ bun run validate flowee.config.local.json   # the Worker's own validator; exit 0
 Store every secret the document names (the first `secret put` creates the Worker), then deploy:
 
 ```sh
-bunx wrangler secret put ACME_GITHUB_TOKEN       # a fine-grained token on the repositories
+bunx wrangler secret put ACME_GITHUB_TOKEN       # a fine-grained token on the repositories (GitLab: api scope)
 bunx wrangler secret put TELEGRAM_BOT_TOKEN
 openssl rand -hex 32 | bunx wrangler secret put TG_WEBHOOK_SECRET
 # an agent's secret is stored as its SHA-256 only; the agent keeps the secret itself
@@ -119,6 +120,8 @@ A workspace is one JSON document. A minimal, complete one:
 - A document never holds a secret, only its name (`ACME_GITHUB_TOKEN`). The values are Worker secrets, or sealed
   secrets in the managed mode.
 - Several repositories in one workspace: tickets are written `alias#12`.
+- Trackers: GitHub (`"type": "github"`, the default) and GitLab (`"type": "gitlab"`, gitlab.com or self-managed with
+  `api`); one workspace may mix them per repository. GitLab's mapping and token scopes: [docs/gitlab.md](docs/gitlab.md).
 - The chat can be a private chat, a group, or one topic of a forum group (`chat.topicId`).
 - Every field, default and rule: [docs/configuration.md](docs/configuration.md);
   JSON Schema: [schema/workspace.schema.json](schema/workspace.schema.json).
@@ -190,6 +193,7 @@ Exports never contain a secret.
 |---|---|
 | The agents' HTTP API and the client | [docs/api.md](docs/api.md) |
 | Configuration and secrets | [docs/configuration.md](docs/configuration.md) |
+| GitLab: concepts, token scopes, what differs | [docs/gitlab.md](docs/gitlab.md) |
 | Statecharts, guards, actions | [docs/flows.md](docs/flows.md) |
 | Feature catalogue | [docs/flow-features.md](docs/flow-features.md) |
 | The chat interface | [docs/envoy.md](docs/envoy.md), [docs/telegram.md](docs/telegram.md) |

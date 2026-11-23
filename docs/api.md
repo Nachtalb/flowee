@@ -33,7 +33,8 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 | 409 | `two_states` | `#12 has two state labels (ready, testing); fix it by hand.` |
 | 422 | `no_commits` / `not_in_build` / `gates_mismatch` / `bad_card` / `comment_required` | see docs/flows.md |
 | 501 | `unsupported` | `The tracker does not support pull requests.` |
-| 502 | `github` / `telegram` | `GitHub answered 502 for the label change of #12.` |
+| 502 | `github` / `gitlab` / `telegram` | `GitHub answered 502 for the label change of #12.` |
+| 503 | `rate_limited` | `GitLab is rate-limiting this token for reading #12; try again in 30 seconds.` |
 
 ## Endpoints (trunk)
 

@@ -78,5 +78,23 @@ read**, **Contents: read**. A `tracker.project` board needs a classic token with
 | `dependencyTickets` | **Pull requests: read**, **Issues: read and write** |
 | `untrustedReports` | (base) |
 
+### GitLab
+
+A project access token (one project; Premium on gitlab.com) or a personal access token with the **`api`** scope
+(`read_api` cannot write issues; there is no narrower write scope). The role decides what it may do
+(docs/gitlab.md in the Flowee repository has the full table):
+
+| Feature | Role |
+|---|---|
+| base flow (issues, labels, notes, commits) | **Planner** (or Reporter) |
+| `pullRequests` | **Developer**; merging into a protected main: a role allowed to merge there (default **Maintainer**) |
+| `releases`, `samples`, `uiReview`, `dependencyTickets` | **Planner** |
+| `releases.testedTag` | **Developer** (a protected tag: a role allowed to create it) |
+| `releases.checks` | **Reporter** (commit statuses) |
+| webhooks (`sync.webhooks`) | **Maintainer** |
+
+Check a GitLab token: `GET <api>/projects/<group%2Fproject>` with `Authorization: Bearer` answers 200 for each
+project; a 404 or 403 means the token does not reach it.
+
 Check what a token reaches before storing it: `GET /repos/<repo>` answers 200 for each repository, 404 for one it
 should not reach. The managed wizard does this check itself.

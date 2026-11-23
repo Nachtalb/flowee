@@ -9,7 +9,7 @@ README.md is usage only; this file is how the code is built and laid out.
 ```sh
 bun install
 bun run typecheck                 # tsc (TypeScript 7), strict
-bun run test                      # vitest in workerd (@cloudflare/vitest-plugin): fake GitHub + Telegram via fetch
+bun run test                      # vitest in workerd (@cloudflare/vitest-plugin): fake GitHub, GitLab + Telegram via fetch
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run schema                    # regenerate schema/*.schema.json after changing src/config/schema.ts or a preset
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
@@ -48,11 +48,13 @@ src/
   wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps and their screens, the
               living message, drafts, the document a draft makes), manage.ts (welcome, /workspaces menu, export,
               import)
-  config/     document.ts (the workspace document), schema.ts (JSON Schema + validator; `problems()` behind
+  config/     document.ts (the workspace document), trackers.ts (tracker kinds: default API, path form,
+              capabilities), schema.ts (JSON Schema + validator; `problems()` behind
               `bun run validate`; repositories unique per instance), features.ts (the
               features' schema and rules), registry.ts (WorkspaceRegistry, StoredRegistry, settings from a
               document), presets.ts (presets, flowOf: a workspace's pruned flow)
-  adapters/   tracker-github.ts (+ tracker-github-code.ts: branches, pulls, checks, releases, tags),
+  adapters/   trackers.ts (the tracker adapters by kind), tracker-github.ts (+ tracker-github-code.ts: branches,
+              pulls, checks, releases, tags), tracker-gitlab.ts (REST v4: merge requests, pipelines, tags, releases),
               chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, store-durable-object.ts (one Durable
               Object per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry),
               instance-durable-object.ts (managed mode: the stored registry, sealed secrets, wizard host, update
@@ -64,12 +66,14 @@ schema/       workspace.schema.json, instance.schema.json (generated)
 scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`)
 client/       flowee.py + test_flowee.py
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
-docs/         api.md, flows.md, adapters.md, configuration.md, envoy.md (the chat interface, row by row),
+docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab's mapping and token scopes),
+              envoy.md (the chat interface, row by row),
               chat-style.md (how every screen looks, the living message, the reply-keyboard exception),
               flow-features.md (the feature catalogue), managed.md (wizard, management, import), telegram.md
               (profiles, setMySettings, groups and topics), agents/ (role templates for projects using Flowee)
 skills/       agent skills: flowee-install, flowee-use, flowee-configure (the full configuration spec)
-test/         vitest suites, fakes (fake.ts, fake-code.ts), fixtures (workspaces.json: neutral names), docs.test.ts
+test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts), tracker-contract.test.ts (every tracker
+              adapter, the same cases), fixtures (workspaces.json: neutral names), docs.test.ts
               (docs and skills complete, the skills' examples valid), e2e/wire.py
 ```
 
@@ -124,10 +128,14 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   carries the tags. Also: its token permission in docs/adapters.md and the wizard's token prompt
   (`src/wizard/wizard.ts`, step `credential`), a section in docs/flow-features.md, its options in
   skills/flowee-configure/references/features.md (a test checks), a row in README.md.
-- **a tracker adapter:** implement `Tracker` (`src/ports/tracker.ts`); optional capabilities as objects or absent,
-  and list them in `TRACKER_CAPABILITIES` (`src/config/features.ts`) so workspaces needing more are refused;
-  add its `tracker.type` to the schema and choose the adapter by it in `build()` in `store-durable-object.ts` (which
-  builds GitHub directly today).
+- **a tracker adapter:** one file `src/adapters/tracker-<kind>.ts` implementing `Tracker` (`src/ports/tracker.ts`;
+  optional capabilities as objects or absent, `probe()` and a `parseRepo(api)` link reader), its kind in
+  `TRACKER_KINDS` (`src/config/trackers.ts`: name, default API, path form, the capabilities it offers, which refuse
+  workspaces needing more; the schema's `type` enum follows, `bun run schema`) and its entry in `TRACKERS`
+  (`src/adapters/trackers.ts`, which `build()` uses per repository; the compiler demands it). Then a harness in
+  `test/tracker-contract.test.ts` with an HTTP stand-in of its API, its own cases beside it (GitLab:
+  `test/tracker-gitlab.test.ts`), a page like docs/gitlab.md (concept mapping, token scopes) and a stand-in in
+  test/e2e/wire.py.
 - **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
   `plain()`; give the Worker a route for its updates (`index.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods

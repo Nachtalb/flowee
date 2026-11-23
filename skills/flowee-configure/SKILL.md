@@ -30,6 +30,10 @@ to submit. The full specification is in `references/`:
 - **One role instance per agent**, with the flow's owner role always present (`{"instance": "owner", "role":
   "owner", …}`): without it the owner cannot answer through the API. The `sampler` role exists only with
   `features.samples`.
+- **Name the tracker.** `tracker.type` is `github` (default) or `gitlab`; a repository on the other one gives its
+  own `type`, `token` (required then) and, for self-managed GitLab or GitHub Enterprise, `api`. GitLab paths may be
+  nested (`group/subgroup/project`); `tracker.project` (a GitHub board) needs a GitHub repository. What differs on
+  GitLab (merge requests, pipelines as checks, tags moved by delete + create, no board writes): docs/gitlab.md.
 - **A repository belongs to one workspace per instance.** Several repositories of one project go into one
   workspace (`tracker.repos`, tickets become `alias#n`), never into two.
 - **Validate before handing over** (below). Hand over only a document that printed `ok`.

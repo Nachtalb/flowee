@@ -6,7 +6,7 @@ document to its adapters. `test/boundary.test.ts` fails when a layer imports acr
 
 | Port | Phase 1 adapter |
 |---|---|
-| `Tracker` | `tracker-github.ts` (REST + Projects v2 GraphQL) |
+| `Tracker` | `tracker-github.ts` (REST + Projects v2 GraphQL), `tracker-gitlab.ts` (REST v4, docs/gitlab.md); chosen per repository by `src/adapters/trackers.ts` |
 | `Chat` | `chat-telegram.ts` (Bot API, rich messages) |
 | `Store` | `store-durable-object.ts` (`SqlStore`, Durable Object SQLite; one object per workspace) |
 | `Clock` | the Durable Object (`Date.now`, its alarm) |
@@ -17,14 +17,21 @@ document to its adapters. `test/boundary.test.ts` fails when a layer imports acr
 
 Required: `issue`, `openIssues`, `create`, `update` (labels, assignees, open/closed with reason, title, body; one
 write), `comment`, `comments`, `commits(branch, since)` (oldest first, first line only), `contains(base, head)`.
-Errors are `Fail`s: `404 not_found` for a missing issue, `502 <tracker>` naming the write that failed.
+Errors are `Fail`s: `404 not_found` for a missing issue, `502 <tracker>` naming the write that failed, `503
+rate_limited` when the tracker's rate limit asks for more than a two-second wait (a shorter `Retry-After` is waited
+out once).
+
+Adapters are registered by kind: `src/config/trackers.ts` (`TRACKER_KINDS`: name, default API, repository path form,
+capabilities, which the validator reads) and `src/adapters/trackers.ts` (`TRACKERS`: `make(config)` and
+`parseRepo(api)`, which `build()` uses for every repository). `test/tracker-contract.test.ts` runs the same port-level
+cases against every adapter, each with its own HTTP stand-in; a new adapter adds its harness there.
 
 Optional capabilities, each an object the adapter sets or leaves undefined; `capability(tracker, "pulls")`
 turns a missing one into `501 unsupported` (`The tracker does not support pull requests.`):
 
 | Capability | Methods | Used by |
 |---|---|---|
-| `board` | `setStatus(issue, status)` | the project board column per state (GitHub adapter: when `tracker.project` is set) |
+| `board` | `setStatus(issue, status)` | the project board column per state (GitHub adapter: when `tracker.project` is set; GitLab: none, label lists need no write) |
 | `branches` | `head(name)`, `exists(ref, path)`, `changes(sha)` (files + added lines), `remove(name)` | `pullRequests` (the ticket's branch), `samples` (sample paths on main), `uiReview` (the diff) |
 | `pulls` | `forBranch(name)`, `get(n)`, `open()`, `create(head, base, title, body)`, `update(n, {title, body})`, `merge(n, method, subject)`, `files(n)` (every file the pull request changes) | `pullRequests`, `dependencyTickets` |
 | `checks` | `forCommit(sha)` (check runs and commit statuses, newest per name) | `pullRequests` (`checksGreen`), `releases` (`checks`: the `tested` tag only onto a green commit) |
@@ -34,8 +41,9 @@ turns a missing one into `501 unsupported` (`The tracker does not support pull r
 A workspace that switches on a feature its tracker cannot do is refused when it is loaded
 (`$.features.pullRequests: the tracker 'github' cannot do pull requests.`); a call that reaches a missing
 capability anyway answers `501 unsupported`. Errors map to the existing codes: a missing pull request is
-`404 not_found`, a merge GitHub refuses (not mergeable, head moved) `409 not_mergeable`, anything else `502 github`
-naming the call.
+`404 not_found`, a merge the tracker refuses (not mergeable, head moved, a protected branch) `409 not_mergeable`,
+anything else `502 github` / `502 gitlab` naming the call. GitLab's token scopes and roles per feature:
+docs/gitlab.md.
 
 ### GitHub token permissions per feature
 

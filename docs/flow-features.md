@@ -5,13 +5,15 @@ main branch, the board specifies and decides, the owner answers in the chat. `pr
 holds `trunk` plus six optional parts; each part is a **feature switch** of the workspace document
 (`features.<name>`, docs/configuration.md). With every switch off, `pr-release` is `trunk`'s states and commands.
 docs/flows.md says how a chart tags its parts; docs/adapters.md lists the token permission each feature needs.
+On GitLab every feature works the same way with GitLab's names: a pull request is a merge request, checks are the
+commit's pipeline and its jobs, the `tested` tag moves by delete + create (docs/gitlab.md).
 
 ## The base (both presets)
 
 | Rule | How |
 |---|---|
 | States as tracker labels; an open ticket without one is `needs triage`; two state labels are refused (`two_states`) | `meta.label`, `initial` |
-| A project board column per state (GitHub Projects v2 Status), the item added when missing | `meta.status`, `tracker.project` |
+| A project board column per state (GitHub Projects v2 Status), the item added when missing; GitLab issue boards follow the state labels with no write | `meta.status`, `tracker.project` |
 | One lock per workspace for every command; each command re-reads the ticket | the workspace's Durable Object |
 | Claims are exclusive and belong to a role instance; `next` resumes the caller's claim first | `claim`, `holder`, `roles[].instance` |
 | A claim idle for `leaseHours` (3) goes back to its queue with a `Board:` comment | the cron's reaper |
@@ -26,7 +28,7 @@ docs/flows.md says how a chart tags its parts; docs/adapters.md lists the token 
 | The board-review origin (who handed it over, from where) is kept; `sendback` returns it there, a passed ticket cannot be sent back | `recordOrigin`, `originIs` |
 | The owner's answer reopens an inbox, postponed or closed ticket into `needs triage`; decisions on an answered `needs triage` ticket | `answer`, `answered` |
 | A closed ticket refuses everything but `show` and `answer` | the closed state's transitions |
-| Pull requests are never tickets | the tracker adapter |
+| Pull requests are never tickets (GitLab: neither tasks, incidents nor test cases) | the tracker adapter |
 
 ## `pullRequests`: a branch and a pull request per ticket
 

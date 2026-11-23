@@ -109,6 +109,37 @@ and has its own token. Pull requests on with the defaults; releases without hold
 }
 ```
 
+## 3b. GitLab, and a workspace on GitHub and GitLab
+
+The service lives in a nested GitLab project on a self-managed instance, the web app on GitHub; one pr-release flow
+over both. Merge requests need the project's pipeline green (`checks: ["pipeline"]`); the GitLab token needs the
+`api` scope and Maintainer to merge into a protected main (docs/gitlab.md).
+
+```json
+{
+  "flowee": 1,
+  "id": "acme-mixed",
+  "flow": { "preset": "pr-release" },
+  "features": { "pullRequests": { "checks": ["pipeline"], "method": "squash" }, "releases": { "testedTag": "tested" } },
+  "tracker": {
+    "type": "gitlab",
+    "api": "https://gitlab.acme.example/api/v4",
+    "repos": [
+      { "repo": "acme/platform/api", "alias": "api" },
+      { "repo": "acme/web", "alias": "web", "type": "github", "token": "ACME_GITHUB_TOKEN" }
+    ],
+    "token": "ACME_GITLAB_TOKEN"
+  },
+  "roles": [
+    { "instance": "board", "role": "board", "secret": "ACMEMIX_BOARD" },
+    { "instance": "dev1", "role": "developer", "secret": "ACMEMIX_DEV1" },
+    { "instance": "tester", "role": "tester", "secret": "ACMEMIX_TESTER" },
+    { "instance": "owner", "role": "owner", "secret": "ACMEMIX_OWNER" }
+  ],
+  "owners": [{ "name": "Ann", "tracker": "ann" }]
+}
+```
+
 ## 4. One topic of a group, with the workspace's own bot (managed mode)
 
 The cards go to topic 42 of a forum group, sent by a bot made just for this workspace (`chat.managed`). A sampler

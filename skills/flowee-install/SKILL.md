@@ -30,7 +30,8 @@ and scheduled runs: `references/project-setup.md`.
   again and refuses an invalid one).
 - **Verify each step** with the commands in `references/verify.md`; report what they printed, not what should
   happen.
-- **Tests never touch a real remote.** `bun run test` and `test/e2e/wire.py` use fakes and a local stand-in GitHub.
+- **Tests never touch a real remote.** `bun run test` and `test/e2e/wire.py` use fakes and local stand-ins of GitHub
+  and GitLab.
 
 ## Standalone
 
@@ -40,8 +41,10 @@ and scheduled runs: `references/project-setup.md`.
 3. Telegram: create the bot with BotFather; note its username for `chat.username`. The owner's chat id: the user
    sends the bot a message and reads `getUpdates`, or uses a known id. Before using a token, `getMe` must name the
    expected bot, and `getWebhookInfo` must show no webhook (else the bot is in use elsewhere: stop and ask).
-4. GitHub token: fine-grained, limited to the workspace's repositories, with the permissions of
-   `references/project-setup.md` ("Token permissions"). A `tracker.project` board needs a classic `repo` + `project` token
+4. Tracker token. GitHub: fine-grained, limited to the workspace's repositories, with the permissions of
+   `references/project-setup.md` ("Token permissions"). GitLab (`"type": "gitlab"`): a project or personal access
+   token with the `api` scope and the role per feature in the same file ("GitLab"); self-managed: `tracker.api` (or
+   `tracker.repos[].api`) is `https://<host>/api/v4`. A `tracker.project` board needs a classic `repo` + `project` token
    instead (a fine-grained token cannot write a user-owned project): put that trade-off to the user.
 5. Secrets: every name the document references, each value on stdin (the first `secret put` creates the Worker;
    wrangler answers its "create a new Worker?" question with yes when stdin is not a terminal).
