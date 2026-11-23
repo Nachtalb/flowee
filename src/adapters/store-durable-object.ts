@@ -20,6 +20,8 @@ import { PHOTO } from "./photo";
 import { seal, unseal, vaultKey } from "./vault";
 
 export const WORKSPACE_HEADER = "x-flowee-workspace";
+/** The public origin the deploy called /setup on (standalone): the base of the webhook addresses. */
+export const ORIGIN_HEADER = "x-flowee-origin";
 
 export class SqlStore implements Store {
   constructor(private sql: SqlStorage) {}
@@ -182,6 +184,11 @@ export class Workspace extends DurableObject<Env> {
     if (url.pathname === "/v1/sync" && req.method === "GET") {
       if (!(await auth(rt.flow, req))) return json({ ok: false, error: "unauthorized", message: "Unknown or missing token." }, 401);
       return json({ ok: true, sync: rt.flow.events.status() });
+    }
+    const origin = url.pathname === "/setup" ? req.headers.get(ORIGIN_HEADER) : null;
+    if (origin && /^https?:\/\//.test(origin)) {
+      this.store.exec("INSERT OR REPLACE INTO meta VALUES ('publicUrl', ?)", origin);
+      rt.flow.events.base = origin;
     }
     if (url.pathname === "/setup") return json(rt.envoy ? await this.lock(() => (rt.envoy as Envoy).setup()) : { chat: "none" });
     if (url.pathname.startsWith("/telegram")) {

@@ -7,7 +7,7 @@ import { Fail } from "./core/errors";
 import { same } from "./core/text";
 import { Telegram } from "./adapters/chat-telegram";
 import { bot, type Env, instanceDoc, mode, registry } from "./adapters/instance";
-import { envSecrets, WORKSPACE_HEADER } from "./adapters/store-durable-object";
+import { envSecrets, ORIGIN_HEADER, WORKSPACE_HEADER } from "./adapters/store-durable-object";
 
 export { Instance } from "./adapters/instance-durable-object";
 export { Workspace } from "./adapters/store-durable-object";
@@ -25,9 +25,12 @@ function forward(env: Env, id: string, req: Request, path?: string) {
 
 const ids = async (env: Env) => (mode(env) === "managed" ? await instance(env).active(instanceDoc(env)) : registry(env).list().map((w) => w.id));
 
-const each = async (env: Env, path: string) =>
+/** The path on every workspace; `origin` (the deploy's /setup) tells a standalone workspace its public URL for webhooks. */
+const each = async (env: Env, path: string, origin?: string) =>
   Promise.all(
-    (await ids(env)).map(async (id) => [id, await (await forward(env, id, new Request(`https://flowee${path}`, { method: "POST" }))).text()] as const),
+    (await ids(env)).map(
+      async (id) => [id, await (await forward(env, id, new Request(`https://flowee${path}`, { method: "POST", headers: origin ? { [ORIGIN_HEADER]: origin } : {} }))).text()] as const,
+    ),
   );
 
 const unauthorized = () => json({ ok: false, error: "unauthorized", message: "Unknown or missing token." }, 401);
@@ -124,7 +127,7 @@ async function route(req: Request, env: Env): Promise<Response> {
     return hit ? forward(env, hit.doc.id, req) : unauthorized();
   }
   // Idempotent and input-free: the deploy calls it to publish the bot profile and webhook of the new version.
-  if (pathname === "/setup" && req.method === "GET") return json(Object.fromEntries((await each(env, "/setup")).map(([id, t]) => [id, JSON.parse(t)])));
+  if (pathname === "/setup" && req.method === "GET") return json(Object.fromEntries((await each(env, "/setup", new URL(req.url).origin)).map(([id, t]) => [id, JSON.parse(t)])));
   if (pathname === "/") return new Response(ABOUT);
   if (pathname.startsWith("/admin/")) return json({ ok: false, error: "unsupported", message: "Configuration changes at run time need the managed mode." }, 501);
   return notFound();
