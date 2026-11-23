@@ -155,6 +155,11 @@ export interface WizardHost {
 const b = (label: string, data: string) => btn(label, `w:${data}`);
 /** An extension's name on the screens. */
 export const extName = (e: ExtensionRef | undefined) => (typeof e === "string" ? e.replace(/^builtin:/, "") : String((e as { name?: unknown } | undefined)?.name ?? "unnamed"));
+/** The aliases of several repositories: each its name, two with the same name told apart by their owner. */
+export function aliasesOf(repos: string[]): string[] {
+  const plain = repos.map(aliasOf);
+  return repos.map((r, i) => (plain.filter((a) => a === plain[i]).length > 1 ? aliasOf(r.split("/").slice(-2).join("-")) : plain[i]));
+}
 export const aliasOf = (repo: string) => (repo.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
 const code = (s: string) => `<code>${esc(s)}</code>`;
 
@@ -287,7 +292,8 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
   const base: Partial<WorkspaceDoc> = d.base ? JSON.parse(JSON.stringify(d.base)) : {};
   // every secret a workspace made here names is its own slot: a document cannot borrow another workspace's token
   const old = new Map((base.tracker?.repos ?? []).map((r) => (typeof r === "string" ? [r, r] : [r.repo, { repo: r.repo, ...(r.alias ? { alias: r.alias } : {}), ...(r.mainBranch ? { mainBranch: r.mainBranch } : {}) }]) as [string, RepoDoc]));
-  const repos: RepoDoc[] = d.repos.map((r) => old.get(r) ?? (d.repos.length > 1 ? { repo: r, alias: aliasOf(r) } : r));
+  const named = aliasesOf(d.repos);
+  const repos: RepoDoc[] = d.repos.map((r, i) => old.get(r) ?? (d.repos.length > 1 ? { repo: r, alias: named[i] } : r));
   const owners = base.owners?.length ? base.owners : [{ chat: user }];
   // a manager changing the workspace does not become one of its owners
   if (!owners.some((o) => o.chat === user) && !base.managers?.includes(user)) owners.push({ chat: user });
@@ -1044,9 +1050,10 @@ export class Wizard {
     const where: TrackerRef = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
     const taken = repos.find((r) => this.host.repoTaken(r, d.replaces, where));
     if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces, where)}'; a repository belongs to one workspace only.`);
-    const aliases = repos.map(aliasOf);
+    // two repositories of the same name are told apart by their owner (`acme-app#3`, `octo-app#3`)
+    const aliases = aliasesOf(repos);
     const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
-    if (dup) return no(`Two repositories are both called '${dup}'; import a configuration that names them apart instead.`);
+    if (dup) return no(`Two repositories would both be called '${dup}'; paste each repository once.`);
     d.repos = repos;
     d.tracker = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
     if (!d.id) d.id = this.host.freeId(aliasOf(repos[0]));

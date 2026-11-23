@@ -9,6 +9,7 @@ import { validate } from "../src/config/schema";
 import { ACTIONS } from "../src/core/actions";
 import { type Extension, extend } from "../src/core/extend";
 import { GUARDS } from "../src/core/guards";
+import { aliasesOf } from "../src/wizard/wizard";
 import { FLOW } from "../src/config/presets";
 import security from "./fixtures/security-review.json";
 
@@ -85,5 +86,11 @@ describe("flow extensions", () => {
     expect(validate({ ...doc(["builtin:samples"]), roles: [...doc([]).roles, { instance: "sampler", role: "sampler", secret: "T_S" }] })).toEqual([]);
     // the base chart knows no sampler at all
     expect(JSON.stringify(FLOW)).not.toMatch(/sampl/);
+  });
+});
+
+describe("the wizard's repository aliases", () => {
+  it("two repositories of the same name are told apart by their owner instead of refused", () => {
+    expect(aliasesOf(["acme/app", "octo/app", "acme/lib"])).toEqual(["acme-app", "octo-app", "lib"]);
   });
 });
