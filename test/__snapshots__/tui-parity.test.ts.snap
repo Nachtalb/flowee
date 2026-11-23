@@ -846,7 +846,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 1 of 3                                               ┃
+┃ 🆕 New workspace · Step 1 of 5                                               ┃
 ┃ Which repository is this workspace for?                                      ┃
 ┃ Paste the repository's link from GitHub or GitLab, for example               ┃
 ┃ https://github.com/octo/app. Several: one per line.                          ┃
@@ -873,7 +873,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 3                                               ┃
+┃ 🆕 New workspace · Step 2 of 5                                               ┃
 ┃ How should the agents bring in their code?                                   ┃
 ┃ Choose one. Versioning and the other options come next; each works with      ┃
 ┃ either.                                                                      ┃
@@ -900,7 +900,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 3                                               ▐
+┃ 🆕 New workspace · Step 3 of 5                                               ▐
 ┃ What else should the flow do?                                                ┃
 ┃ With Feature branches. Each switch works on its own; one that needs details  ┃
 ┃ asks for them next. You can change them later.                               ┃
@@ -927,7 +927,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 3 of 3                                               ▐
+┃ 🆕 New workspace · Step 4 of 5                                               ▐
 ┃ Send me a GitHub token for acme/app                                          ┃
 ┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the   ┃
 ┃ permissions and an expiry of 366 days filled in. Create the token and paste  ┃
@@ -954,7 +954,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Last check                                                ┃
+┃ 🆕 New workspace · Step 5 of 5 · Last check                                  ┃
 ┃ Create the workspace app?                                                    ┃
 ┃                                                                              ┃
 ┃ 📦 Repositories    acme/app on GitHub                                        ┃
@@ -1035,7 +1035,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 3                                               ▐
+┃ 🆕 New workspace · Step 3 of 5                                               ▐
 ┃ What else should the flow do?                                                ┃
 ┃ With Single branch. Each switch works on its own; one that needs details     ┃
 ┃ asks for them next. You can change them later.                               ┃
@@ -1062,7 +1062,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 3 of 3                                               ▐
+┃ 🆕 New workspace · Step 4 of 5                                               ▐
 ┃ Send me a GitHub token for acme/widget                                       ┃
 ┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the   ┃
 ┃ permissions and an expiry of 366 days filled in. Create the token and paste  ┃
@@ -1089,7 +1089,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Last check                                                ┃
+┃ 🆕 New workspace · Step 5 of 5 · Last check                                  ┃
 ┃ Create the workspace widget?                                                 ┃
 ┃                                                                              ┃
 ┃ 📦 Repositories    acme/widget on GitHub                                     ┃
@@ -2659,7 +2659,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 14 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 1 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 1 of 5                                                         ┃
 │                                                │┃ Which repository is this workspace for?                                                ┃
 │                                                │┃ Paste the repository's link from GitHub or GitLab, for example                         ┃
 │                                                │┃ https://github.com/octo/app. Several: one per line.                                    ┃
@@ -2702,7 +2702,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 15 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 5                                                         ┃
 │                                                │┃ How should the agents bring in their code?                                             ┃
 │                                                │┃ Choose one. Versioning and the other options come next; each works with either.        ┃
 │                                                │┃                                                                                        ┃
@@ -2745,7 +2745,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 16 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 5                                                         ┃
 │                                                │┃ What else should the flow do?                                                          ┃
 │                                                │┃ With Feature branches. Each switch works on its own; one that needs details asks for   ┃
 │                                                │┃ them next. You can change them later.                                                  ┃
@@ -2788,7 +2788,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 17 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 4 of 5                                                         ┃
 │                                                │┃ Send me a GitHub token for acme/app                                                    ┃
 │                                                │┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the permissions ┃
 │                                                │┃ and an expiry of 366 days filled in. Create the token and paste it here.               ┃
@@ -2831,7 +2831,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 18 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Last check                                                          ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 5 of 5 · Last check                                            ┃
 │                                                │┃ Create the workspace app?                                                              ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ 📦 Repositories    acme/app on GitHub                                                  ┃
@@ -2960,7 +2960,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 21 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 5                                                         ┃
 │                                                │┃ What else should the flow do?                                                          ┃
 │                                                │┃ With Single branch. Each switch works on its own; one that needs details asks for them ┃
 │                                                │┃ next. You can change them later.                                                       ┃
@@ -3003,7 +3003,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 22 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 3                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 4 of 5                                                         ┃
 │                                                │┃ Send me a GitHub token for acme/widget                                                 ┃
 │                                                │┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the permissions ┃
 │                                                │┃ and an expiry of 366 days filled in. Create the token and paste it here.               ┃
@@ -3046,7 +3046,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 23 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Last check                                                          ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 5 of 5 · Last check                                            ┃
 │                                                │┃ Create the workspace widget?                                                           ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ 📦 Repositories    acme/widget on GitHub                                               ┃

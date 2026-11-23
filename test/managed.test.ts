@@ -126,24 +126,24 @@ const WELCOME = [
   ROW(CB("🚀 Set up a workspace", "w:new")),
   ROW(CB("📥 Import a configuration", "m:import")),
 ].join("");
-const REPOS = (step = "Step 1 of 5", extra = "") =>
+const REPOS = (step = "Step 1 of 7", extra = "") =>
   `<p>🆕 <b>New workspace</b> · ${step}</p><p><b>Which repository is this workspace for?</b></p><p>Paste the repository's link from GitHub or GitLab, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>${extra}`;
 const BOT = [
-  "<p>🆕 <b>New workspace</b> · Step 2 of 5</p>",
+  "<p>🆕 <b>New workspace</b> · Step 2 of 7</p>",
   "<p><b>Which bot should bring you the tickets?</b></p>",
   TABLE(
-    OPT("💬 This bot (@FloweeTestBot)", "I bring them myself, next to your other workspaces.", CB("💬 Choose", "w:bot:shared")),
-    OPT("🤖 A new bot", "Its own name and picture; you create it with two taps, I set it up.", CB("🤖 Choose", "w:bot:own")),
+    OPT("💬 This bot (@FloweeTestBot)", "I bring them myself, next to your other workspaces.", CB("💬 Choose", "w:next:shared")),
+    OPT("🤖 A new bot", "Its own name and picture; you create it with two taps, I set it up.", CB("🤖 Choose", "w:next:own")),
   ),
   NAV,
 ].join("");
 const FLOW = [
-  "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
+  "<p>🆕 <b>New workspace</b> · Step 3 of 7</p>",
   "<p><b>How should the agents bring in their code?</b></p>",
   "<p>Choose one. Versioning and the other options come next; each works with either.</p>",
   TABLE(
-    OPT("🌿 Single branch", "The agents commit straight to the main branch; the tester tests the main branch.", CB("🌿 Choose", "w:branch:single")),
-    OPT("🔀 Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it.", CB("🔀 Choose", "w:branch:feature")),
+    OPT("🌿 Single branch", "The agents commit straight to the main branch; the tester tests the main branch.", CB("🌿 Choose", "w:next:single")),
+    OPT("🔀 Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it.", CB("🔀 Choose", "w:next:feature")),
   ),
   NAV,
 ].join("");
@@ -165,32 +165,32 @@ const TOGGLE = (f: string, on: Record<string, boolean>, lines: Record<string, st
   OPT(
     `${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`,
     `${(!on[f] && OPTION_TEXT[f][2]) || OPTION_TEXT[f][1]}${on[f] && ASKS.has(f) ? ` ${lines[f] ?? LINES[f]}` : ""}`,
-    CB(on[f] ? "Switch off" : "⚙️ Configure", `w:feat:${f}`),
-    ...(on[f] && ASKS.has(f) ? [CB("⚙️ Change", `w:in:open:${f}`)] : []),
+    CB(on[f] ? "Switch off" : "⚙️ Configure", `w:${on[f] ? "switch" : "configure"}:${f}`),
+    ...(on[f] && ASKS.has(f) ? [CB("⚙️ Change", `w:configure:${f}`)] : []),
   );
 /** The second screen of the flow step: versioning, then the more options, each a toggle row. */
 const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "", lines: Record<string, string> = {}) =>
   [
-    "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
+    "<p>🆕 <b>New workspace</b> · Step 4 of 7</p>",
     "<p><b>What else should the flow do?</b></p>",
     `<p>With <b>${branching}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.</p>`,
     note,
-    branching === "Feature branches" ? TABLE(OPT("⚙️ Feature branches", lines.pullRequests ?? LINES.pullRequests, CB("⚙️ Change", "w:in:open:pullRequests"))) : "",
+    branching === "Feature branches" ? TABLE(OPT("⚙️ Feature branches", lines.pullRequests ?? LINES.pullRequests, CB("⚙️ Change", "w:configure:pullRequests"))) : "",
     TABLE(TOGGLE("releases", on, lines)),
     "<p><b>More options</b></p>",
     TABLE(...["uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
-    TABLE(OPT("🧩 Custom steps", `Add your own states and rules with an extension file${lines.ext ? `: ${lines.ext}` : ""}.`, CB(lines.ext ? "🧩 Change" : "🧩 Add", "w:ext:open"))),
-    NEXT("w:flow:done"),
+    TABLE(OPT("🧩 Custom steps", `Add your own states and rules with an extension file${lines.ext ? `: ${lines.ext}` : ""}.`, CB(lines.ext ? "🧩 Change" : "🧩 Add", "w:extensions"))),
+    NEXT("w:next"),
   ].join("");
 const WHERE_HERE = [
-  "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
+  "<p>🆕 <b>New workspace</b> · Step 5 of 7</p>",
   "<p><b>Where should the tickets appear?</b></p>",
-  TABLE(OPT("💬 Here", "In this chat with me.", CB("💬 Choose", "w:bind:here")), OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:bind:group"))),
+  TABLE(OPT("💬 Here", "In this chat with me.", CB("💬 Choose", "w:next:here")), OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:next:group"))),
   NAV,
 ].join("");
-const WHERE_GROUP = (bot: string, id: string) =>
+const WHERE_GROUP = (bot: string, id: string, step = "Step 6 of 8") =>
   [
-    "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
+    `<p>🆕 <b>New workspace</b> · ${step}</p>`,
     "<p><b>Add the bot to a group</b></p>",
     TABLE(
       OPT("👥 A whole group", `Pick one: Telegram adds @${bot} there, and the group is set.`, URL_("👥 Choose a group", `https://t.me/${bot}?startgroup=${id}`)),
@@ -200,7 +200,7 @@ const WHERE_GROUP = (bot: string, id: string) =>
   ].join("");
 const TOKEN_URL = (id: string, repo: string) =>
   `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&expires_in=366&issues=write&contents=read&repository_hooks=write`;
-const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 5", lead = "") =>
+const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 6 of 7", lead = "") =>
   [
     `<p>🆕 <b>New workspace</b> · ${step}</p>`,
     lead,
@@ -224,12 +224,11 @@ function edited(id: number, html: string, chat = "100") {
 async function sharedSetup(user = 100, repo = "acme/app") {
   await dm(user, "/setup");
   await dm(user, repo);
-  await tap(user, "w:bot:shared");
-  await tap(user, "w:branch:single");
-  await tap(user, "w:flow:done");
-  await tap(user, "w:bind:here");
+  await tap(user, "w:next:shared");
+  await tap(user, "w:next:single");
+  await tap(user, "w:next");
+  await tap(user, "w:next:here");
   await dm(user, TOKEN);
-  await tap(user, "w:roles:done");
   await tap(user, "w:confirm");
   return handed();
 }
@@ -266,21 +265,22 @@ describe("the setup wizard: one living message", () => {
     expect(tg.calls.at(-1)).toMatchObject({ method: "answerCallbackQuery", params: { callback_query_id: `q${uid}` } });
     await dm(100, "acme");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
-    edited(id, REPOS("Step 1 of 5", "<p>⚠️ &#39;acme&#39; is not a repository link of GitHub or GitLab; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
+    edited(id, REPOS("Step 1 of 7", "<p>⚠️ &#39;acme&#39; is not a repository link of GitHub or GitLab; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
     await dm(100, "https://github.com/acme/app/");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     edited(id, BOT);
-    await tap(100, "w:bot:shared");
+    await tap(100, "w:next:shared");
     edited(id, FLOW);
-    await tap(100, "w:branch:single");
+    await tap(100, "w:next:single");
     edited(id, OPTIONS("Single branch"));
-    await tap(100, "w:flow:done");
+    await tap(100, "w:next");
     edited(id, WHERE_HERE);
-    await tap(100, "w:bind:group");
+    await tap(100, "w:next:group");
     edited(id, WHERE_GROUP("FloweeTestBot", "app"));
+    // back on the screen before: the group is marked, and still counted until another choice
     await tap(100, "w:back");
-    edited(id, WHERE_HERE);
-    await tap(100, "w:bind:here");
+    edited(id, WHERE_HERE.replace("Step 5 of 7", "Step 5 of 8").replace(CB("👥 Choose", "w:next:group"), CB("● Chosen", "w:next:group")));
+    await tap(100, "w:next:here");
     edited(id, CREDENTIAL("app", "acme/app"));
     await dm(100, "too short");
     edited(id, CREDENTIAL("app", "acme/app", "<p>⚠️ That does not look like a GitHub token; paste just the token.</p>"));
@@ -290,7 +290,7 @@ describe("the setup wizard: one living message", () => {
     edited(
       id,
       [
-        "<p>🆕 <b>New workspace</b> · Last check</p>",
+        "<p>🆕 <b>New workspace</b> · Step 7 of 7 · Last check</p>",
         "<p><b>Create the workspace <code>app</code>?</b></p>",
         TABLE(
           FACT("📦 Repositories", "<code>acme/app</code> on GitHub"),
@@ -366,11 +366,11 @@ describe("the setup wizard: one living message", () => {
     await dm(200, "/setup");
     const id = living(200)?.id as number;
     await dm(200, "https://github.com/acme/widget/issues/3,\n<git@github.com:acme/lib.git>");
-    await tap(200, "w:bot:own");
+    await tap(200, "w:next:own");
     edited(
       id,
       [
-        "<p>🆕 <b>New workspace</b> · Step 2 of 5</p>",
+        "<p>🆕 <b>New workspace</b> · Step 3 of 8</p>",
         "<p><b>Create the new bot</b></p>",
         "<p>Tap <b>🤖 Create the bot</b> on the keyboard below. Telegram suggests the name <b>Widget envoy</b> and the username <code>@widget_envoy_bot</code>; keep them or change them, then confirm.</p>",
         NAV,
@@ -408,23 +408,23 @@ describe("the setup wizard: one living message", () => {
     await post("/telegram", msg(200, undefined, undefined, { managed_bot_created: { bot: { id: 777 } } }));
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "200", message_id: uid });
     expect(tg.shown("200").map((m) => m.id)).toEqual([id]);
-    await tap(200, "w:branch:single");
-    await tap(200, "w:flow:done");
+    await tap(200, "w:next:single");
+    await tap(200, "w:next");
     edited(
       id,
       [
-        "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
+        "<p>🆕 <b>New workspace</b> · Step 6 of 8</p>",
         "<p><b>Where should the tickets appear?</b></p>",
         TABLE(
-          OPT("💬 In my private chat with @WidgetEnvoyBot", "Open it and press <b>Start</b> once, so it may write to you.", URL_("↗ Open", "https://t.me/WidgetEnvoyBot"), CB("💬 Choose", "w:bind:here")),
-          OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:bind:group")),
+          OPT("💬 In my private chat with @WidgetEnvoyBot", "Open it and press <b>Start</b> once, so it may write to you.", URL_("↗ Open", "https://t.me/WidgetEnvoyBot"), CB("💬 Choose", "w:next:here")),
+          OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:next:group")),
         ),
         NAV,
       ].join(""),
       "200",
     );
-    await tap(200, "w:bind:group");
-    edited(id, WHERE_GROUP("WidgetEnvoyBot", "widget"), "200");
+    await tap(200, "w:next:group");
+    edited(id, WHERE_GROUP("WidgetEnvoyBot", "widget", "Step 7 of 9"), "200");
     const topic = (text: string, from = 200, thread = 9) =>
       msg(from, text, { id: -100500, type: "supergroup", is_forum: true, title: "Team" }, { message_thread_id: thread, is_topic_message: true });
     expect((await post("/telegram/w/widget", topic("/bind widget"), "wrong")).status).toBe(403);
@@ -493,69 +493,69 @@ describe("the setup wizard: one living message", () => {
   it("branching, versioning and more options: one choice, then toggles in the same message; their token permissions in the form's link", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:feature");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:feature");
     expect(screen()).toBe(OPTIONS("Feature branches"));
     // an option that needs details asks for them in the same message; ✅ Apply with the defaults switches it on
-    await tap(100, "w:feat:releases");
+    await tap(100, "w:configure:releases");
     const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.</p>";
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
+        "<p>🆕 <b>New workspace</b> · Versioning</p>",
         "<p><b>How should versioning work?</b></p>",
         HINT,
         TABLE(
-          OPT("Release source", "What counts as published: the latest release, or the commit a tag points at.", CB("● Latest release", "w:in:set:source:release"), CB("A tag", "w:in:set:source:tag")),
-          OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:in:set:testedTag:tested"), CB("✏️ Type", "w:in:type:testedTag")),
-          OPT("✅ Hold test cards", "Test cards wait until a published version has the ticket&#39;s code.".replace("&#39;", "'"), CB("Switch off", "w:in:flag:hold")),
+          OPT("Release source", "What counts as published: the latest release, or the commit a tag points at.", CB("● Latest release", "w:set:source:release"), CB("A tag", "w:set:source:tag")),
+          OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:set:testedTag:tested"), CB("✏️ Type", "w:type:testedTag")),
+          OPT("✅ Hold test cards", "Test cards wait until a published version has the ticket&#39;s code.".replace("&#39;", "'"), CB("Switch off", "w:flag:hold")),
         ),
-        ROW(CB("◀ Back", "w:in:back"), CB("✅ Apply", "w:in:done"), CB("✖ Cancel", "w:cancel")),
+        ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
     );
     // a tag as the source asks for that tag, which is required
-    await tap(100, "w:in:set:source:tag");
-    expect(screen()).toContain(OPT("Release tag", "The tag that marks the published build. Now: none.", CB("stable", "w:in:set:tag:stable"), CB("latest", "w:in:set:tag:latest"), CB("✏️ Type", "w:in:type:tag")));
-    await tap(100, "w:in:done");
+    await tap(100, "w:set:source:tag");
+    expect(screen()).toContain(OPT("Release tag", "The tag that marks the published build. Now: none.", CB("stable", "w:set:tag:stable"), CB("latest", "w:set:tag:latest"), CB("✏️ Type", "w:type:tag")));
+    await tap(100, "w:apply");
     expect(screen()).toContain("<p>⚠️ Release tag: pick one or type your own.</p>");
-    await tap(100, "w:in:set:source:release");
-    await tap(100, "w:in:done");
+    await tap(100, "w:set:source:release");
+    await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true }));
     // UI review: suggested paths as rows, typed ones, a sent file; on only once it has one
-    await tap(100, "w:feat:uiReview");
-    await tap(100, "w:in:done");
+    await tap(100, "w:configure:uiReview");
+    await tap(100, "w:apply");
     expect(screen()).toContain("<p>⚠️ UI paths: pick at least one, type your own or send a file.</p>");
-    expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "suggested", CB("Add", "w:in:tog:paths:0")));
-    await tap(100, "w:in:tog:paths:0");
-    await tap(100, "w:in:type:paths");
+    expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "suggested", CB("Add", "w:tog:paths:0")));
+    await tap(100, "w:tog:paths:0");
+    await tap(100, "w:type:paths");
     expect(screen()).toContain("<p>Type ui paths as your next message, one per line.</p>");
     await dm(100, "app/ui/**\n- web/views/**");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     files["paths-0"] = JSON.stringify({ paths: ["src/components/**", "app/ui/**", "web/views/**", "**/*.css"] });
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "paths-0", file_name: "ui.json", file_size: 10 } }));
-    expect(screen()).toContain(OPT("UI paths", "A change under one of these comes to you before it closes. Now: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>.", CB("✏️ Type", "w:in:type:paths"), CB("✖ Clear", "w:in:clear:paths")));
-    await tap(100, "w:in:done");
+    expect(screen()).toContain(OPT("UI paths", "A change under one of these comes to you before it closes. Now: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>.", CB("✏️ Type", "w:type:paths"), CB("✖ Clear", "w:clear:paths")));
+    await tap(100, "w:apply");
     const UI = "UI paths: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>";
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true, uiReview: true }, "", { uiReview: UI }));
     // switched off and on again, the values are kept
-    await tap(100, "w:feat:uiReview");
-    await tap(100, "w:feat:uiReview");
-    await tap(100, "w:in:done");
+    await tap(100, "w:switch:uiReview");
+    await tap(100, "w:configure:uiReview");
+    await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true, uiReview: true }, "", { uiReview: UI }));
     // feature branches: their settings from the row above the options
-    await tap(100, "w:in:open:pullRequests");
-    await tap(100, "w:in:set:method:squash");
-    await tap(100, "w:in:done");
-    expect(screen()).toContain(OPT("⚙️ Feature branches", "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Squash; Who merges: On the pass", CB("⚙️ Change", "w:in:open:pullRequests")));
-    await tap(100, "w:feat:uiReview");
+    await tap(100, "w:configure:pullRequests");
+    await tap(100, "w:set:method:squash");
+    await tap(100, "w:apply");
+    expect(screen()).toContain(OPT("⚙️ Feature branches", "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Squash; Who merges: On the pass", CB("⚙️ Change", "w:configure:pullRequests")));
+    await tap(100, "w:switch:uiReview");
     // back to the branching: the choice is marked, versioning stays on with the other branching
     await tap(100, "w:back");
-    expect(screen()).toBe(FLOW.replace(CB("🔀 Choose", "w:branch:feature"), CB("● Chosen", "w:branch:feature")));
-    await tap(100, "w:branch:single");
+    expect(screen()).toBe(FLOW.replace(CB("🔀 Choose", "w:next:feature"), CB("● Chosen", "w:next:feature")));
+    await tap(100, "w:next:single");
     expect(screen()).toBe(OPTIONS("Single branch", { releases: true }));
     await tap(100, "w:back");
-    await tap(100, "w:branch:feature");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next:feature");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     expect(screen()).toContain(
       TABLE(
         FACT("Issues: read and write"),
@@ -580,18 +580,18 @@ describe("the setup wizard: one living message", () => {
   it("user feedback asks for its label; switched off it still writes the label, waiting for a human", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:feat:userFeedback");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:single");
+    await tap(100, "w:configure:userFeedback");
     expect(screen()).toContain("<p><b>Which label marks user feedback?</b></p>");
-    expect(screen()).toContain(OPT("Feedback label", "Tickets carrying this label hold a user&#39;s text. Now: <code>feedback</code>.".replace("&#39;", "'"), CB("user-report", "w:in:set:label:user-report"), CB("✏️ Type", "w:in:type:label")));
-    await tap(100, "w:in:type:label");
+    expect(screen()).toContain(OPT("Feedback label", "Tickets carrying this label hold a user&#39;s text. Now: <code>feedback</code>.".replace("&#39;", "'"), CB("user-report", "w:set:label:user-report"), CB("✏️ Type", "w:type:label")));
+    await tap(100, "w:type:label");
     await dm(100, "from users");
-    await tap(100, "w:in:done");
+    await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Single branch", { userFeedback: true }, "", { userFeedback: "Feedback label: <code>from users</code>" }));
-    await tap(100, "w:feat:userFeedback");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:switch:userFeedback");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     await dm(100, TOKEN);
     await tap(100, "w:confirm");
     expect((await admin("GET", "/admin/workspaces/app")).body.workspace.features).toEqual({ userFeedback: { label: "from users", autoTriage: false } });
@@ -600,16 +600,16 @@ describe("the setup wizard: one living message", () => {
   it("custom steps: an extension file sent in the wizard is validated, listed by name, its role offered; the menu shows and removes it", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:ext:open");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:single");
+    await tap(100, "w:extensions");
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
+        "<p>🆕 <b>New workspace</b> · Custom steps</p>",
         "<p><b>Custom steps</b></p>",
         "<p>An extension adds your own states, roles and rules to the flow, written as a small chart file (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send its <code>.json</code> file here; an agent can write one from the base chart at <code>https://flowee.test/flows/flow.json</code>.</p>",
         "<p>None added yet.</p>",
-        ROW(CB("◀ Back", "w:ext:back"), CB("✖ Cancel", "w:cancel")),
+        ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
     );
     files["ext-bad"] = JSON.stringify({ name: "broken", states: { ready: { meta: { label: "x" } } }, on: { ready: { poke: { target: "nowhere" } } } });
@@ -619,11 +619,11 @@ describe("the setup wizard: one living message", () => {
     files["ext-ok"] = JSON.stringify(security);
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "ext-ok", file_name: "security-review.json", file_size: 10 } }));
     expect(screen()).toContain("<p>⚠️ 🧩 security-review is added; agents of its roles can be created with the project key.</p>");
-    expect(screen()).toContain(OPT("🧩 security-review", "A security reviewer looks at a ticket the board sends before it closes.", CB("✖ Remove", "w:ext:rm:0")));
-    await tap(100, "w:ext:back");
+    expect(screen()).toContain(OPT("🧩 security-review", "A security reviewer looks at a ticket the board sends before it closes.", CB("✖ Remove", "w:remove:0")));
+    await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Single branch", {}, "", { ext: "<code>security-review</code>" }));
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     await dm(100, TOKEN);
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
@@ -636,9 +636,9 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "m:ws:app");
     expect(screen()).toContain(FACT("🧩 Custom steps", "<code>security-review</code>", CB("✏️ Change", "m:edit:app:ext")));
     await tap(100, "m:edit:app:ext");
-    await tap(100, "w:ext:rm:0");
-    await tap(100, "w:ext:back");
-    await tap(100, "w:flow:done");
+    await tap(100, "w:remove:0");
+    await tap(100, "w:apply");
+    await tap(100, "w:next");
     await tap(100, "w:confirm");
     const after = (await admin("GET", "/admin/workspaces/app")).body.workspace;
     expect(after.extensions).toBeUndefined();
@@ -664,8 +664,8 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "m:ws:pics");
     expect(screen()).toContain(FACT("👥 Agents", "board, sampler, owner", CB("👥 Agents", "m:ag:pics")));
     await tap(100, "m:edit:pics:flow");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:flow:done");
+    await tap(100, "w:next:single");
+    await tap(100, "w:next");
     await tap(100, "w:confirm");
     const after = (await admin("GET", "/admin/workspaces/pics")).body.workspace;
     expect(after.extensions).toEqual(["builtin:samples"]);
@@ -681,27 +681,27 @@ describe("the setup wizard: one living message", () => {
     }) as typeof fetch;
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:single");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     await dm(100, TOKEN);
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 5 of 5</p>",
+        "<p>🆕 <b>New workspace</b> · Step 7 of 8</p>",
         "<p><b>This token reaches more than it needs</b></p>",
         "<p>Besides <code>acme/app</code> it can also reach <code>acme/secret</code>, <code>acme/other</code>; a narrower token limits what a leak could do.</p>",
         TABLE(
-          OPT("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", CB("✅ Use it", "w:wide:keep")),
-          OPT("🔑 Make a narrower one", "A token for <code>acme/app</code> only: paste it here when you have it.", CB("🔑 Narrower", "w:wide:new")),
+          OPT("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", CB("✅ Use it", "w:next")),
+          OPT("🔑 Make a narrower one", "A token for <code>acme/app</code> only: paste it here when you have it.", CB("🔑 Narrower", "w:narrower")),
         ),
         NAV,
       ].join(""),
     );
-    await tap(100, "w:wide:new");
+    await tap(100, "w:narrower");
     expect(screen()).toBe(CREDENTIAL("app", "acme/app"));
     await dm(100, TOKEN);
-    await tap(100, "w:wide:keep");
+    await tap(100, "w:next");
     expect(screen()).toContain("<p><b>Create the workspace <code>app</code>?</b></p>");
     globalThis.fetch = fake;
   });
@@ -712,16 +712,16 @@ describe("the setup wizard: one living message", () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
     at("bot");
-    await tap(100, "w:bot:shared");
+    await tap(100, "w:next:shared");
     at("branching");
-    await tap(100, "w:branch:single");
+    await tap(100, "w:next:single");
     at("options");
-    await tap(100, "w:flow:done");
+    await tap(100, "w:next");
     at("where");
-    await tap(100, "w:bind:group");
+    await tap(100, "w:next:group");
     at("group");
     await tap(100, "w:back");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next:here");
     const rows = { bot: 2, branching: 2, options: 5, where: 2, group: 2 };
     for (const [name, n] of Object.entries(rows)) {
       const options = (seen[name].match(/<tr><td><b>.*?<\/tr>/g) ?? []).filter((tr) => tr.includes("</b> · "));
@@ -738,11 +738,11 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toContain("<p><b>Which bot should bring you the tickets?</b></p>");
     await tap(100, "w:back");
     expect(screen()).toContain("<p>Now: <code>acme/backend/api</code> on GitLab</p>");
-    await tap(100, "w:repos:keep");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:feature");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:feature");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     expect(screen()).toContain("<p><b>Send me a GitLab token for <code>acme/backend/api</code></b></p>");
     expect(screen()).toContain("<p>Tap <b>🔑 Create a token</b>: GitLab opens the project&#39;s access token page. Create the token and paste it here.</p>".replace("&#39;", "'"));
     expect(screen()).toContain(TABLE(FACT("👉 GitLab cannot fill in a project token from a link: name it Flowee api, choose the role Developer, the scope api and an expiry date 365 days ahead.")));
@@ -774,14 +774,14 @@ describe("the setup wizard: one living message", () => {
   it("leaving the bot step by Back or Cancel takes the reply keyboard away", async () => {
     await dm(200, "/setup");
     await dm(200, "acme/widget");
-    await tap(200, "w:bot:own");
+    await tap(200, "w:next:own");
     const helper = tg.sent("sendRichMessage").at(-1);
     expect(helper?.reply_markup?.keyboard).toBeDefined();
     await tap(200, "w:back");
     expect(tg.sent("sendRichMessage").at(-1)?.reply_markup).toEqual({ remove_keyboard: true });
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "200", message_id: helper?.id });
-    expect(screen(200)).toBe(BOT.replace(CB("🤖 Choose", "w:bot:own"), CB("● Chosen", "w:bot:own")));
-    await tap(200, "w:bot:own");
+    expect(screen(200)).toBe(BOT.replace("Step 2 of 7", "Step 2 of 8").replace(CB("🤖 Choose", "w:next:own"), CB("● Chosen", "w:next:own")));
+    await tap(200, "w:next:own");
     const again = tg.sent("sendRichMessage").at(-1);
     await tap(200, "w:cancel");
     expect(tg.sent("sendRichMessage").at(-1)?.reply_markup).toEqual({ remove_keyboard: true });
@@ -801,7 +801,7 @@ describe("the setup wizard: one living message", () => {
     expect(fresh).toMatchObject({ chat_id: "100", rich_message: { html: BOT } });
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: old });
     tg.refuse = {};
-    await tap(100, "w:bot:shared");
+    await tap(100, "w:next:shared");
     edited(fresh?.id as number, FLOW);
   });
 
@@ -817,7 +817,7 @@ describe("the setup wizard: one living message", () => {
   it("a Telegram refusal in the wizard shows in the living message as one sentence", async () => {
     await dm(200, "/setup");
     await dm(200, "acme/widget");
-    await tap(200, "w:bot:own");
+    await tap(200, "w:next:own");
     tg.refuse.getManagedBotToken = "Bad Request: bot not found";
     await post("/telegram", { update_id: ++uid, managed_bot: { user: { id: 200 }, bot: { id: 777, is_bot: true, first_name: "Widget", username: "WidgetEnvoyBot" } } });
     expect(screen(200)).toBe(
@@ -832,24 +832,24 @@ describe("the setup wizard: one living message", () => {
   it("a token message the bot cannot delete: the screen asks the user to delete it", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:here");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:single");
+    await tap(100, "w:next");
+    await tap(100, "w:next:here");
     tg.refuse = { deleteMessage: "Bad Request: message can't be deleted" };
     await dm(100, TOKEN);
-    expect(screen()).toContain("<p>🆕 <b>New workspace</b> · Last check</p>");
+    expect(screen()).toContain("<p>🆕 <b>New workspace</b> · Step 7 of 7 · Last check</p>");
     expect(screen()).toContain("</table><p>⚠️ I could not delete your message (Telegram refused deleteMessage: Bad Request: message can&#39;t be deleted.); please delete it yourself.</p>".replace("&#39;", "'"));
   });
 
   it("a refused profile of the own bot: the workspace is made, the user told, the secrets handed over", async () => {
     await dm(200, "/setup");
     await dm(200, "acme/web");
-    await tap(200, "w:bot:own");
+    await tap(200, "w:next:own");
     await post("/telegram", { update_id: ++uid, managed_bot: { user: { id: 200 }, bot: { id: 777, is_bot: true, first_name: "Widget", username: "WidgetEnvoyBot" } } });
-    await tap(200, "w:branch:single");
-    await tap(200, "w:flow:done");
-    await tap(200, "w:bind:here");
+    await tap(200, "w:next:single");
+    await tap(200, "w:next");
+    await tap(200, "w:next:here");
     await dm(200, TOKEN);
     tg.refuse = { setMySettings: "Bad Request: not enough rights" };
     await tap(200, "w:confirm");
@@ -875,14 +875,14 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(BOT);
     await tap(100, "w:back");
     expect(screen()).toBe(
-      REPOS("Step 1 of 5", "<p>Now: <code>acme/app</code> on GitHub</p>") + ROW(CB("✅ Keep acme/app", "w:repos:keep")) + CANCEL,
+      REPOS("Step 1 of 7", "<p>Now: <code>acme/app</code> on GitHub</p>") + ROW(CB("✅ Keep acme/app", "w:next")) + CANCEL,
     );
-    await tap(100, "w:repos:keep");
+    await tap(100, "w:next");
     expect(screen()).toBe(BOT);
     await tap(100, "w:cancel");
     expect(screen()).toBe(["<p>✖ <b>Setup cancelled</b></p>", "<p>Nothing was created.</p>", ROW(CB("🚀 Start again", "w:new"), CB("📂 My workspaces", "m:list"))].join(""));
     // an old button of the finished setup
-    await tap(100, "w:bot:shared");
+    await tap(100, "w:next:shared");
     expect(screen()).toBe(["<p>⌛ <b>This setup is over</b></p>", "<p>It was finished or cancelled.</p>", ROW(CB("🚀 Set up a workspace", "w:new"))].join(""));
     await tap(100, "w:new");
     await dm(100, "acme/app");
@@ -903,7 +903,7 @@ describe("the setup wizard: one living message", () => {
       s.ts -= 25 * 3600e3;
       o.host.store.exec("UPDATE sessions SET data = ? WHERE user = '100'", JSON.stringify(s));
     });
-    await tap(100, "w:bot:shared");
+    await tap(100, "w:next:shared");
     expect(screen()).toBe(["<p>⌛ <b>This setup expired</b></p>", "<p>A day passed without an answer, so nothing was created.</p>", ROW(CB("🚀 Start again", "w:new"))].join(""));
     expect((await admin("GET", "/admin/workspaces")).body.workspaces).toEqual([]);
     expect(tg.shown("100").length).toBe(1);
@@ -922,6 +922,87 @@ describe("the setup wizard: one living message", () => {
     );
     await dm(200, "/workspaces");
     expect(screen(200)).toBe(["<p>📂 <b>Your workspaces</b></p>", "<p>You have none yet.</p>", ROW(CB("🚀 Set up a workspace", "w:new"), CB("📥 Import", "m:import"))].join(""));
+  });
+});
+
+describe("the setup wizard's navigation: Back is the screen shown before, Keep goes on, the counter counts screens", () => {
+  /** The buttons of the living screen: label and data. */
+  const buttons = (chat = 100) => [...(screen(chat) ?? "").matchAll(/<tg-button type="callback_data"[^>]* data="([^"]+)">([^<]*)<\/tg-button>/g)].map((m) => ({ data: m[1], label: m[2] }));
+  /** Presses the first button whose label matches. */
+  const press = async (label: RegExp, chat = 100) => {
+    const b = buttons(chat).find((x) => label.test(x.label));
+    expect(b, `no button ${label} on ${screen(chat)}`).toBeDefined();
+    await tap(chat, b?.data as string);
+  };
+  const step = (chat = 100) => /Step (\d+) of (\d+)/.exec(screen(chat))?.slice(1).map(Number) ?? [];
+  /** Forward through the private-chat path, this bot, single branch; the screens in order. */
+  async function forward(): Promise<string[]> {
+    const seen = [screen()];
+    await dm(100, "acme/app");
+    seen.push(screen());
+    await press(/^💬 Choose$/);
+    seen.push(screen());
+    await press(/^🌿 Choose$/);
+    seen.push(screen());
+    await press(/^▶ Next$/);
+    seen.push(screen());
+    return seen;
+  }
+
+  it("(a) Back from the screen after the options shows the options again, Next from there the same screen as before", async () => {
+    await dm(100, "/setup");
+    const [, , , options, where] = await forward();
+    expect(where).toContain("Where should the tickets appear?");
+    await press(/^◀ Back$/);
+    expect(screen()).toBe(options);
+    await press(/^▶ Next$/);
+    expect(screen()).toBe(where);
+  });
+
+  it("(b) Back to the first screen, then Keep: the second screen, and every screen after it forward in order", async () => {
+    await dm(100, "/setup");
+    const seen = await forward();
+    await press(/^💬 Choose$/);
+    const token = screen();
+    expect(token).toContain("Send me a GitHub token");
+    for (let i = 0; i < 10 && buttons().some((b) => b.label === "◀ Back"); i++) await press(/^◀ Back$/);
+    expect(screen()).toContain("Which repository is this workspace for?");
+    await press(/Keep/);
+    expect(screen()).toContain("Which bot should bring you the tickets?");
+    await press(/Chosen/);
+    expect(screen()).toContain("How should the agents bring in their code?");
+    await press(/Chosen/);
+    expect(screen()).toContain("What else should the flow do?");
+    await press(/^▶ Next$/);
+    expect(screen()).toBe(seen[4].replace(">💬 Choose<", ">● Chosen<"));
+    await press(/Chosen/);
+    expect(step()).toEqual(/Step (\d+) of (\d+)/.exec(token)?.slice(1).map(Number));
+  });
+
+  it("(c) Step n of N: one number per screen, up by one forward, down by one back, N the screens of the path", async () => {
+    await dm(100, "/setup");
+    const seen = await forward();
+    await press(/^💬 Choose$/);
+    seen.push(screen());
+    await dm(100, TOKEN);
+    seen.push(screen());
+    const steps = seen.map((h) => /Step (\d+) of (\d+)/.exec(h)?.slice(1).map(Number));
+    expect(steps).toEqual(seen.map((_, i) => [i + 1, seen.length]));
+    for (let k = seen.length - 1; k >= 1; k--) {
+      await press(/^◀ Back$/);
+      expect(step()).toEqual([k, seen.length]);
+    }
+    // a new bot adds the screen that creates it, a group the group's screen: N says so at once
+    await press(/Keep/);
+    await press(/^🤖 Choose$/);
+    expect(step()).toEqual([3, seen.length + 1]);
+    await press(/^◀ Back$/);
+    await press(/^💬 Choose$|Chosen/);
+    await press(/Chosen/);
+    await press(/^▶ Next$/);
+    expect(step()).toEqual([5, seen.length]);
+    await press(/^👥 Choose$/);
+    expect(step()).toEqual([6, seen.length + 1]);
   });
 });
 
@@ -1097,7 +1178,7 @@ describe("the management menu: one living message", () => {
     expect((await worker.fetch(new Request("https://flowee.test/hooks/nope/app", { method: "POST", body: "{}" }), menv())).status).toBe(401);
   });
 
-  it("editing one part opens that step in the living message, then asks to save", async () => {
+  it("editing one part opens that screen in the living message; done, it is saved and the workspace screen comes back", async () => {
     await sharedSetup(100);
     await dm(100, "/workspaces");
     await tap(100, "m:ws:app");
@@ -1110,25 +1191,41 @@ describe("the management menu: one living message", () => {
         "<p><b>Which repository is this workspace for?</b></p>",
         "<p>Paste the repository's link from GitHub or GitLab, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>",
         "<p>Now: <code>acme/app</code> on GitHub</p>",
-        ROW(CB("✅ Keep acme/app", "w:repos:keep")),
+        ROW(CB("✅ Keep acme/app", "w:next")),
         CANCEL,
       ].join(""),
     );
     await dm(100, "github.com/acme/app\ngithub.com/acme/lib");
-    expect(screen()).toContain("<p><b>Save the changes to <code>app</code>?</b></p>");
-    expect(screen()).toContain(ROW(CB("✅ Save the changes", "w:confirm")));
+    expect(screen()).toContain("<p>📂 <b><code>app</code></b> · ▶ running</p><p>✅ Saved.</p>");
+    expect(screen()).toContain(FACT("📦 Repositories", "<code>acme/app</code>, <code>acme/lib</code>", CB("✏️ Change", "m:edit:app:repos")));
+    expect((await admin("GET", "/admin/workspaces/app")).body.workspace.tracker.repos.map((r: string | { repo: string }) => (typeof r === "string" ? r : r.repo))).toEqual(["acme/app", "acme/lib"]);
+    // the way of working: the branching, the options, then back to the workspace; Back walks the same screens
+    await tap(100, "m:edit:app:flow");
+    expect(screen()).toContain("<p><b>How should the agents bring in their code?</b></p>");
+    expect(screen()).not.toContain("◀ Back");
+    await tap(100, "w:next:feature");
+    expect(screen()).toContain("<p><b>What else should the flow do?</b></p>");
+    await tap(100, "w:back");
+    expect(screen()).toContain(CB("● Chosen", "w:next:feature"));
+    await tap(100, "w:next:feature");
+    await tap(100, "w:next");
+    expect(screen()).toContain("<p>✅ Saved.</p>");
+    expect((await admin("GET", "/admin/workspaces/app")).body.workspace.flow).toEqual({ preset: "pr-release" });
+    // cancelled, nothing changes and the workspace screen comes back
+    await tap(100, "m:edit:app:bind");
     await tap(100, "w:cancel");
-    expect(screen()).toBe(["<p>✖ <b>Nothing changed</b></p>", "<p>The workspace stays as it was.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""));
+    expect(screen()).toContain("<p>📂 <b><code>app</code></b> · ▶ running</p><p>Nothing changed.</p>");
   });
+
 
   it("an own bot: new token through replaceManagedBotToken, access settings", async () => {
     await dm(200, "/setup");
     await dm(200, "acme/widget");
-    await tap(200, "w:bot:own");
+    await tap(200, "w:next:own");
     await post("/telegram", { update_id: ++uid, managed_bot: { user: { id: 200 }, bot: { id: 777, is_bot: true, first_name: "W", username: "WBot" } } });
-    await tap(200, "w:branch:single");
-    await tap(200, "w:flow:done");
-    await tap(200, "w:bind:here");
+    await tap(200, "w:next:single");
+    await tap(200, "w:next");
+    await tap(200, "w:next:here");
     await dm(200, TOKEN);
     await tap(200, "w:confirm");
     await tap(200, "m:ws:widget");
@@ -1156,10 +1253,10 @@ describe("groups, topics and preconfigured workspaces", () => {
   it("this bot added to a group by its link: /start <code> there binds it; the group is a team, only the creator manages", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
-    await tap(100, "w:bot:shared");
-    await tap(100, "w:branch:single");
-    await tap(100, "w:flow:done");
-    await tap(100, "w:bind:group");
+    await tap(100, "w:next:shared");
+    await tap(100, "w:next:single");
+    await tap(100, "w:next");
+    await tap(100, "w:next:group");
     // what Telegram makes the user send when the link t.me/<bot>?startgroup=app added the bot
     const group = (from: number, text: string, extra: Record<string, unknown> = {}) => post("/telegram", msg(from, text, { id: -100777, type: "supergroup", title: "Team" }, extra));
     await group(100, "/start@FloweeTestBot app");
@@ -1219,10 +1316,11 @@ describe("groups, topics and preconfigured workspaces", () => {
     // editing the flow keeps everything else; nothing new to hand over
     await tap(100, "m:edit:other:flow");
     expect(screen()).toContain("<p>✏️ <b>Change <code>other</code></b></p><p><b>How should the agents bring in their code?</b></p>");
-    expect(screen()).toContain(CB("● Chosen", "w:branch:single"));
-    await tap(100, "w:branch:single");
-    await tap(100, "w:flow:done");
-    expect(screen()).toContain("<p><b>Save the changes to <code>other</code>?</b></p>");
+    expect(screen()).toContain(CB("● Chosen", "w:next:single"));
+    await tap(100, "w:next:single");
+    expect(screen()).toContain("<p><b>What else should the flow do?</b></p>");
+    await tap(100, "w:cancel");
+    expect(screen()).toContain("<p>📂 <b><code>other</code></b> · ▶ running</p><p>Nothing changed.</p>");
   });
 });
 
@@ -1277,7 +1375,7 @@ describe("export and import", () => {
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "doc-1", file_name: "app-copy.json", file_size: 10 } }));
     // bot, repositories, flow, chat (none) and agents come from the document: only the token is asked
     expect(screen()).toBe(
-      CREDENTIAL("app-copy", "acme/lib", "", "Step 1 of 1", "<p>📥 The configuration is valid and will create <code>app-copy</code>. I ask only for what is missing, then you confirm.</p>").replace(NAV, CANCEL),
+      CREDENTIAL("app-copy", "acme/lib", "", "Step 1 of 2", "<p>📥 The configuration is valid and will create <code>app-copy</code>. I ask only for what is missing, then you confirm.</p>").replace(NAV, CANCEL),
     );
     await dm(100, TOKEN);
     expect(screen()).toContain("<p><b>Create the workspace <code>app-copy</code>?</b></p>");

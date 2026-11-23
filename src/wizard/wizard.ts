@@ -7,6 +7,8 @@ import type { TrackerKind } from "../config/trackers";
 import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
 import { TOKEN_DAYS, type TokenHelp } from "../ports/tracker";
+import { list, type Ref, refName, refParams } from "../core/chart";
+import { pathOf, pick, SETUP, type State, STATES, targetOf, transitions } from "./chart";
 import { fromFile, INPUTS, type OptionSpec, parse, problem, shown, type Values, valuesOf, written } from "./inputs";
 
 /** A workspace's tracker: its kind and, when not the default one, its API (GitHub Enterprise, a self-managed GitLab). */
@@ -22,10 +24,11 @@ export interface PastedRepo extends TrackerRef {
 
 export const TTL = 24 * 3600e3;
 
-export type Step = "repos" | "bot" | "botCreate" | "flow" | "bind" | "credential" | "summary";
-export const STEPS: Step[] = ["repos", "bot", "botCreate", "flow", "bind", "credential", "summary"];
-/** The steps counted in "Step k of n"; creating the bot belongs to the bot step. */
-const COUNTED: Step[] = ["repos", "bot", "flow", "bind", "credential"];
+/** The screen the menu's ✏️ Change opens, by the part of the workspace. */
+export const PARTS = { repos: "repos", flow: "branching", bind: "where", credential: "token", ext: "ext" } as const satisfies Record<string, State>;
+export type Part = keyof typeof PARTS;
+/** The screens of the steps a session stored before the chart was at. */
+const OLD_STEPS: Record<string, State> = { repos: "repos", bot: "bot", botCreate: "botCreate", flow: "branching", bind: "where", credential: "token", summary: "summary" };
 
 export interface Draft {
   id?: string;
@@ -50,6 +53,8 @@ export interface Draft {
   /** The values an option asked for (its follow-up screen), by option; kept when it is switched off. */
   inputs?: Record<string, Record<string, unknown>>;
   bind?: { chat: string; topic?: number; label: string };
+  /** Tickets go to a group (or one topic of it): its screen comes after where the tickets appear. */
+  inGroup?: boolean;
   bindCode?: string;
   /** The sealed tracker token, when it was given in this conversation. */
   token?: string;
@@ -65,27 +70,30 @@ export interface Draft {
 export interface Session {
   user: string;
   at: ChatRef;
-  step: Step;
-  back: Step[];
+  /** The screen shown: a state of the setup chart (setup.json). */
+  state: State;
+  /** The screens shown before it, the newest last: Back goes to the newest. */
+  history: State[];
   draft: Draft;
   ts: number;
-  /** The steps this setup asks, for "Step k of n". */
-  plan?: Step[];
-  /** A second screen of the step: the group instructions of the bind step, the options after the branching, a token wider than needed. */
-  sub?: "group" | "options" | "wide" | "input" | "ext";
-  /** Sub `ext`: the problems of the extension file just sent, one sentence each. */
+  /** Screens not asked: those an imported document answers, the bot where there are no own bots, the chat in the terminal. */
+  skip?: State[];
+  /** One part changed from the menu: saved or cancelled, the workspace's screen comes back. */
+  edit?: boolean;
+  /** What a values or custom-steps screen had when it opened, for its Back. */
+  before?: unknown;
+  /** Custom steps: the problems of the extension file just sent, one sentence each. */
   extProblems?: string[];
-  /** The repositories a pasted token reaches besides the workspace's (sub `wide`). */
+  /** The repositories a pasted token reaches besides the workspace's. */
   wide?: string[];
-  /** Sub `input`: the option whose values are asked, and the one value the next typed message is for. */
-  input?: string;
+  /** The value the next typed message is for, on a values screen. */
   typing?: string;
   /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
   helper?: number;
-  /** Edit one part: the summary follows that step. */
-  single?: boolean;
   /** Further imported workspaces, set up one after the other. */
   queue?: WorkspaceDoc[];
+  /** One sentence for the next screen: a refusal, or what was just done. */
+  note?: string;
 }
 
 export type Input =
@@ -229,7 +237,7 @@ export const failedView = (why: string, setup: boolean): View => [
 
 export function fresh(user: string, at: ChatRef, now: number): Session {
   // user feedback is a choice either way: off, a ticket with the label waits for a human first
-  return { user, at, step: "bot", back: [], draft: { repos: [], features: { userFeedback: false } }, ts: now };
+  return { user, at, state: "repos", history: [], draft: { repos: [], features: { userFeedback: false } }, ts: now };
 }
 
 /** A chat as its owner knows it, without its title. */
@@ -250,6 +258,7 @@ export function fromDoc(d: WorkspaceDoc): Draft {
     features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false && !(k === "userFeedback" && typeof v === "object" && (v as { autoTriage?: boolean }).autoTriage === false)])),
     ...(d.extensions?.length ? { extensions: structuredClone(d.extensions) } : {}),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
+    ...(d.chat?.chatId.startsWith("-") ? { inGroup: true } : {}),
   };
 }
 
@@ -333,6 +342,8 @@ export function toDoc(d: Draft, user: string, shared: { token: string; webhookSe
 
 export class Wizard {
   readonly living: Living;
+  /** Where a change made from the menu returns: the workspace's screen with one sentence (set by the menu). */
+  returnTo?: (user: string, at: ChatRef, id: string, note: string) => Promise<unknown>;
 
   constructor(
     private chat: Chat,
@@ -352,25 +363,44 @@ export class Wizard {
     return { ...d.features, pullRequests: d.branching === "feature" };
   }
 
-  /** Whether a step still needs an answer for this draft (import and edits skip the answered ones). */
-  private needed(s: Session, step: Step): boolean {
+  /** The chart's guards over the session and its draft; `value`: the pressed button's (`is`). */
+  private holds(s: Session, value?: string) {
     const d = s.draft;
-    switch (step) {
-      case "repos":
-        return !d.repos.length;
-      case "bot":
-        return !d.bot;
-      case "botCreate":
-        return d.bot === "own" && !d.botId;
-      case "flow":
-        return !d.branching;
-      case "bind":
-        return !d.bind && !d.noChat;
-      case "credential":
-        return !d.token && !d.tokenStored;
-      case "summary":
-        return true;
-    }
+    return (g: Ref): boolean => {
+      switch (refName(g)) {
+        case "editing":
+          return !!s.edit;
+        case "hasHistory":
+          return s.history.length > 0;
+        case "ownBot":
+          return d.bot === "own";
+        case "inGroup":
+          return !!d.inGroup;
+        case "tooWide":
+          return !!s.wide?.length;
+        case "is":
+          return refParams(g).value === value;
+      }
+      return false;
+    };
+  }
+
+  /** The screens a draft over a document does not ask again: those the document answers. */
+  private answered(d: Draft): State[] {
+    const skip: State[] = [];
+    if (d.repos.length) skip.push("repos");
+    if (d.bot) skip.push("bot");
+    if (d.bot === "shared" || d.botId) skip.push("botCreate");
+    if (d.branching) skip.push("branching", "options");
+    if (d.bind || d.noChat) skip.push("where", "group");
+    if (d.token || d.tokenStored) skip.push("token", "wide");
+    return skip;
+  }
+
+  /** `x`, or past it while it is skipped: where `next` leads from it for this draft. */
+  private resolve(s: Session, x: State | undefined): State | undefined {
+    for (let i = 0; x && s.skip?.includes(x) && i < STATES.length; i++) x = targetOf(pick(x, "next", this.holds(s)));
+    return x;
   }
 
   /** Starts a new setup, or offers to resume the unfinished one; `bottom`: asked by a typed command. */
@@ -386,58 +416,69 @@ export class Wizard {
     const why = this.host.refusal(user);
     if (why) return this.living.show(user, at, [heading("⚠️", "You cannot set up a workspace"), text(esc(why)), row(btn("📂 My workspaces", "m:list"))], bottom);
     const s = fresh(user, at, this.now());
-    if (!this.host.ownBots) s.draft.bot = "shared";
-    if (this.host.terminal) s.draft.noChat = true;
-    s.plan = COUNTED.filter((x) => this.needed(s, x));
-    await this.go(s, this.first(s), false, { bottom });
-  }
-
-  /** Opens the wizard over an existing or imported workspace: only the steps still missing are asked. */
-  async over(user: string, at: ChatRef, draft: Draft, only?: Step, queue?: WorkspaceDoc[], o: { lead?: Block[]; bottom?: boolean } = {}) {
-    const s: Session = { user, at, step: "summary", back: [], draft, ts: this.now(), ...(queue?.length ? { queue } : {}) };
-    if (only) {
-      s.single = true;
-      if (only === "bind") delete draft.bind;
-      if (only === "credential") delete draft.tokenStored;
-      if (only === ("ext" as Step)) {
-        s.step = "flow";
-        s.sub = "ext";
-        return this.show(s, o);
-      }
-      return this.go(s, only, false, o);
+    if (!this.host.ownBots) {
+      s.draft.bot = "shared";
+      s.skip = ["bot", "botCreate"];
     }
-    s.plan = COUNTED.filter((x) => this.needed(s, x) || (x === "bot" && this.needed(s, "botCreate")));
-    await this.go(s, this.first(s), false, o);
+    if (this.host.terminal) {
+      s.draft.noChat = true;
+      s.skip = [...(s.skip ?? []), "where", "group"];
+    }
+    await this.begin(s, { bottom });
   }
 
-  private first(s: Session): Step {
-    return STEPS.find((x) => this.needed(s, x)) as Step;
-  }
-
-  private nextStep(s: Session): Step {
-    if (s.single) return "summary";
-    const i = STEPS.indexOf(s.step);
-    return STEPS.slice(i + 1).find((x) => this.needed(s, x)) as Step;
-  }
-
-  private async go(s: Session, step: Step, push = true, o: { note?: string; lead?: Block[]; bottom?: boolean } = {}) {
-    if (push && s.step !== step) s.back.push(s.step);
-    s.step = step;
-    delete s.sub;
-    s.ts = this.now();
+  /**
+   * Opens the wizard over an existing or imported workspace: only the screens the document does not answer are
+   * asked. `only`: one part changed from the menu, which returns there when done.
+   */
+  async over(user: string, at: ChatRef, draft: Draft, only?: string, queue?: WorkspaceDoc[], o: { lead?: Block[]; bottom?: boolean } = {}) {
+    const s: Session = { user, at, state: "summary", history: [], draft, ts: this.now(), ...(queue?.length ? { queue } : {}) };
+    if (!only) {
+      s.skip = this.answered(draft);
+      return this.begin(s, o);
+    }
+    s.edit = true;
+    if (only === "bind") {
+      delete draft.bind;
+      delete draft.inGroup;
+    }
+    if (only === "credential") delete draft.tokenStored;
+    s.state = PARTS[only as Part] ?? "summary";
+    this.opened(s);
     await this.show(s, o);
   }
 
-  private async advance(s: Session, o: { note?: string } = {}) {
-    await this.go(s, this.nextStep(s), true, o);
+  private async begin(s: Session, o: { lead?: Block[]; bottom?: boolean }) {
+    s.state = this.resolve(s, SETUP.initial as State) ?? "summary";
+    await this.show(s, o);
   }
 
-  /** Shows the session's step in the living message; `note` is one sentence under the prompt. */
-  async show(s: Session, o: { note?: string; lead?: Block[]; bottom?: boolean } = {}) {
+  /** A session stored before the chart (a step, a sub-screen and a stack of steps) resumes at its screen. */
+  private migrate(s: Session): Session {
+    if (STATES.includes(s.state) && Array.isArray(s.history)) return s;
+    const o = s as Session & { step?: string; sub?: string; input?: string; single?: boolean; back?: unknown; plan?: unknown };
+    const sub: Record<string, State> = { options: "options", ext: "ext", group: "group", wide: "wide" };
+    const state = (o.sub === "input" ? `${o.input}Values` : (sub[o.sub ?? ""] ?? OLD_STEPS[o.step ?? ""] ?? "summary")) as State;
+    s.state = STATES.includes(state) ? state : "summary";
+    if (o.single) s.edit = true;
+    for (const k of ["step", "sub", "input", "single", "back", "plan"] as const) delete o[k];
+    // the screens before it are those the chart leads through to it for this draft
+    const to = SETUP.states[s.state].meta?.step ? s.state : "options";
+    const before: State[] = [];
+    for (let x = this.resolve(s, SETUP.initial as State); x && x !== to && before.length < STATES.length; x = this.resolve(s, targetOf(pick(x, "next", this.holds(s))))) before.push(x);
+    s.history = s.edit ? [] : [...(before.length < STATES.length ? before : []), ...(to !== s.state ? [to] : [])];
+    return s;
+  }
+
+  /** Shows the session's screen in the living message; `s.note` is one sentence under it, shown once. */
+  async show(s: Session, o: { lead?: Block[]; bottom?: boolean } = {}) {
+    const note = s.note;
+    delete s.note;
+    s.ts = this.now();
     const v = this.screen(s);
     const [top, ...body] = v.body;
     if (!v.keyboard) await this.dropHelper(s);
-    await this.living.show(s.user, s.at, [top, ...(o.lead ?? []), ...body, ...(o.note ? [warning(o.note)] : []), ...v.rows], o.bottom);
+    await this.living.show(s.user, s.at, [top, ...(o.lead ?? []), ...body, ...(note ? [warning(note)] : []), ...v.rows], o.bottom);
     // the one reply keyboard: the bot can be created only from a keyboard button (docs/telegram.md)
     if (v.keyboard && s.helper === undefined) s.helper = await this.chat.view(s.at, [text("👇 Tap <b>🤖 Create the bot</b> on the keyboard below.")], { keyboard: v.keyboard });
     this.host.save(s);
@@ -451,17 +492,152 @@ export class Wizard {
     delete s.helper;
   }
 
-  /** The bottom row: Back (when there is a way back), Next (`next`: its data), Cancel. */
-  private nav(s: Session, next?: string): Block {
-    return row(...(s.back.length || s.sub ? [b("◀ Back", "back")] : []), ...(next ? [b("▶ Next", next)] : []), b("✖ Cancel", "cancel"));
+  /**
+   * One event on the session's screen: the input is read into the draft (a refusal stays on the screen with one
+   * sentence), then the chart's first transition whose guard holds runs its actions and enters its target.
+   */
+  private async fire(s: Session, event: string, value?: string, raw?: Input): Promise<void> {
+    if (!transitions(s.state, event).length) return this.show(s);
+    const why = await this.read(s, event, value, raw);
+    if (why !== undefined) {
+      if (why) s.note = [s.note, why].filter(Boolean).join(" ");
+      return this.show(s);
+    }
+    const t = pick(s.state, event, this.holds(s, value));
+    for (const a of list(t?.actions)) {
+      if (refName(a) === "restore") this.restore(s);
+      if (refName(a) === "back") s.state = s.history.pop() ?? s.state;
+    }
+    const to = this.resolve(s, targetOf(t));
+    if (to === "done") return this.done(s);
+    if (to === "cancelled") return this.cancelled(s);
+    if (to === "expired") return this.expired(s);
+    if (to) {
+      s.history.push(s.state);
+      s.state = to;
+      this.opened(s);
+    }
+    return this.show(s);
   }
 
-  private top(s: Session, last = false): Block {
+  /** The option a values screen is for. */
+  private optionOf(state: string) {
+    return state.endsWith("Values") ? state.slice(0, -"Values".length) : undefined;
+  }
+
+  /** A values or custom-steps screen opens: what it had is kept for its Back. */
+  private opened(s: Session) {
+    const f = this.optionOf(s.state);
+    delete s.typing;
+    delete s.extProblems;
+    if (f) s.before = structuredClone(s.draft.inputs?.[f]);
+    else if (s.state === "ext") s.before = structuredClone(s.draft.extensions);
+  }
+
+  /** Back on a values or custom-steps screen: what it had when it opened. */
+  private restore(s: Session) {
     const d = s.draft;
-    if (s.single || d.replaces) return heading("✏️", `Change ${code(d.replaces ?? d.id ?? "")}`);
-    const plan = s.plan ?? COUNTED;
-    const k = plan.indexOf(s.step === "botCreate" ? "bot" : s.step) + 1;
-    return heading("🆕", "New workspace", ...(last ? ["Last check"] : k ? [`Step ${k} of ${plan.length}`] : []));
+    const f = this.optionOf(s.state);
+    const was = s.before;
+    delete s.before;
+    if (f) {
+      const { [f]: _, ...rest } = d.inputs ?? {};
+      d.inputs = was === undefined ? rest : { ...rest, [f]: was as Record<string, unknown> };
+    } else if (s.state === "ext") {
+      if (was === undefined) delete d.extensions;
+      else d.extensions = was as ExtensionRef[];
+    }
+  }
+
+  /** Reads an event's input into the draft; a sentence (or null: no sentence) when it is refused. */
+  private async read(s: Session, event: string, value: string | undefined, raw: Input | undefined): Promise<string | null | undefined> {
+    const d = s.draft;
+    const f = this.optionOf(s.state);
+    if (f) return event === "apply" ? this.apply(s, f) : event === "text" || event === "file" ? this.inputText(s, f, value ?? "", event === "file") : event === "back" ? undefined : this.editValue(s, f, event, value);
+    switch (`${s.state}.${event}`) {
+      case "repos.next":
+        return value === undefined ? (d.repos.length ? undefined : null) : this.readRepos(s, value);
+      case "bot.next":
+        if (value === undefined) return d.bot ? undefined : null;
+        if (value === "own" && !this.host.ownBots) return "This Flowee cannot make bots of their own; choose this bot.";
+        d.bot = value === "own" ? "own" : "shared";
+        return;
+      case "botCreate.next":
+        if (raw?.kind !== "managed") return d.botId ? undefined : null;
+        await this.host.adoptBot(s, raw.botId);
+        d.botId = raw.botId;
+        d.botUsername = raw.username;
+        d.botName = raw.name;
+        return;
+      case "branching.next":
+        if (value === undefined) return d.branching ? undefined : null;
+        d.branching = value === "feature" ? "feature" : "single";
+        return;
+      case "options.switch":
+        if (!value || !this.offered().includes(value) || (INPUTS[value as keyof typeof INPUTS] && !d.features[value])) return null;
+        d.features[value] = !d.features[value];
+        return;
+      case "options.configure":
+        return INPUTS[value as keyof typeof INPUTS] ? undefined : null;
+      case "ext.file":
+        return this.extFile(s, value ?? "");
+      case "ext.remove":
+        d.extensions = (d.extensions ?? []).filter((_, k) => k !== Number(value));
+        if (!d.extensions.length) delete d.extensions;
+        return;
+      case "ext.apply":
+        delete s.before;
+        return;
+      case "where.next":
+        if (value === "here") {
+          d.bind = { chat: s.at.chat, label: "a private chat" };
+          d.inGroup = false;
+        } else if (value === "group") d.inGroup = true;
+        else return d.bind ? undefined : null;
+        return;
+      case "group.next":
+        if (raw?.kind === "bound") {
+          d.bind = { chat: raw.chat, topic: raw.topic, label: raw.label };
+          d.inGroup = true;
+          return;
+        }
+        return this.groupBound(s) ? undefined : null;
+      case "token.next":
+        return value === undefined ? (d.token || d.tokenStored ? undefined : null) : this.readToken(s, value);
+      case "wide.next":
+        return d.token ? undefined : null;
+      case "wide.narrower":
+        delete d.token;
+        delete s.wide;
+        return;
+    }
+    return;
+  }
+
+  /** The group chosen for the tickets is bound already (came back to its screen). */
+  private groupBound(s: Session) {
+    return !!s.draft.inGroup && !!s.draft.bind && s.draft.bind.chat !== s.at.chat;
+  }
+
+  /** The options this flow offers, in the order of the screen. */
+  private offered() {
+    return Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
+  }
+
+  private nav(s: Session, next = false): Block {
+    return row(...(s.history.length ? [b("◀ Back", "back")] : []), ...(next ? [b("▶ Next", "next")] : []), b("✖ Cancel", "cancel"));
+  }
+
+  /** The heading: what the screen is, and on the path's screens the step among the screens of the path. */
+  private top(s: Session): Block {
+    const d = s.draft;
+    const path = !s.edit && SETUP.states[s.state]?.meta?.step ? pathOf(s.state, s.history, this.holds(s), s.skip) : [];
+    const f = this.optionOf(s.state);
+    // a values or custom-steps screen is a detour from the options, named instead of counted
+    const step = path.length ? [`Step ${s.history.filter((x) => SETUP.states[x]?.meta?.step).length + 1} of ${path.length}`] : f ? [f === "pullRequests" ? BRANCHING.feature[1] : OPTIONS[f][0]] : s.state === "ext" ? ["Custom steps"] : [];
+    if (s.state === "summary") step.push("Last check");
+    if (s.edit || d.replaces) return heading("✏️", `Change ${code(d.replaces ?? d.id ?? "")}`, ...step);
+    return heading("🆕", "New workspace", ...step);
   }
 
   private botOf(d: Draft) {
@@ -480,7 +656,8 @@ export class Wizard {
     const d = s.draft;
     const nav = this.nav(s);
     const top = this.top(s);
-    switch (s.step) {
+    if (this.optionOf(s.state)) return this.inputScreen(s);
+    switch (s.state) {
       case "repos":
         return {
           body: [
@@ -489,25 +666,27 @@ export class Wizard {
             text(`Paste the repository's link from GitHub or GitLab, for example ${code("https://github.com/octo/app")}. Several: one per line.`),
             ...(d.repos.length ? [text(`Now: ${d.repos.map(code).join(", ")} on ${this.host.trackerName(d.tracker?.kind)}`)] : []),
           ],
-          rows: [...(d.repos.length ? [row(b(`✅ Keep ${d.repos.length > 1 ? "these" : esc(d.repos[0])}`, "repos:keep"))] : []), nav],
+          rows: [...(d.repos.length ? [row(b(`✅ Keep ${d.repos.length > 1 ? "these" : esc(d.repos[0])}`, "next"))] : []), nav],
         };
       case "bot": {
         const me = this.host.botUsername ? ` (@${esc(this.host.botUsername)})` : "";
         return {
-          body: [
-            top,
-            question("Which bot should bring you the tickets?"),
-          ],
+          body: [top, question("Which bot should bring you the tickets?")],
           rows: [
             options(
-              option(`💬 This bot${me}`, "I bring them myself, next to your other workspaces.", b(d.bot === "shared" ? "● Chosen" : "💬 Choose", "bot:shared")),
-              option("🤖 A new bot", "Its own name and picture; you create it with two taps, I set it up.", b(d.bot === "own" ? "● Chosen" : "🤖 Choose", "bot:own")),
+              option(`💬 This bot${me}`, "I bring them myself, next to your other workspaces.", b(d.bot === "shared" ? "● Chosen" : "💬 Choose", "next:shared")),
+              option("🤖 A new bot", "Its own name and picture; you create it with two taps, I set it up.", b(d.bot === "own" ? "● Chosen" : "🤖 Choose", "next:own")),
             ),
             nav,
           ],
         };
       }
       case "botCreate": {
+        if (d.botId)
+          return {
+            body: [top, question("The new bot is ready"), text(`${d.botUsername ? `@${esc(d.botUsername)}` : "Your bot"} brings the tickets of this workspace.`)],
+            rows: [this.nav(s, true)],
+          };
         const base = d.id ?? "flowee";
         const name = `${base.replace(/-/g, " ")} envoy`.replace(/^\w/, (c) => c.toUpperCase());
         const username = `${base.replace(/-/g, "_").slice(0, 20)}_envoy_bot`;
@@ -521,102 +700,98 @@ export class Wizard {
           keyboard: { kind: "managedBot", label: "🤖 Create the bot", name, username },
         };
       }
-      case "flow": {
-        if (s.sub !== "options" && s.sub !== "input" && s.sub !== "ext")
-          return {
-            body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
-            rows: [
-              options(
-                ...(["single", "feature"] as const).map((k) => option(`${BRANCHING[k][0]} ${BRANCHING[k][1]}`, BRANCHING[k][2], b(d.branching === k ? "● Chosen" : `${BRANCHING[k][0]} Choose`, `branch:${k}`))),
-              ),
-              nav,
-            ],
-          };
-        if (s.sub === "input") return this.inputScreen(s);
-        if (s.sub === "ext") return this.extScreen(s);
-        const offered = Object.keys(OPTIONS).filter((f) => this.host.flow().features.includes(f));
-        const toggle = (f: string) =>
-          option(
+      case "branching":
+        return {
+          body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
+          rows: [
+            options(...(["single", "feature"] as const).map((k) => option(`${BRANCHING[k][0]} ${BRANCHING[k][1]}`, BRANCHING[k][2], b(d.branching === k ? "● Chosen" : `${BRANCHING[k][0]} Choose`, `next:${k}`)))),
+            nav,
+          ],
+        };
+      case "options": {
+        const offered = this.offered();
+        const toggle = (f: string) => {
+          const asks = !!INPUTS[f as keyof typeof INPUTS];
+          return option(
             `${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`,
-            `${(!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1]}${d.features[f] && INPUTS[f as keyof typeof INPUTS] ? ` ${this.inputLine(d, f)}` : ""}`,
-            b(d.features[f] ? "Switch off" : INPUTS[f as keyof typeof INPUTS] ? "⚙️ Configure" : "Switch on", `feat:${f}`),
-            ...(d.features[f] && INPUTS[f as keyof typeof INPUTS] ? [b("⚙️ Change", `in:open:${f}`)] : []),
+            `${(!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1]}${d.features[f] && asks ? ` ${this.inputLine(d, f)}` : ""}`,
+            d.features[f] ? b("Switch off", `switch:${f}`) : asks ? b("⚙️ Configure", `configure:${f}`) : b("Switch on", `switch:${f}`),
+            ...(d.features[f] && asks ? [b("⚙️ Change", `configure:${f}`)] : []),
           );
+        };
         const more = offered.filter((f) => f !== "releases");
         const feature = d.branching === "feature" && INPUTS.pullRequests;
         return {
-          body: [
-            top,
-            question("What else should the flow do?"),
-            text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.`),
-          ],
+          body: [top, question("What else should the flow do?"), text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.`)],
           rows: [
-            ...(feature ? [options(option(`⚙️ ${BRANCHING.feature[1]}`, this.inputLine(d, "pullRequests"), b("⚙️ Change", "in:open:pullRequests")))] : []),
+            ...(feature ? [options(option(`⚙️ ${BRANCHING.feature[1]}`, this.inputLine(d, "pullRequests"), b("⚙️ Change", "configure:pullRequests")))] : []),
             ...(offered.includes("releases") ? [options(toggle("releases"))] : []),
             ...(more.length ? [text("<b>More options</b>"), options(...more.map(toggle))] : []),
-            options(option("🧩 Custom steps", `Add your own states and rules with an extension file${d.extensions?.length ? `: ${d.extensions.map((e) => code(extName(e))).join(", ")}` : ""}.`, b(d.extensions?.length ? "🧩 Change" : "🧩 Add", "ext:open"))),
-            this.nav(s, "flow:done"),
+            options(option("🧩 Custom steps", `Add your own states and rules with an extension file${d.extensions?.length ? `: ${d.extensions.map((e) => code(extName(e))).join(", ")}` : ""}.`, b(d.extensions?.length ? "🧩 Change" : "🧩 Add", "extensions"))),
+            this.nav(s, true),
           ],
         };
       }
-      case "bind": {
+      case "ext":
+        return this.extScreen(s);
+      case "group": {
         const bot = this.botOf(d);
         const who = bot ? `@${esc(bot)}` : d.bot === "own" ? "the new bot" : "this bot";
-        if (s.sub === "group")
-          return {
-            body: [
-              top,
-              question("Add the bot to a group"),
-            ],
-            rows: [
-              options(
-                ...(bot ? [option("👥 A whole group", `Pick one: Telegram adds ${who} there, and the group is set.`, linkBtn("👥 Choose a group", `https://t.me/${bot}?startgroup=${d.bindCode}`))] : []),
-                option("🧵 One topic of a forum group", `Add ${who} to the group, then send ${code(`/bind ${d.bindCode}`)} inside that topic.`, copyBtn("📋 Copy", `/bind ${d.bindCode}`)),
-              ),
-              nav,
-            ],
-          };
+        return {
+          body: [top, question("Add the bot to a group"), ...(this.groupBound(s) ? [text(`Now: ${esc(d.bind?.label ?? "")}.`)] : [])],
+          rows: [
+            options(
+              ...(bot ? [option("👥 A whole group", `Pick one: Telegram adds ${who} there, and the group is set.`, linkBtn("👥 Choose a group", `https://t.me/${bot}?startgroup=${d.bindCode}`))] : []),
+              option("🧵 One topic of a forum group", `Add ${who} to the group, then send ${code(`/bind ${d.bindCode}`)} inside that topic.`, copyBtn("📋 Copy", `/bind ${d.bindCode}`)),
+            ),
+            this.nav(s, this.groupBound(s)),
+          ],
+        };
+      }
+      case "where": {
+        const bot = this.botOf(d);
+        const who = bot ? `@${esc(bot)}` : d.bot === "own" ? "the new bot" : "this bot";
+        const here = !!d.bind && !d.inGroup;
         const own = d.bot === "own";
         return {
-          body: [
-            top,
-            question("Where should the tickets appear?"),
-          ],
+          body: [top, question("Where should the tickets appear?")],
           rows: [
             options(
               own
-                ? option(`💬 In my private chat with ${who}`, "Open it and press <b>Start</b> once, so it may write to you.", ...(bot ? [linkBtn("↗ Open", `https://t.me/${bot}`)] : []), b("💬 Choose", "bind:here"))
-                : option("💬 Here", "In this chat with me.", b("💬 Choose", "bind:here")),
-              option("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", b("👥 Choose", "bind:group")),
+                ? option(`💬 In my private chat with ${who}`, "Open it and press <b>Start</b> once, so it may write to you.", ...(bot ? [linkBtn("↗ Open", `https://t.me/${bot}`)] : []), b(here ? "● Chosen" : "💬 Choose", "next:here"))
+                : option("💬 Here", "In this chat with me.", b(here ? "● Chosen" : "💬 Choose", "next:here")),
+              option("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", b(d.inGroup ? "● Chosen" : "👥 Choose", "next:group")),
             ),
             nav,
           ],
         };
       }
-      case "credential": {
+      case "wide": {
+        const what = d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "");
+        const more = s.wide ?? [];
+        return {
+          body: [
+            top,
+            question("This token reaches more than it needs"),
+            text(`Besides ${what} it can also reach ${more.slice(0, 3).map(code).join(", ")}${more.length > 3 ? ` and ${more.length - 3} more` : ""}; a narrower token limits what a leak could do.`),
+          ],
+          rows: [
+            options(
+              option("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", b("✅ Use it", "next")),
+              option("🔑 Make a narrower one", `A token for ${what} only: paste it here when you have it.`, b("🔑 Narrower", "narrower")),
+            ),
+            nav,
+          ],
+        };
+      }
+      case "token": {
         const name = this.host.trackerName(d.tracker?.kind);
         const what = d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "");
-        if (s.sub === "wide") {
-          const more = s.wide ?? [];
-          return {
-            body: [
-              top,
-              question("This token reaches more than it needs"),
-              text(`Besides ${what} it can also reach ${more.slice(0, 3).map(code).join(", ")}${more.length > 3 ? ` and ${more.length - 3} more` : ""}; a narrower token limits what a leak could do.`),
-            ],
-            rows: [
-              options(
-                option("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", b("✅ Use it", "wide:keep")),
-                option("🔑 Make a narrower one", `A token for ${what} only: paste it here when you have it.`, b("🔑 Narrower", "wide:new")),
-              ),
-              nav,
-            ],
-          };
-        }
         const on = Object.entries(this.switches(d)).filter(([, v]) => v).map(([k]) => k);
         const help = this.host.tokenHelp(d.tracker ?? { kind: "github" })(d.repos, `Flowee ${d.id ?? ""}`.trim(), on, this.tokenDays(d));
         const step = (x: string) => esc(x).replace(/`([^`]+)`/g, "<code>$1</code>");
         const create = help.url ? [linkBtn("🔑 Create a token", help.url)] : [];
+        const next = this.nav(s, !!(d.token || d.tokenStored));
         return {
           body: [
             top,
@@ -628,14 +803,14 @@ export class Wizard {
             facts(help.permissions.map((x) => [esc(x)])),
           ],
           rows: help.alt
-            ? [options(option("🔑 Project token", "Reaches this project only.", ...create), option(help.alt.label, esc(help.alt.why), linkBtn("↗ Open", help.alt.url))), nav]
-            : [...(create.length ? [row(...create)] : []), nav],
+            ? [options(option("🔑 Project token", "Reaches this project only.", ...create), option(help.alt.label, esc(help.alt.why), linkBtn("↗ Open", help.alt.url))), next]
+            : [...(create.length ? [row(...create)] : []), next],
         };
       }
-      case "summary": {
-        const edit = !!(s.single || d.replaces);
+      default: {
+        const edit = !!(s.edit || d.replaces);
         return {
-          body: [this.top(s, true), question(edit ? `Save the changes to ${code(d.id ?? "")}?` : `Create the workspace ${code(d.id ?? "")}?`), facts(this.facts(s))],
+          body: [top, question(edit ? `Save the changes to ${code(d.id ?? "")}?` : `Create the workspace ${code(d.id ?? "")}?`), facts(this.facts(s))],
           rows: [row(b(edit ? "✅ Save the changes" : "✅ Create the workspace", "confirm")), nav],
         };
       }
@@ -655,45 +830,32 @@ export class Wizard {
         ...(exts.length ? [] : [text("None added yet.")]),
       ],
       rows: [
-        ...(exts.length ? [options(...exts.map((e, i) => option(`🧩 ${esc(extName(e))}`, esc((typeof e === "object" && e.description) || "A shipped extension."), b("✖ Remove", `ext:rm:${i}`))))] : []),
-        row(b("◀ Back", "ext:back"), b("✖ Cancel", "cancel")),
+        ...(exts.length ? [options(...exts.map((e, i) => option(`🧩 ${esc(extName(e))}`, esc((typeof e === "object" && e.description) || "A shipped extension."), b("✖ Remove", `remove:${i}`))))] : []),
+        row(...(s.history.length ? [b("◀ Back", "back")] : []), b("✅ Apply", "apply"), b("✖ Cancel", "cancel")),
       ],
     };
   }
 
-  /** A press on the custom steps screen. */
-  private async extPress(s: Session, what: string, i: string | undefined) {
-    const d = s.draft;
-    delete s.extProblems;
-    if (what === "open") s.sub = "ext";
-    else if (what === "back") s.sub = "options";
-    else if (what === "rm") {
-      d.extensions = (d.extensions ?? []).filter((_, k) => k !== Number(i));
-    }
-    return this.show(s);
-  }
-
-  /** A sent extension file: validated with the draft's other extensions; problems in the living message. */
-  private async extFile(s: Session, text: string) {
+  /** A sent extension file: validated with the draft's other extensions; problems on the screen. */
+  private extFile(s: Session, text: string): undefined {
     const d = s.draft;
     let e: unknown;
     try {
       e = JSON.parse(text);
     } catch (err) {
       s.extProblems = [`The file is not JSON (${err instanceof Error ? err.message : String(err)}).`];
-      return this.show(s);
+      return;
     }
     const name = extName(e as ExtensionRef);
-    const others = (d.extensions ?? []).filter((x) => extName(x) !== name);
-    const next = [...others, e as ExtensionRef];
+    const next = [...(d.extensions ?? []).filter((x) => extName(x) !== name), e as ExtensionRef];
     const problems = this.host.extensionProblems?.(next, this.switches(d)) ?? [];
     if (problems.length) {
       s.extProblems = problems;
-      return this.show(s);
+      return;
     }
     delete s.extProblems;
     d.extensions = next;
-    return this.show(s, { note: `🧩 ${name} is added; agents of its roles can be created with the project key.` });
+    s.note = `🧩 ${name} is added; agents of its roles can be created with the project key.`;
   }
 
   /** An option's values now: defaults, the document's, then what was asked here. */
@@ -710,26 +872,26 @@ export class Wizard {
     return shown(spec, v).map((i) => `${esc(i.name)}: ${say(v[i.key], i)}`).join("; ");
   }
 
-  /** The follow-up screen of an option: one row per value with its suggestions, Type, and a sent file. */
+  /** The values screen of an option: one row per value with its suggestions, Type, and a sent file. */
   private inputScreen(s: Session): Screen {
     const d = s.draft;
-    const f = s.input as string;
+    const f = this.optionOf(s.state) as string;
     const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
     const v = this.values(d, f);
     const rows = shown(spec, v).flatMap((i) => {
       const x = v[i.key];
-      const type = b(s.typing === i.key ? "✏️ Typing…" : "✏️ Type", `in:type:${i.key}`);
-      if (i.type === "choice") return [option(esc(i.name), esc(i.ask), ...(i.choices ?? []).map(([c, l]) => b(x === c ? `● ${l}` : l, `in:set:${i.key}:${c}`)))];
-      if (i.type === "flag") return [option(`${x ? "✅" : "⬜"} ${esc(i.name)}`, esc(i.ask), b(x ? "Switch off" : "Switch on", `in:flag:${i.key}`))];
+      const type = b(s.typing === i.key ? "✏️ Typing…" : "✏️ Type", `type:${i.key}`);
+      if (i.type === "choice") return [option(esc(i.name), esc(i.ask), ...(i.choices ?? []).map(([c, l]) => b(x === c ? `● ${l}` : l, `set:${i.key}:${c}`)))];
+      if (i.type === "flag") return [option(`${x ? "✅" : "⬜"} ${esc(i.name)}`, esc(i.ask), b(x ? "Switch off" : "Switch on", `flag:${i.key}`))];
       if (i.type === "list") {
         const now = (x as string[]) ?? [];
         const offer = [...new Set([...(i.suggest ?? []), ...now])];
         return [
-          option(esc(i.name), `${esc(i.ask)} Now: ${now.length ? now.map((y) => code(y)).join(", ") : "none"}.`, type, ...(now.length ? [b("✖ Clear", `in:clear:${i.key}`)] : [])),
-          ...offer.map((y, k) => option(`${now.includes(y) ? "✅" : "⬜"} ${code(y)}`, now.includes(y) ? "chosen" : "suggested", b(now.includes(y) ? "Remove" : "Add", `in:tog:${i.key}:${k}`))),
+          option(esc(i.name), `${esc(i.ask)} Now: ${now.length ? now.map((y) => code(y)).join(", ") : "none"}.`, type, ...(now.length ? [b("✖ Clear", `clear:${i.key}`)] : [])),
+          ...offer.map((y, k) => option(`${now.includes(y) ? "✅" : "⬜"} ${code(y)}`, now.includes(y) ? "chosen" : "suggested", b(now.includes(y) ? "Remove" : "Add", `tog:${i.key}:${k}`))),
         ];
       }
-      return [option(esc(i.name), `${esc(i.ask)} Now: ${x === undefined || x === "" ? "none" : code(String(x))}.`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `in:set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ None", `in:clear:${i.key}`)] : []))];
+      return [option(esc(i.name), `${esc(i.ask)} Now: ${x === undefined || x === "" ? "none" : code(String(x))}.`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ None", `clear:${i.key}`)] : []))];
     });
     const typing = spec.inputs.find((i) => i.key === s.typing);
     return {
@@ -742,69 +904,46 @@ export class Wizard {
             : "Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.",
         ),
       ],
-      rows: [options(...rows), row(b("◀ Back", "in:back"), b("✅ Apply", "in:done"), b("✖ Cancel", "cancel"))],
+      rows: [options(...rows), row(b("◀ Back", "back"), b("✅ Apply", "apply"), b("✖ Cancel", "cancel"))],
     };
   }
 
-  /** A press on an option's follow-up screen. */
-  private async inputPress(s: Session, what: string, key: string, value: string | undefined) {
+  /** A press on a values screen that changes one value (`set:<key>:<value>`, `flag:<key>`, `clear:<key>`, `tog:<key>:<i>`, `type:<key>`). */
+  private editValue(s: Session, f: string, what: string, rest = ""): undefined {
     const d = s.draft;
-    if (what === "open") {
-      if (!INPUTS[key as keyof typeof INPUTS]) return this.show(s);
-      s.sub = "input";
-      s.input = key;
-      delete s.typing;
-      return this.show(s);
-    }
-    const f = s.input;
-    const spec = f && INPUTS[f as keyof typeof INPUTS];
-    if (!f || !spec || s.sub !== "input") return this.show(s);
+    const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
+    const [key, ...more] = rest.split(":");
+    const value = more.join(":") || undefined;
     const v = this.values(d, f);
     const set = (x: unknown) => {
       d.inputs = { ...(d.inputs ?? {}), [f]: { ...(d.inputs?.[f] ?? {}), [key]: x } };
     };
     const i = spec.inputs.find((x) => x.key === key);
-    switch (what) {
-      case "back":
-        delete s.typing;
-        s.sub = "options";
-        return this.show(s);
-      case "done": {
-        const why = problem(spec, v);
-        if (why) return this.show(s, { note: why });
-        delete s.typing;
-        if (f !== "pullRequests") d.features[f] = true;
-        s.sub = "options";
-        return this.show(s);
-      }
-      case "type":
-        if (i) s.typing = key;
-        return this.show(s);
-      case "set":
-        if (i && value !== undefined) set(i.type === "number" ? Number(value) : value);
-        delete s.typing;
-        return this.show(s);
-      case "flag":
-        if (i) set(!v[key]);
-        return this.show(s);
-      case "clear":
-        if (i) set(i.type === "list" ? [] : "");
-        return this.show(s);
-      case "tog": {
-        if (!i) return this.show(s);
-        const now = (v[key] as string[]) ?? [];
-        const y = [...new Set([...(i.suggest ?? []), ...now])][Number(value)];
-        if (y !== undefined) set(now.includes(y) ? now.filter((z) => z !== y) : [...now, y]);
-        return this.show(s);
-      }
+    if (!i) return;
+    if (what === "type") s.typing = key;
+    else delete s.typing;
+    if (what === "set" && value !== undefined) set(i.type === "number" ? Number(value) : value);
+    if (what === "flag") set(!v[key]);
+    if (what === "clear") set(i.type === "list" ? [] : "");
+    if (what === "tog") {
+      const now = (v[key] as string[]) ?? [];
+      const y = [...new Set([...(i.suggest ?? []), ...now])][Number(value)];
+      if (y !== undefined) set(now.includes(y) ? now.filter((z) => z !== y) : [...now, y]);
     }
-    return this.show(s);
   }
 
-  /** A typed value or a sent file on an option's follow-up screen; the message is deleted after reading. */
-  private async inputText(s: Session, text: string, file: boolean) {
+  /** ✅ Apply on a values screen: the option is on once its values are usable. */
+  private apply(s: Session, f: string): string | undefined {
+    const why = problem(INPUTS[f as keyof typeof INPUTS] as OptionSpec, this.values(s.draft, f));
+    if (why) return why;
+    delete s.typing;
+    delete s.before;
+    if (f !== "pullRequests") s.draft.features[f] = true;
+  }
+
+  /** A typed value or a sent file on a values screen. */
+  private inputText(s: Session, f: string, text: string, file: boolean): string | undefined {
     const d = s.draft;
-    const f = s.input as string;
     const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
     const v = this.values(d, f);
     const put = (values: Values) => {
@@ -812,17 +951,16 @@ export class Wizard {
     };
     if (file) {
       const r = fromFile(spec, text, s.typing, v);
-      if ("error" in r) return this.show(s, { note: r.error });
+      if ("error" in r) return r.error;
       put(r.values);
     } else {
       const i = spec.inputs.find((x) => x.key === s.typing) ?? spec.inputs.find((x) => x.type === "list" || x.type === "label");
-      if (!i) return this.show(s, { note: "Tap ✏️ Type beside the value you want to type first." });
+      if (!i) return "Tap ✏️ Type beside the value you want to type first.";
       const r = parse(i, text, v[i.key]);
-      if ("error" in r) return this.show(s, { note: r.error });
+      if ("error" in r) return r.error;
       put({ [i.key]: r.value });
     }
     delete s.typing;
-    return this.show(s);
   }
 
   /** What it will be, as rows of a two-column table. */
@@ -846,190 +984,113 @@ export class Wizard {
       await this.start(user, at);
       return true;
     }
-    const s = this.host.load(user);
-    if (!s) {
+    const stored = this.host.load(user);
+    if (!stored) {
       if (i.kind === "press" && i.data.startsWith("w:"))
         await this.living.show(user, at, [heading("⌛", "This setup is over"), text("It was finished or cancelled."), row(b("🚀 Set up a workspace", "new"))]);
       return i.kind === "press" && i.data.startsWith("w:");
     }
-    // a session stored at a step that no longer exists (the former agents step) resumes at the last check
-    if (!STEPS.includes(s.step)) s.step = "summary";
+    const s = this.migrate(stored);
     if (this.now() - s.ts > TTL) {
-      this.host.drop(user);
-      await this.dropHelper(s);
-      await this.living.show(user, at, [heading("⌛", "This setup expired"), text("A day passed without an answer, so nothing was created."), row(b("🚀 Start again", "new"))]);
+      await this.fire(s, "expire");
       return true;
     }
-    if (i.kind === "bound") {
-      s.draft.bind = { chat: i.chat, topic: i.topic, label: i.label };
-      await this.advance(s);
-      return true;
-    }
-    if (i.kind === "managed") {
-      if (s.step !== "botCreate") return false;
-      await this.host.adoptBot(s, i.botId);
-      s.draft.botId = i.botId;
-      s.draft.botUsername = i.username;
-      s.draft.botName = i.name;
-      await this.advance(s);
-      return true;
-    }
-    if (i.kind === "text") return this.text(s, i.text, i.message);
-    if (i.kind === "file") {
-      // a file is the wizard's only while an option asks for its values or custom steps are open; otherwise an import
-      if (s.step !== "flow" || (s.sub !== "input" && s.sub !== "ext")) return false;
-      await this.chat.remove(s.at, i.message).catch(() => {});
-      if (s.sub === "ext") await this.extFile(s, i.text);
-      else await this.inputText(s, i.text, true);
-      return true;
+    const meta = SETUP.states[s.state]?.meta ?? {};
+    switch (i.kind) {
+      case "bound":
+        if (s.state === "group") await this.fire(s, "next", undefined, i);
+        else {
+          s.draft.bind = { chat: i.chat, topic: i.topic, label: i.label };
+          s.draft.inGroup = true;
+          await this.show(s);
+        }
+        return true;
+      case "managed":
+        if (s.state !== "botCreate") return false;
+        await this.fire(s, "next", undefined, i);
+        return true;
+      case "text":
+      case "file": {
+        // a file is the wizard's only where a screen takes one; otherwise it is an import
+        const event = i.kind === "text" ? meta.typed : meta.files;
+        if (!event) return false;
+        // typed answers never stay in the chat: deleted before anything else happens (the token always)
+        const kept = await this.chat.remove(s.at, i.message).then(
+          () => undefined,
+          (e) => `I could not delete your message (${e instanceof Error ? e.message : e}); please delete it yourself.`,
+        );
+        if (kept) s.note = kept;
+        await this.fire(s, event, i.text);
+        return true;
+      }
     }
     if (!i.data.startsWith("w:")) return false;
-    await this.press(s, i.data.slice(2));
+    const [event, ...value] = i.data.slice(2).split(":");
+    if (event === "resume") await this.show(s);
+    else await this.fire(s, event, value.join(":") || undefined);
     return true;
   }
 
-  private async press(s: Session, data: string) {
+  /** A pasted repository link (or several): refused in one sentence, or the draft's repositories. */
+  private readRepos(s: Session, text: string): string | undefined {
     const d = s.draft;
-    const [k, v, w] = data.split(":");
-    switch (k) {
-      case "resume":
-        return this.show(s);
-      case "cancel": {
-        this.host.drop(s.user);
-        await this.dropHelper(s);
-        const edit = !!(s.single || d.replaces);
-        await this.living.show(s.user, s.at, [
-          heading("✖", edit ? "Nothing changed" : "Setup cancelled"),
-          text(edit ? "The workspace stays as it was." : "Nothing was created."),
-          row(...(edit ? [] : [b("🚀 Start again", "new")]), btn("📂 My workspaces", "m:list")),
-        ]);
-        return;
-      }
-      case "back": {
-        if (s.sub === "wide") delete d.token;
-        if (s.sub) {
-          delete s.sub;
-          return this.show(s);
-        }
-        const prev = s.back.pop();
-        if (!prev) return this.show(s);
-        if (s.single) s.single = false;
-        return this.go(s, prev, false);
-      }
-      case "bot":
-        if (v === "own" && !this.host.ownBots) return this.show(s, { note: "This Flowee cannot make bots of their own; choose this bot." });
-        d.bot = v === "own" ? "own" : "shared";
-        return this.advance(s);
-      case "repos":
-        return this.advance(s);
-      case "flow":
-        return this.advance(s);
-      case "branch":
-        d.branching = v === "feature" ? "feature" : "single";
-        if (!Object.keys(OPTIONS).some((f) => this.host.flow().features.includes(f))) return this.advance(s);
-        s.sub = "options";
-        return this.show(s);
-      case "feat":
-        // an option that needs details asks for them next; it is on once they are usable (off keeps them)
-        if (!d.features[v] && INPUTS[v as keyof typeof INPUTS]) return this.inputPress(s, "open", v, undefined);
-        d.features[v] = !d.features[v];
-        return this.show(s);
-      case "in":
-        return this.inputPress(s, v, w, data.split(":").slice(3).join(":") || undefined);
-      case "ext":
-        return this.extPress(s, v, w);
-      case "bind":
-        if (v === "group") {
-          s.sub = "group";
-          return this.show(s);
-        }
-        d.bind = { chat: s.at.chat, label: "a private chat" };
-        return this.advance(s);
-      case "wide":
-        if (v === "keep" && d.token) return this.advance(s);
-        delete d.token;
-        delete s.sub;
-        return this.show(s);
-      case "confirm":
-        return this.confirm(s);
-    }
-  }
-
-  /** A typed answer: deleted after reading (always for the token), the result shown in the living message. */
-  private async text(s: Session, text: string, message: number): Promise<boolean> {
-    const d = s.draft;
-    if (s.step === "flow" && s.sub === "input") {
-      await this.chat.remove(s.at, message).catch(() => {});
-      await this.inputText(s, text, false);
-      return true;
-    }
-    if (s.step !== "credential" && s.step !== "repos") return false;
-    // the token never stays in the chat: deleted before anything else happens
-    const kept = await this.chat.remove(s.at, message).then(
-      () => undefined,
-      (e) => `I could not delete your message (${e instanceof Error ? e.message : e}); please delete it yourself.`,
-    );
-    if (s.step === "credential") {
-      const token = text.trim();
-      if (!/^[\w-]{20,255}$/.test(token)) {
-        await this.show(s, { note: [kept, `That does not look like a ${this.host.trackerName(d.tracker?.kind)} token; paste just the token.`].filter(Boolean).join(" ") });
-        return true;
-      }
-      const sealed = await this.host.seal(token);
-      const problems = await this.host.checkRepos(sealed, d.repos, d.tracker ?? { kind: "github" });
-      if (problems.length) {
-        delete s.sub;
-        await this.show(s, { note: [kept, ...problems].filter(Boolean).join(" ") });
-        return true;
-      }
-      d.token = sealed;
-      const wide = (await this.host.wider?.(sealed, d.repos, d.tracker ?? { kind: "github" }).catch(() => [])) ?? [];
-      if (wide.length) {
-        s.sub = "wide";
-        s.wide = wide;
-        await this.show(s, { note: kept });
-        return true;
-      }
-      await this.advance(s, { note: kept });
-      return true;
-    }
     const refs = text.split(/[\s,]+/).filter(Boolean);
     const found = refs.map((r) => this.host.parseRepo(r));
     const bad = refs.filter((_, i) => !found[i]);
-    const no = (why: string) => this.show(s, { note: why }).then(() => true);
     if (!refs.length || bad.length)
-      return no(`${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not repository links" : "is not a repository link"} of GitHub or GitLab; send its link, for example https://github.com/octo/app.`);
+      return `${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not repository links" : "is not a repository link"} of GitHub or GitLab; send its link, for example https://github.com/octo/app.`;
     const ok = found as PastedRepo[];
-    if (new Set(ok.map((r) => `${r.kind} ${r.api ?? ""}`)).size > 1)
-      return no("Paste the repositories of one tracker here; a workspace on several trackers is written as a configuration and imported (📥 Import).");
+    if (new Set(ok.map((r) => `${r.kind} ${r.api ?? ""}`)).size > 1) return "Paste the repositories of one tracker here; a workspace on several trackers is written as a configuration and imported (📥 Import).";
     const repos = [...new Set(ok.map((r) => r.repo))];
     const where: TrackerRef = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
     const taken = repos.find((r) => this.host.repoTaken(r, d.replaces, where));
-    if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces, where)}'; a repository belongs to one workspace only.`);
+    if (taken) return `'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces, where)}'; a repository belongs to one workspace only.`;
     // two repositories of the same name are told apart by their owner (`acme-app#3`, `octo-app#3`)
     const aliases = aliasesOf(repos);
     const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
-    if (dup) return no(`Two repositories would both be called '${dup}'; paste each repository once.`);
+    if (dup) return `Two repositories would both be called '${dup}'; paste each repository once.`;
     d.repos = repos;
-    d.tracker = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
+    d.tracker = where;
     if (!d.id) d.id = this.host.freeId(aliasOf(repos[0]));
     if (!d.bindCode) d.bindCode = d.id;
-    await this.advance(s);
-    return true;
   }
 
-  private async confirm(s: Session) {
+  /** A pasted tracker token: checked against every repository, sealed; its reach beyond them noted. */
+  private async readToken(s: Session, text: string): Promise<string | undefined> {
+    const d = s.draft;
+    const token = text.trim();
+    if (!/^[\w-]{20,255}$/.test(token)) return `That does not look like a ${this.host.trackerName(d.tracker?.kind)} token; paste just the token.`;
+    const sealed = await this.host.seal(token);
+    const problems = await this.host.checkRepos(sealed, d.repos, d.tracker ?? { kind: "github" });
+    if (problems.length) return problems.join(" ");
+    d.token = sealed;
+    const wide = (await this.host.wider?.(sealed, d.repos, d.tracker ?? { kind: "github" }).catch(() => [])) ?? [];
+    if (wide.length) s.wide = wide;
+    else delete s.wide;
+  }
+
+  /** The final state `done`: the draft becomes the workspace (a refusal stays on the screen before). */
+  private async done(s: Session) {
     const why = this.host.refusal(s.user, s.draft.replaces);
-    if (why) return this.show(s, { note: why });
+    if (why) {
+      s.note = why;
+      return this.show(s);
+    }
     let r: Awaited<ReturnType<WizardHost["commit"]>>;
     try {
       r = await this.host.commit(s);
     } catch (e) {
-      return this.show(s, { note: e instanceof Error ? e.message : String(e) });
+      s.note = e instanceof Error ? e.message : String(e);
+      return this.show(s);
     }
     this.host.drop(s.user);
     await this.dropHelper(s);
     const give = !!r.key || Object.keys(r.secrets).length > 0;
+    if (s.edit && this.returnTo) {
+      await this.returnTo(s.user, s.at, r.id, r.warning ? `⚠️ ${esc(r.warning)}` : "✅ Saved.");
+      if (give) await this.handOver(s.at, r.id, { key: r.key, secrets: r.secrets });
+      return;
+    }
     await this.living.show(s.user, s.at, [
       heading("✅", s.draft.replaces ? "Changes saved" : "Workspace ready", code(r.id)),
       ...(r.warning ? [warning(r.warning)] : []),
@@ -1044,6 +1105,27 @@ export class Wizard {
     const [next, ...rest] = s.queue ?? [];
     // the key file now stands under the living message: the next workspace starts anew below it
     if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest, { bottom: give });
+  }
+
+  /** The final state `cancelled`: nothing was created; a change from the menu returns to the workspace. */
+  private async cancelled(s: Session) {
+    this.host.drop(s.user);
+    await this.dropHelper(s);
+    const d = s.draft;
+    if (s.edit && d.replaces && this.returnTo) return void (await this.returnTo(s.user, s.at, d.replaces, "Nothing changed."));
+    const edit = !!(s.edit || d.replaces);
+    await this.living.show(s.user, s.at, [
+      heading("✖", edit ? "Nothing changed" : "Setup cancelled"),
+      text(edit ? "The workspace stays as it was." : "Nothing was created."),
+      row(...(edit ? [] : [b("🚀 Start again", "new")]), btn("📂 My workspaces", "m:list")),
+    ]);
+  }
+
+  /** The final state `expired`: a day passed without an answer. */
+  private async expired(s: Session) {
+    this.host.drop(s.user);
+    await this.dropHelper(s);
+    await this.living.show(s.user, s.at, [heading("⌛", "This setup expired"), text("A day passed without an answer, so nothing was created."), row(b("🚀 Start again", "new"))]);
   }
 
   /** The project key (and secrets of agents a document names) as a file that explains itself, once (or a message where files are refused). */

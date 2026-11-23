@@ -71,7 +71,8 @@ src/
   api/        http.ts: the agents' HTTP API (auth: the project key + X-Flowee-Agent, or an agent's own secret;
               idempotency, dispatch, the agents' paths)
   wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps and their screens, the
-              living message, drafts, the document a draft makes), manage.ts (welcome, /workspaces menu, export,
+              living message, drafts, the document a draft makes), setup.json + chart.ts (the setup's statechart and its
+              runner), manage.ts (welcome, /workspaces menu, export,
               import)
   config/     document.ts (the workspace document), trackers.ts (tracker kinds: default API, path form,
               capabilities), chats.ts (chat kinds: telegram's section `chat`, tui's `tui`), schema.ts (JSON Schema + validator; `problems()` behind
@@ -251,7 +252,7 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   transitions and the options' roles/commands/ticks with `meta.features` / `features`; its guards and actions read
   `c.f.s.features` and pass or do nothing when it is off. Keep `flows/flow.json` openable in Stately: only `meta`
   carries the tags. Also: its token permission in docs/adapters.md and the wizard's token prompt
-  (`src/wizard/wizard.ts`, step `credential`), a section in docs/flow-features.md, its options in
+  (`src/wizard/wizard.ts`, screen `token`), a section in docs/flow-features.md, its options in
   skills/flowee-configure/references/features.md (a test checks), a row in README.md.
 - **a tracker adapter:** one file `src/adapters/tracker-<kind>.ts` implementing `Tracker` (`src/ports/tracker.ts`;
   optional capabilities as objects or absent, `probe()` and a `parseRepo(api)` link reader), its kind in
@@ -285,13 +286,19 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 - **a role:** a `roles` entry in the flow's options (or an extension's) with `sign`, `who`, a one-line
   `description` and `several` (whether more than one agent makes sense; default: it claims states and is not the
   owner); `GET /v1/roles` lists it with its commands and the states it claims. Agents of it are created through the API.
-- **a wizard step:** add it to `Step` and `STEPS` (and `COUNTED`) in `src/wizard/wizard.ts`, then its three parts:
-  `needed()` (does a draft still lack it: imports and edits skip answered steps), `screen()` (the view, built from
-  the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line
-  of help, button rows, `nav`) and the input it takes (`w:` button data in `press()`, typed text in `text()`, which
-  deletes the message); write the answer into the `Draft` and the document in `toDoc()`. An editable part goes into `parts` in `src/wizard/manage.ts`. Host calls (sealing,
-  checks) go through `WizardHost`, implemented in `instance-host.ts`. Test it in `test/managed.test.ts`
-  with the fake Telegram (Back, Cancel and resume included).
+- **a wizard screen:** a state in `src/wizard/setup.json` (the setup's statechart, XState JSON; docs/managed.md, "The
+  setup as a statechart"): its `on` with one transition per button event (`w:<event>[:<value>]`), guards from
+  `GUARDS` (`src/wizard/chart.ts`, implemented in `holds()` of `src/wizard/wizard.ts`) choosing the target,
+  `meta.step` when it counts in "Step n of N", `meta.typed` / `meta.files` when it takes a typed message or a file.
+  A screen on the path is reached by the previous screen's `next` (add the transition there, with its guard); a
+  detour (like a values screen) leaves with the `back` action. Then in `wizard.ts`: its view in `screen()` (the
+  blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading from `top()`, the question, its rows, `nav()`),
+  and what its events read into the `Draft` in `read()` (a refusal is one sentence; navigation stays in the chart);
+  the document in `toDoc()`. An answer an import may already hold goes into `answered()`; a part editable from the
+  menu into `PARTS`. Host calls (sealing, checks) go through `WizardHost`, implemented in `instance-host.ts`. Run
+  `bun run setup-chart` (the diagram in docs/managed.md); `test/setup-chart.test.ts` checks the chart (xstate loads
+  it, every state reachable, Back and Cancel everywhere, every rendered button handled) and walks it at random;
+  test the screen's payload in `test/managed.test.ts` with the fake Telegram.
 - **a configuration field:** `src/config/document.ts` (type), `src/config/schema.ts` (schema + cross-field rules),
   `bun run schema`, the full example in `test/config.test.ts` (the compiler demands it), a row in
   docs/configuration.md and in skills/flowee-configure/references/fields.md (a test checks both).

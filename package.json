@@ -21,7 +21,8 @@
     "tui": "bun tui/main.ts",
     "validate": "bun scripts/validate.ts",
     "deploy": "bun scripts/deploy.ts",
-    "flow": "bun scripts/flow.ts"
+    "flow": "bun scripts/flow.ts",
+    "setup-chart": "bun scripts/setup-chart.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.9.0",

@@ -46,7 +46,7 @@ async function create(c: Scripted) {
   await c.sync({ text: { text: "/start" } });
   expect(c.screen()).toContain("Set up a workspace");
   await tap(c, /Set up a workspace/);
-  expect(c.screen()).toMatch(/Step 1 of 3/);
+  expect(c.screen()).toMatch(/Step 1 of 5/);
   await c.sync({ text: { text: "https://github.com/acme/app" } });
   expect(c.screen()).toContain("Single branch");
   await tap(c, /Choose|Single branch/);

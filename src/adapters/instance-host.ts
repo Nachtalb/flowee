@@ -387,7 +387,7 @@ export class InstanceHost implements InstanceApi {
     const s = this.store
       .rows<{ data: string }>("SELECT data FROM sessions")
       .map((r) => JSON.parse(r.data) as Session)
-      .find((x) => x.step === "bind" && x.draft.bindCode === c[1] && x.user === m.from);
+      .find((x) => [x.state, (x as { step?: string }).step].some((k) => k === "where" || k === "group" || k === "bind") && x.draft.bindCode === c[1] && x.user === m.from);
     if (!s) return false;
     const t = m.chatTitle;
     const label = t ? (m.at.topic ? `one topic of “${t}”` : `the group “${t}”`) : chatLabel(m.at.chat, m.at.topic);

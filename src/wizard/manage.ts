@@ -7,7 +7,7 @@ import { btn, esc, facts, heading, option, options, question, row, text } from "
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
 import type { AgentRow } from "../core/agents";
-import { chatLabel, extName, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
+import { chatLabel, extName, type Part, roleName, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
   /** Whether the user manages the document by other means than being its creator or a manager (a terminal key). */
@@ -64,7 +64,13 @@ export class Manager {
     private wizard: Wizard,
     private host: ManageHost,
     private chat: Chat,
-  ) {}
+  ) {
+    // a part changed from the workspace's screen returns there, saved or not
+    wizard.returnTo = (u, at, id, note) => {
+      const d = this.host.doc(id);
+      return d ? this.workspace(u, at, d, note) : this.list(u, at);
+    };
+  }
 
   private show(user: string, at: ChatRef, view: View, bottom = false) {
     return this.wizard.living.show(user, at, view, bottom);
@@ -151,7 +157,7 @@ export class Manager {
     const hooks = sync && instantUpdates(sync);
     const own = !!d.chat?.managed;
     const paused = this.host.paused(d.id);
-    const edit = (step: Step) => b("✏️ Change", `edit:${d.id}:${step}`);
+    const edit = (step: Part) => b("✏️ Change", `edit:${d.id}:${step}`);
     return this.show(user, at, [
       heading("📂", code(d.id), paused ? "⏸ paused" : "▶ running"),
       ...(note ? [text(note)] : []),
@@ -163,7 +169,7 @@ export class Manager {
         ...(d.tui ? [{ cells: ["🖥 Terminal people", d.tui.people.map((p) => esc(p.name ?? p.id)).join(", ")], buttons: [b("👥 People", `ppl:${d.id}`)] }] : []),
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
         { cells: ["👥 Agents", agents.map((a) => esc(a.name)).join(", ") || "none yet: they create themselves with the project key"], buttons: [b("👥 Agents", `ag:${d.id}`)] },
-        { cells: ["🧩 Custom steps", (d.extensions ?? []).map((e) => code(extName(e))).join(", ") || "none"], buttons: [edit("ext" as Step)] },
+        { cells: ["🧩 Custom steps", (d.extensions ?? []).map((e) => code(extName(e))).join(", ") || "none"], buttons: [edit("ext")] },
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),
       options(
@@ -302,7 +308,7 @@ export class Manager {
       case "edit": {
         const draft = this.host.draftOf(d);
         draft.replaces = d.id;
-        await this.wizard.over(user, at, draft, v as Step);
+        await this.wizard.over(user, at, draft, v);
         return;
       }
       case "rot":

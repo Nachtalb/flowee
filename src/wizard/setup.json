@@ -1,0 +1,134 @@
+{
+  "id": "setup",
+  "initial": "repos",
+  "description": "The setup wizard: every screen a state, every button an event, guards over the draft. Back pops the session's history; meta.step marks the screens counted in 'Step n of N'; meta.typed and meta.files name the event a typed message or a sent file raises.",
+  "on": {
+    "back": { "actions": "back", "description": "The screen shown before this one." },
+    "cancel": { "target": ".cancelled" },
+    "expire": { "target": ".expired" }
+  },
+  "states": {
+    "repos": {
+      "description": "Which repository is this workspace for?",
+      "meta": { "step": true, "typed": "next" },
+      "on": { "next": [{ "guard": "editing", "target": "done" }, { "target": "bot" }] }
+    },
+    "bot": {
+      "description": "Which bot should bring you the tickets?",
+      "meta": { "step": true },
+      "on": { "next": [{ "guard": "ownBot", "target": "botCreate" }, { "target": "branching" }] }
+    },
+    "botCreate": {
+      "description": "Create the new bot (the one reply keyboard); its creation is the next event.",
+      "meta": { "step": true },
+      "on": { "next": { "target": "branching" } }
+    },
+    "branching": {
+      "description": "Single branch or feature branches.",
+      "meta": { "step": true },
+      "on": { "next": { "target": "options" } }
+    },
+    "options": {
+      "description": "The options: each a switch, or Configure for one that needs values; custom steps.",
+      "meta": { "step": true },
+      "on": {
+        "switch": { "description": "An option without values on or off, or one with values off." },
+        "configure": [
+          { "guard": { "type": "is", "params": { "value": "pullRequests" } }, "target": "pullRequestsValues" },
+          { "guard": { "type": "is", "params": { "value": "releases" } }, "target": "releasesValues" },
+          { "guard": { "type": "is", "params": { "value": "uiReview" } }, "target": "uiReviewValues" },
+          { "guard": { "type": "is", "params": { "value": "dependencyTickets" } }, "target": "dependencyTicketsValues" },
+          { "guard": { "type": "is", "params": { "value": "userFeedback" } }, "target": "userFeedbackValues" }
+        ],
+        "extensions": { "target": "ext" },
+        "next": [{ "guard": "editing", "target": "done" }, { "target": "where" }]
+      }
+    },
+    "pullRequestsValues": {
+      "description": "Feature branches: branch name, required checks, merge method, who merges.",
+      "meta": { "typed": "text", "files": "file" },
+      "on": {
+        "set": {}, "flag": {}, "clear": {}, "tog": {}, "type": {}, "text": {}, "file": {},
+        "apply": { "actions": "back" },
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "releasesValues": {
+      "description": "Wait for a release: what counts as released, its tag, the tag on tested code.",
+      "meta": { "typed": "text", "files": "file" },
+      "on": {
+        "set": {}, "flag": {}, "clear": {}, "tog": {}, "type": {}, "text": {}, "file": {},
+        "apply": { "actions": "back" },
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "uiReviewValues": {
+      "description": "UI review: the paths that count as UI.",
+      "meta": { "typed": "text", "files": "file" },
+      "on": {
+        "set": {}, "flag": {}, "clear": {}, "tog": {}, "type": {}, "text": {}, "file": {},
+        "apply": { "actions": "back" },
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "dependencyTicketsValues": {
+      "description": "Dependency updates: whose pull requests, the labels of the ticket.",
+      "meta": { "typed": "text", "files": "file" },
+      "on": {
+        "set": {}, "flag": {}, "clear": {}, "tog": {}, "type": {}, "text": {}, "file": {},
+        "apply": { "actions": "back" },
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "userFeedbackValues": {
+      "description": "User feedback: the label that marks it.",
+      "meta": { "typed": "text", "files": "file" },
+      "on": {
+        "set": {}, "flag": {}, "clear": {}, "tog": {}, "type": {}, "text": {}, "file": {},
+        "apply": { "actions": "back" },
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "ext": {
+      "description": "Custom steps: extension files sent here, each removable.",
+      "meta": { "files": "file" },
+      "on": {
+        "file": {},
+        "remove": {},
+        "apply": [{ "guard": "hasHistory", "actions": "back" }, { "target": "done" }],
+        "back": { "actions": ["restore", "back"] }
+      }
+    },
+    "where": {
+      "description": "Where should the tickets appear?",
+      "meta": { "step": true },
+      "on": { "next": [{ "guard": "inGroup", "target": "group" }, { "guard": "editing", "target": "done" }, { "target": "token" }] }
+    },
+    "group": {
+      "description": "Add the bot to a group, or to one topic; the group binding itself is the next event.",
+      "meta": { "step": true },
+      "on": { "next": [{ "guard": "editing", "target": "done" }, { "target": "token" }] }
+    },
+    "token": {
+      "description": "The tracker token, typed; checked against the repositories.",
+      "meta": { "step": true, "typed": "next" },
+      "on": { "next": [{ "guard": "tooWide", "target": "wide" }, { "guard": "editing", "target": "done" }, { "target": "summary" }] }
+    },
+    "wide": {
+      "description": "The token reaches more than it needs: use it anyway, or make a narrower one.",
+      "meta": { "step": true },
+      "on": {
+        "next": [{ "guard": "editing", "target": "done" }, { "target": "summary" }],
+        "narrower": { "actions": "back" }
+      }
+    },
+    "summary": {
+      "description": "What it will be; create it.",
+      "meta": { "step": true },
+      "on": { "confirm": { "target": "done" } }
+    },
+    "done": { "type": "final", "description": "Created or saved (entering it commits the draft; a refusal stays on the screen before).", "entry": "commit" },
+    "cancelled": { "type": "final", "description": "Nothing was created or changed." },
+    "expired": { "type": "final", "description": "A day passed without an answer." }
+  }
+}
