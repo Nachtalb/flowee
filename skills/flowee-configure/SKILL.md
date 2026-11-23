@@ -53,7 +53,7 @@ exit 2 when the file is no JSON. Fix every line and run it again. Without bun: t
 |---|---|---|
 | managed, in the chat | send the `.json` file to the instance bot in a private chat (or `/import`, then paste it) | the bot lists what it will create or replace; it asks only what is missing (the own bot when `chat.managed` is set and none exists yet, the GitHub token), then hands over the agents' secrets once |
 | managed, over HTTP | `PUT /admin/workspaces/<id>` with the document, `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` | the answer lists `missing` secret names; `PUT /admin/workspaces/<id>/secrets` with `{"NAME": "value"}` (an agent's secret is given as the secret, only its SHA-256 is stored) |
-| standalone | put it in `flowee.config.json` (`{"flowee": 1, "workspaces": [<doc>]}`) or the `FLOWEE_CONFIG` secret | `wrangler secret put` each name, `wrangler deploy`, `curl <url>/setup` (skill `flowee-install`) |
+| standalone | put it in `flowee.config.local.json` (git-ignored; `{"flowee": 1, "workspaces": [<doc>]}`) | `wrangler secret put` each name, `bun run deploy` (skill `flowee-install`) |
 
 A document imported in the chat gets the workspace's own secret slot names (`W_<ID>_TRACKER`, `W_<ID>_BOT`,
 `W_<ID>_HOOK`, `W_<ID>_<INSTANCE>`), whatever it named; the admin API keeps the names given.

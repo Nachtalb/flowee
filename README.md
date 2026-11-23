@@ -46,26 +46,31 @@ flowchart LR
 Flowee is a Cloudflare Worker. You need a Cloudflare account, `bun`, a GitHub token and a Telegram bot. It runs in one
 of two modes.
 
+Your deployment's configuration goes into `flowee.config.local.json`: it is git-ignored, so the chat ids and URLs
+in it never land in a commit. `bun run deploy` validates it, deploys the Worker with it (as the `FLOWEE_CONFIG`
+secret; without the file, the committed `flowee.config.json` is used), and calls `<url>/setup`, where the bot
+sets its own name, descriptions, commands, settings, photo and webhook, each only when changed. The mode follows
+the document: managed when it has an `instance` section, else standalone.
+
 ### Standalone: one preconfigured instance
 
 The workspaces are fixed at deploy time. No setup happens in the chat.
 
 ```sh
 git clone https://github.com/Nachtalb/flowee && cd flowee && bun install
-$EDITOR flowee.config.json            # the workspace document, see below
-bun run validate flowee.config.json   # the Worker's own validator; exit 0 = valid
+$EDITOR flowee.config.local.json            # {"flowee": 1, "workspaces": [<the workspace document, see below>]}
+bun run validate flowee.config.local.json   # the Worker's own validator; exit 0 = valid
 ```
 
-Store every secret the document names, then deploy and let the bot set its profile and webhook:
+Store every secret the document names (the first `secret put` creates the Worker), then deploy:
 
 ```sh
 bunx wrangler secret put ACME_GITHUB_TOKEN       # a fine-grained token on the repositories
 bunx wrangler secret put TELEGRAM_BOT_TOKEN
-bunx wrangler secret put TG_WEBHOOK_SECRET       # any random string
+openssl rand -hex 32 | bunx wrangler secret put TG_WEBHOOK_SECRET
 # an agent's secret is stored as its SHA-256 only; the agent keeps the secret itself
 printf %s "$DEV1_SECRET" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_DEV1
-bunx wrangler deploy
-curl https://flowee.<account>.workers.dev/setup  # profile, commands and webhook, once per change
+bun run deploy                                   # deploy + GET <publicUrl>/setup
 ```
 
 ### Managed: workspaces set up in the chat
@@ -73,13 +78,15 @@ curl https://flowee.<account>.workers.dev/setup  # profile, commands and webhook
 One instance serves many workspaces. Each user creates theirs with a setup wizard in the chat, with the instance bot
 or with an own bot Flowee creates for the workspace.
 
-1. In `wrangler.toml` set `FLOWEE_MODE = "managed"`. Give the instance section in `flowee.config.json` (or the
-   `FLOWEE_CONFIG` secret): the bot, the public URL, the owner's Telegram id, who may create workspaces.
-2. Turn on bot management for the bot in BotFather, if workspaces should get their own bots.
-3. Store the secrets: the bot token and webhook secret it names, `FLOWEE_KEY` (seals the secrets entered in the
-   chat) and, for the configuration API, `FLOWEE_ADMIN_TOKEN`.
-4. `bunx wrangler deploy`, then `curl https://<worker>/setup`.
-5. In a private chat with the bot: `/setup`. The wizard asks for the bot, the repositories, the flow, where the cards
+1. Write `flowee.config.local.json` with the instance section: the bot's secret names and username, the public
+   URL (`https://flowee.<subdomain>.workers.dev`), the owner's Telegram id, who may create workspaces
+   ([docs/configuration.md](docs/configuration.md#instance)).
+2. Store the secrets, each from stdin: the bot token and the webhook secret the document names, `FLOWEE_KEY` (seals
+   the secrets entered in the chat; keep a copy, losing it makes them unreadable) and `FLOWEE_ADMIN_TOKEN` (the
+   configuration API).
+3. `bun run deploy`. It prints the `/setup` result: `name`, `description`, `short_description`, `commands`,
+   `settings` (this also turns on bot management, for own bots), `photo`, `webhook`, each `set` or `current`.
+4. In a private chat with the bot: `/setup`. The wizard asks for the bot, the repositories, the flow, where the cards
    go, the GitHub token and the number of agents, and hands over the agents' secrets once with a ready
    `.flowee.toml`.
 
@@ -173,7 +180,7 @@ How to run agents against Flowee (roles, one run, what a cheap pre-check looks a
   and paste it) to create or replace one. Only what is missing is asked afterwards.
 - Managed mode, over HTTP: `PUT /admin/workspaces/<id>` with the document, `PUT …/secrets` with the values
   ([docs/api.md](docs/api.md#configuration-api-managed-mode)).
-- Standalone: edit `flowee.config.json` and deploy again.
+- Standalone: edit `flowee.config.local.json` and `bun run deploy` again.
 
 Exports never contain a secret.
 

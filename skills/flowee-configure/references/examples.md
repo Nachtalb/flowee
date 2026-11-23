@@ -229,8 +229,8 @@ sends them back. Two roles, four states; the owner answers through the API (no c
 
 ## 6. A managed instance
 
-The instance document of a managed deployment (`FLOWEE_MODE = "managed"`, given as `flowee.config.json` or the
-`FLOWEE_CONFIG` secret). Workspaces are created in the chat, so the list starts empty.
+The instance document of a managed deployment (`flowee.config.local.json`, which `bun run deploy` uploads as the
+`FLOWEE_CONFIG` secret; its `instance` section makes the deployment managed). Workspaces are created in the chat, so the list starts empty.
 
 ```json
 {

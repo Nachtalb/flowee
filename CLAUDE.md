@@ -21,8 +21,10 @@ bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFI
 Before every commit: typecheck, `bun run test` and `bun run test:client` green, each exit status checked.
 Test runs may create `~/.wrangler`; remove it afterwards (it hides the machine's wrangler login).
 
-Deploy (not automated, no CI): `bun run validate` the configuration, `ls -d ~/.wrangler` (must not exist),
-`wrangler deploy`, then `curl https://<worker>/setup` so the new version sets the bot's profile and webhook.
+Deploy (not automated, no CI): `bun run deploy` (`scripts/deploy.ts`): refuses while `~/.wrangler` exists, validates
+`flowee.config.local.json` (git-ignored, the deployment's own; else `flowee.config.json`), runs `wrangler deploy`
+with `FLOWEE_MODE` from the document and the local document as the `FLOWEE_CONFIG` secret (on stdin), then calls
+`<publicUrl>/setup` so the new version sets the bot's profile and webhook.
 Configuration and secrets: docs/configuration.md; the operator's steps: skills/flowee-install.
 
 ## Layout
@@ -56,7 +58,7 @@ src/
   index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup
 flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
 schema/       workspace.schema.json, instance.schema.json (generated)
-scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`)
+scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`)
 client/       flowee.py + test_flowee.py
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
 docs/         api.md, flows.md, adapters.md, configuration.md, envoy.md (the chat interface, row by row),
