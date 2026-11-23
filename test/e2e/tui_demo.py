@@ -17,6 +17,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E40
 import threading  # noqa: E402
 
 
+class Hub(GitHub):
+    """The wire stand-in, plus the repository itself (the wizard's token check reads it) and an empty repository list."""
+
+    def handle(self, method, path, body):
+        url = path.partition("?")[0]
+        if method == "GET" and re.match(r"^/repos/[^/]+/[^/]+$", url):
+            return 200, {"full_name": url[7:], "permissions": {"push": True}}
+        if method == "GET" and url in ("/user/repos", "/installation/repositories"):
+            return 200, []
+        return super().handle(method, path, body)
+
+
 class Paste:
     """A rustypaste stand-in: keeps the uploads, answers each one's link."""
 
@@ -208,7 +220,23 @@ def png(term, path):
                 elif g == "└": d.line([mid_x, py, mid_x, mid_y], **line); d.line([mid_x, mid_y, px + cw, mid_y], **line)
                 elif g == "┘": d.line([mid_x, py, mid_x, mid_y], **line); d.line([px, mid_y, mid_x, mid_y], **line)
                 continue
-            d.text((px, py + 2), g, font=font(bits & 1, bits & 4 and 1), fill=fgc)
+            f = font(bits & 1, bits & 4 and 1)
+            # a symbol the text font lacks (✖, ⏭ without VS16) comes from the emoji font, one cell wide
+            if ord(g[0]) > 0x2000 and emoji and not f.getmask(g).getbbox():
+                try:
+                    ef, size = emoji
+                    tile = Image.new("RGBA", (size + 40, size + 40), (0, 0, 0, 0))
+                    ImageDraw.Draw(tile).text((0, 0), g, font=ef, embedded_color=True)
+                    box = tile.getbbox()
+                    if box:
+                        tile = tile.crop(box)
+                        s = min(cw, ch - 4)
+                        tile = tile.resize((s, s))
+                        img.paste(tile, (px, py + 5), tile)
+                        continue
+                except Exception:
+                    pass
+            d.text((px, py + 2), g, font=f, fill=fgc)
             if bits & 8:
                 d.line([px, py + ch - 3, px + cw * (2 if wide else 1), py + ch - 3], fill=fgc)
     img.save(path)
@@ -260,6 +288,25 @@ class Client:
         os.write(self.fd, s.encode())
         self.pump(settle)
 
+    def click(self, label, last=True):
+        """Clicks the label where the screen shows it (the newest/lowest one): an SGR mouse press and release."""
+        hits = []
+        for y, row in enumerate(self.term.grid):
+            s, cells = "", []
+            for x, (g, *_rest) in enumerate(row):
+                if g == "":
+                    continue
+                cells.extend([x] * len(g))
+                s += g
+            i = s.find(label)
+            if i >= 0:
+                hits.append((y, cells[i]))
+        if not hits:
+            raise SystemExit(f"no {label!r} on screen:\n{self.term.text()}")
+        y, x = hits[-1] if last else hits[0]
+        os.write(self.fd, f"\x1b[<0;{x + 2};{y + 1}M\x1b[<0;{x + 2};{y + 1}m".encode())
+        self.pump(0.8)
+
     def shot(self, name):
         (self.out / f"{name}.txt").write_text(self.term.text() + "\n")
         png(self.term, self.out / f"{name}.png")
@@ -299,7 +346,7 @@ def main():
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     scratch = Path(tempfile.mkdtemp(prefix="flowee-tui-demo-"))
-    gh = GitHub()
+    gh = Hub()
     paste = Paste()
     ann_key, bob_key = "fwk_demo-ann-0000000000000000000000000000000", "fwk_demo-bob-0000000000000000000000000000000"
     dig = lambda k: hashlib.sha256(k.encode()).hexdigest()
@@ -400,6 +447,8 @@ def main():
         answered = [x for x in comments if x.startswith("Ann: ")]
         print("  tracker:", json.dumps(answered))
         ok = any("CSV, please" in x for x in answered) and any("answer.png" in x for x in answered)
+        if rt:
+            ok = managed_walk(scratch, gh, out, w, h) and ok
         # the sign-in screen: a person with no key yet
         c = Client(url, scratch / "nobody.key", cfg, w, h, out)
         c.until(r"Sign in to Flowee")
@@ -418,6 +467,74 @@ def main():
             proc.wait(timeout=20)
     print("ok" if ok else "FAILED: the tracker did not get the answers")
     sys.exit(0 if ok else 1)
+
+
+def managed_walk(scratch, gh, out, w, h):
+    """The managed mode's setup seat: the wizard and the menu in the terminal, the agents' secrets saved as a file."""
+    key = "fwk_demo-mia-00000000000000000000000000000000"
+    cfg = {"flowee": 1, "workspaces": [], "instance": {"bot": {"token": "BOT", "webhookSecret": "HOOK"}, "publicUrl": "https://flowee.example", "owner": "1",
+           "trackerApi": gh.url, "tui": {"people": [{"id": "mia", "name": "Mia", "role": "manager", "key": hashlib.sha256(key.encode()).hexdigest()}]}}}
+    gh.repo("acme/app")
+
+    class NoTelegram:
+        url = "http://127.0.0.1:9"
+    rt = SelfHosted("bun", scratch / "managed", cfg, NoTelegram(), None)
+    (scratch / "managed").mkdir()
+    os.environ.update({"FLOWEE_MODE": "managed", "FLOWEE_ADMIN_TOKEN": "admin-demo"})
+    rt.start()
+    os.environ.pop("FLOWEE_MODE")
+    kf = scratch / "mia.key"
+    kf.write_text(key + "\n")
+    cfgdir = scratch / "cfg-mia"
+    cfgdir.mkdir()
+    c = Client(rt.url, kf, cfgdir, w, h, out)
+    try:
+        c.until(r"Welcome to Flowee")
+        c.shot("20-setup-welcome")
+        c.click("Set up a workspace")
+        c.until(r"Step 1 of")
+        c.shot("21-wizard-repos")
+        c.keys("a")
+        c.keys("https://github.com/acme/app", 0.3)
+        c.keys("\x13")
+        c.until(r"Single branch")
+        c.shot("22-wizard-flow")
+        c.click("🔀 Choose")
+        c.until(r"Versioning")
+        c.shot("23-wizard-options")
+        c.click("Next")
+        c.until(r"token")
+        c.shot("24-wizard-token")
+        c.keys("a")
+        c.keys("github_pat_" + "a" * 40, 0.3)
+        c.keys("\x13")
+        c.until(r"Agents|agents|Last check")
+        if "Last check" not in c.term.text():
+            c.shot("25-wizard-agents")
+            c.click("Next")
+        c.until(r"Last check")
+        c.shot("26-wizard-summary")
+        c.click("Create")
+        c.until(r"Saved to .*flowee-app-sec", 20)
+        c.shot("27-secrets-saved")
+        c.keys(":")
+        c.keys("workspaces\r")
+        c.until(r"Your workspaces")
+        c.click("Open")
+        c.until(r"Terminal people")
+        c.shot("28-menu-workspace")
+        c.click("👥 People")
+        c.until(r"Who can use")
+        c.click("➕ Member")
+        c.until(r"Saved to .*\.key")
+        c.shot("29-menu-people")
+        return True
+    except SystemExit as e:
+        print(f"  managed walk: {e}")
+        return False
+    finally:
+        c.close()
+        rt.stop()
 
 
 def seed(gh, repo, n, title):

@@ -472,7 +472,7 @@ export class Wizard {
   /** Where the tickets go, in the words of the person setting it up. */
   private where(s: Session) {
     const d = s.draft;
-    if (!d.bind) return "nowhere: the workspace is used through its API only";
+    if (!d.bind) return this.host.terminal ? "in the terminal (flowee-tui): you first, more people in the menu" : "nowhere: the workspace is used through its API only";
     if (d.bind.chat !== s.user) return esc(d.bind.label);
     return d.bot === "own" ? `your private chat with ${d.botUsername ? `@${esc(d.botUsername)}` : "its bot"}` : "here, in this chat";
   }
@@ -788,7 +788,7 @@ export class Wizard {
     const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => esc(r.instance));
     return [
       ["📦 Repositories", `${d.repos.map(code).join(", ")} on ${this.host.trackerName(d.tracker?.kind)}`],
-      ["🤖 Bot", d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"],
+      ...(this.host.terminal ? [] : [["🤖 Bot", d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"]]),
       ["🔀 Way of working", wayOf(this.switches(d))],
       ["💬 Tickets appear", this.where(s)],
       [`🔑 ${this.host.trackerName(d.tracker?.kind)} token`, d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"],

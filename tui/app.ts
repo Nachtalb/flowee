@@ -253,8 +253,11 @@ export class App {
       const m = c.files.shift() as Shown;
       const f = m.file as NonNullable<Shown["file"]>;
       try {
-        const path = this.sys.save(f.name, f.data);
-        this.say(`${f.caption ? `${f.caption} ` : ""}Saved to ${path} (readable by you only).`);
+        const full = this.sys.save(f.name, f.data);
+        const home = full.startsWith(`${this.sys.home}/`) ? `~${full.slice(this.sys.home.length)}` : full;
+        // the file's name must stay readable: a long folder is cut from the left
+        const path = width(home) > 72 ? `…${home.slice(-71)}` : home;
+        this.say(`💾 Saved to ${path}: readable by you only.${f.caption ? ` ${f.caption}` : ""}`);
       } catch (e) {
         this.say(`${f.name} could not be saved: ${e instanceof Error ? e.message : e}`, true);
       }
@@ -630,7 +633,9 @@ export class App {
     const barRows = this.barLines(sc.w);
     const bodyH = sc.h - 2 - barRows.length;
     const wide = sc.w >= 100;
-    if (wide) {
+    // the setup has no inbox: its screens take the whole width
+    if (this.setup) this.drawFocus(sc, 0, 1, sc.w, bodyH);
+    else if (wide) {
       const lw = Math.max(34, Math.min(56, Math.floor(sc.w * 0.36)));
       this.drawInbox(sc, 0, 1, lw, bodyH);
       this.drawFocus(sc, lw, 1, sc.w - lw, bodyH);
@@ -740,11 +745,12 @@ export class App {
     this.box(sc, x, y, w, vh, title, focused, () => (this.area = "view"));
     const iw = w - 4;
     if (!f) {
-      const lines = [
-        this.conv.panel ? "Nothing open on screen." : "Fetching the inbox…",
-        "n opens the next item, t writes a new ticket, l lists them all, ? shows every key.",
-      ];
-      lines.forEach((l, i) => sc.put(x + 2, y + 1 + i, clip(l, iw), this.c(i ? DIM : 0), x + w - 2));
+      const hint = this.setup ? "Fetching…" : this.conv.panel ? "Nothing open on screen." : "Fetching the inbox…";
+      const help = this.setup ? "" : "<p>n opens the next item, t writes a new ticket, l lists them all, ? shows every key.</p>";
+      layout([{ html: `<p>${hint}</p>${help}` }], iw).lines.slice(0, vh - 2).forEach((l, i) => {
+        let cx = x + 2;
+        for (const seg of l) cx = sc.put(cx, y + 1 + i, seg.t, this.c(i ? DIM : 0), x + w - 2);
+      });
     } else {
       const key = `${f.id}:${f.touched}:${iw}:${JSON.stringify([...(this.folds.get(f.id) ?? new Map())])}`;
       // the bar showing a list: its button rows are on the action bar already
@@ -798,12 +804,13 @@ export class App {
     const focused = this.area === "editor";
     const e = this.editor() as Editor;
     const hint = focused ? "Ctrl+S send · Ctrl+O attach · Esc leave" : "a to write";
-    this.box(sc, x, y, w, h, `✎ ${t.reply ?? "Your answer…"} · ${hint}`, focused, () => (this.area = "editor"));
+    const placeholder = t.reply ?? (this.setup ? "Type here: a link, a token, a name…" : "Your answer…");
+    this.box(sc, x, y, w, h, `✎ ${placeholder} · ${hint}`, focused, () => (this.area = "editor"));
     const iw = w - 4;
     const ih = h - 2;
     const { rows, cr, cc } = e.wrapped(iw);
     if (e.empty && !focused) {
-      sc.put(x + 2, y + 1, clip(t.reply ?? "Your answer…", iw), this.c(DIM | IT), x + w - 2);
+      sc.put(x + 2, y + 1, clip(placeholder, iw), this.c(DIM | IT), x + w - 2);
       return;
     }
     const top = Math.max(0, cr - ih + 1);

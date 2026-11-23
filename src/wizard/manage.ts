@@ -248,7 +248,7 @@ export class Manager {
           // the key exists only in this file: whoever adds the person hands it over
           const sent = this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-${person}.key`, `${key}\n`, `🔑 The key of ${person}: shown only this once.`).then(() => true, () => false));
           const fresh = this.host.doc(id) as WorkspaceDoc;
-          await this.people(user, at, fresh, sent ? `${person} was added; the key file above is the only copy: hand it over (flowee-tui --key-file <file>).` : `${person} was added with the key ${code(key)} (shown only this once).`);
+          await this.people(user, at, fresh, sent ? `${person} was added; the key file above is the only copy: hand it over (flowee-tui --key-file &lt;file&gt;).` : `${person} was added with the key ${code(key)} (shown only this once).`);
           return;
         }
         if (k === "pplrm" && w === "yes" && this.host.removePerson) {
