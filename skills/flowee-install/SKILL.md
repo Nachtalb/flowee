@@ -122,7 +122,7 @@ Cloudflare account or wants the data on their own machine.
    getUpdates, no address needed) and the trackers are polled every `sync.pollMinutes`. `chat.webhookSecret` still
    names a secret, which polling never reads. Telegram as step 3; `getWebhookInfo` must show no webhook, and no
    other process may poll the bot (Flowee stops with one sentence on Telegram's 409).
-2. Run it: the image (`docker build -t flowee .` in a clone, or the operator's registry), `compose.yaml` as the
+2. Run it: the published image `ghcr.io/nachtalb/flowee:latest` (or `docker build -t flowee .` in a clone), `compose.yaml` as the
    template, or the executable (`bun run compile -- --target bun-linux-x64 --outfile flowee`). Configuration by
    environment: `FLOWEE_CONFIG_FILE` (the document), `FLOWEE_DATA` (one directory, one volume), every secret the
    document names as a variable or as `<NAME>_FILE` (Docker secrets). The project key (and agents' secrets): the SHA-256 hex, as on the Worker.

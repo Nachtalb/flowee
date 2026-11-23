@@ -13,7 +13,8 @@ bun run test                      # every suite twice: vitest in workerd (@cloud
                                   #   the bun runtime (test:bun, vitest.bun.config.ts) plus test/bun/; fakes via fetch
 bun run start                     # the self-hosted runtime from the clone (docs/self-hosting.md)
 bun run compile                   # one executable, served/ embedded (scripts/compile.ts; --target, --outfile)
-docker build -t flowee .          # the image FROM scratch (Dockerfile); compose.yaml is the example deployment
+docker build -t flowee .          # the image FROM scratch (Dockerfile); CI publishes it as ghcr.io/nachtalb/flowee
+                                  #   (.github/workflows/image.yml); compose.yaml is the example deployment
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run tui -- --url <instance>   # the terminal client from the clone (docs/tui.md)
 bun run compile:tui               # dist/flowee-tui, one executable (bun build --compile tui/main.ts; --target for others)

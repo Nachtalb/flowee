@@ -1,34 +1,26 @@
 # Flowee self-hosted with Docker Compose (docs/self-hosting.md): `docker compose up -d`.
-# Put the configuration document at ./flowee.json and each secret it names in ./secrets/<NAME>.
+# Next to this file: flowee.json (the configuration document), secrets/<NAME> (one file per secret it names, mode
+# 600) and data/ (the data directory), all three owned by the uid and gid in `user:` (`id -u`, `id -g`).
 services:
   flowee:
-    image: flowee:latest
-    build: .
+    image: ghcr.io/nachtalb/flowee:latest
+    # build: .                # instead of the published image: the image built from this clone
     restart: unless-stopped
+    user: "1000:1000"         # your `id -u`:`id -g`; without it the image's uid 65532 must own data/ and secrets/
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787" # "8787:8787" when other machines must reach it directly
     volumes:
-      - flowee-data:/data
+      - ./data:/data
       - ./flowee.json:/config/flowee.json:ro
+      - ./secrets:/run/secrets:ro
     environment:
       FLOWEE_CONFIG_FILE: /config/flowee.json
+      FLOWEE_KEY_FILE: /run/secrets/FLOWEE_KEY   # back it up: it seals the secrets Flowee stores
       # behind a reverse proxy (https): Telegram and tracker webhooks; without it: polling
       # FLOWEE_PUBLIC_URL: https://flowee.example.com
       # FLOWEE_TRUST_PROXY: "1"
-      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/TELEGRAM_BOT_TOKEN
+      # one <NAME>_FILE per secret the document names:
       GITHUB_TOKEN_FILE: /run/secrets/GITHUB_TOKEN
-      TOKEN_BOARD_FILE: /run/secrets/TOKEN_BOARD
-      TOKEN_DEV1_FILE: /run/secrets/TOKEN_DEV1
-      TOKEN_OWNER_FILE: /run/secrets/TOKEN_OWNER
-      # FLOWEE_KEY_FILE: /run/secrets/FLOWEE_KEY   # else generated into the volume (back it up)
-    secrets: [TELEGRAM_BOT_TOKEN, GITHUB_TOKEN, TOKEN_BOARD, TOKEN_DEV1, TOKEN_OWNER]
-
-secrets:
-  TELEGRAM_BOT_TOKEN: { file: ./secrets/TELEGRAM_BOT_TOKEN }
-  GITHUB_TOKEN: { file: ./secrets/GITHUB_TOKEN }
-  TOKEN_BOARD: { file: ./secrets/TOKEN_BOARD }
-  TOKEN_DEV1: { file: ./secrets/TOKEN_DEV1 }
-  TOKEN_OWNER: { file: ./secrets/TOKEN_OWNER }
-
-volumes:
-  flowee-data:
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/TELEGRAM_BOT_TOKEN
+      TG_WEBHOOK_SECRET_FILE: /run/secrets/TG_WEBHOOK_SECRET
+      ACME_KEY_FILE: /run/secrets/ACME_KEY

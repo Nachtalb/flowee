@@ -113,18 +113,23 @@ The same configuration document, served by one process on any machine. Without a
 are fetched by polling and the trackers are polled; behind a reverse proxy with `FLOWEE_PUBLIC_URL` it gets webhooks
 as on Cloudflare. Its data is one directory (a SQLite file per workspace).
 
+The published image `ghcr.io/nachtalb/flowee:latest` (amd64 and arm64, FROM scratch, built from every push to
+`main`; also tagged with the commit and with each `v*` version):
+
 ```sh
-# the executable
-bun run compile -- --target bun-linux-x64 --outfile flowee
-FLOWEE_CONFIG_FILE=flowee.json FLOWEE_DATA=./data TELEGRAM_BOT_TOKEN=… GITHUB_TOKEN=… ./flowee
-
-# Docker (FROM scratch, 107 MB)
-docker build -t flowee .
-docker run -d -p 8787:8787 -v flowee-data:/data -v "$PWD/flowee.json:/config/flowee.json:ro" -e FLOWEE_CONFIG_FILE=/config/flowee.json -e GITHUB_TOKEN=… flowee
-
-# Docker Compose (the document at ./flowee.json, each secret in ./secrets/<NAME>)
-$EDITOR compose.yaml
+# Docker Compose: the document at ./flowee.json, each secret in ./secrets/<NAME>, the data in ./data
+$EDITOR compose.yaml                                     # user: your `id -u`:`id -g`; the secrets' names
+docker run --rm -v "$PWD/flowee.json:/config/flowee.json:ro" ghcr.io/nachtalb/flowee:latest validate /config/flowee.json
 docker compose up -d
+
+# or one command (Podman: --userns=keep-id:uid=65532,gid=65532 instead of --user)
+docker run -d --name flowee --user "$(id -u):$(id -g)" -p 127.0.0.1:8787:8787 -v "$PWD/data:/data" \
+  -v "$PWD/flowee.json:/config/flowee.json:ro" -v "$PWD/secrets:/run/secrets:ro" \
+  -e FLOWEE_CONFIG_FILE=/config/flowee.json -e GITHUB_TOKEN_FILE=/run/secrets/GITHUB_TOKEN ghcr.io/nachtalb/flowee:latest
+
+# from source instead: the image (docker build -t flowee .), or one executable
+bun run compile -- --target bun-linux-x64 --outfile flowee
+FLOWEE_CONFIG_FILE=flowee.json FLOWEE_DATA=./data GITHUB_TOKEN_FILE=secrets/GITHUB_TOKEN ./flowee
 ```
 
 Configuration, the data directory, backup, upgrade, polling and webhooks: [docs/self-hosting.md](docs/self-hosting.md).

@@ -8,6 +8,14 @@ public URL, and it receives Telegram and tracker webhooks exactly as the Worker 
 ## Run it
 
 ```sh
+# the published image (amd64, arm64): ghcr.io/nachtalb/flowee:latest, :<commit>, :<version>
+docker run -d --name flowee --user "$(id -u):$(id -g)" -p 127.0.0.1:8787:8787 -v "$PWD/data:/data" \
+  -v "$PWD/flowee.json:/config/flowee.json:ro" -v "$PWD/secrets:/run/secrets:ro" \
+  -e FLOWEE_CONFIG_FILE=/config/flowee.json -e TELEGRAM_BOT_TOKEN_FILE=/run/secrets/TELEGRAM_BOT_TOKEN … ghcr.io/nachtalb/flowee:latest
+
+# Docker Compose: compose.yaml in the repository (./flowee.json, ./secrets/<NAME>, ./data)
+docker compose up -d
+
 # from a clone (bun 1.4+)
 bun install && FLOWEE_CONFIG_FILE=flowee.json bun run start
 
@@ -15,14 +23,13 @@ bun install && FLOWEE_CONFIG_FILE=flowee.json bun run start
 bun run compile -- --target bun-linux-x64 --outfile flowee    # or bun-linux-arm64, bun-darwin-arm64, bun-linux-x64-musl
 FLOWEE_CONFIG_FILE=flowee.json FLOWEE_DATA=/var/lib/flowee ./flowee
 
-# Docker
+# the image from the clone instead of the published one
 docker build -t flowee .
-docker run -d --name flowee -p 8787:8787 -v flowee-data:/data -v "$PWD/flowee.json:/config/flowee.json:ro" \
-  -e FLOWEE_CONFIG_FILE=/config/flowee.json -e TELEGRAM_BOT_TOKEN_FILE=/run/secrets/TELEGRAM_BOT_TOKEN … flowee
-
-# Docker Compose: compose.yaml in the repository (the document at ./flowee.json, each secret in ./secrets/<NAME>)
-docker compose up -d
 ```
+
+The image runs as uid 65532. A bind-mounted `data/` must be writable by the process: run it as your own uid
+(`--user`, as above), or `chown -R 65532:65532` the directories once; rootless Podman maps your uid to 65532 with
+`--userns=keep-id:uid=65532,gid=65532`. Without that the start fails with `EACCES: permission denied`.
 
 `flowee health` asks the running process (`GET /health` on `FLOWEE_PORT`) and exits 0 or 1: the image's
 `HEALTHCHECK`, with no shell in the image. `flowee version` prints the version. `flowee validate <file>…` checks a
@@ -68,8 +75,8 @@ the terminal (docs/tui.md). The whole configuration:
 } ] }
 ```
 
-`docker run -p 8787:8787 -v flowee:/data -e FLOWEE_CONFIG="$(cat flowee.json)" -e GITHUB_TOKEN_FILE=… …` (no
-`TELEGRAM_*` secret, no public URL needed), then `flowee-tui --url http://<host>:8787`. Behind a reverse proxy,
+`docker run -p 8787:8787 -v flowee:/data -e FLOWEE_CONFIG="$(cat flowee.json)" -e GITHUB_TOKEN_FILE=… … ghcr.io/nachtalb/flowee:latest`
+(no `TELEGRAM_*` secret, no public URL needed), then `flowee-tui --url http://<host>:8787`. Behind a reverse proxy,
 let it pass WebSocket upgrades on `/tui/` (the doorbell); without them the client polls and loses nothing.
 `python3 test/e2e/tui_demo.py --runtime docker --image <image>` walks exactly this configuration.
 
@@ -126,6 +133,9 @@ Then `FLOWEE_PUBLIC_URL=https://flowee.example.com` and `FLOWEE_TRUST_PROXY=1`.
 
 ## The image
 
+`ghcr.io/nachtalb/flowee` is published by `.github/workflows/image.yml` on every push to `main` that changes the
+program (`:latest` and `:<short commit>`) and on every `v*` tag (`:<version>`), for linux/amd64 and linux/arm64, public.
+
 `Dockerfile`: a build stage compiles the executable with `bun build --compile` for musl (`scripts/compile.ts`, the
 served material embedded); the final image is `FROM scratch` with that file, the musl loader, `libstdc++` and
 `libgcc_s` (bun's compiled executables are not fully static) and the CA bundle for HTTPS. It runs as uid 65532,
@@ -133,7 +143,7 @@ has one volume (`/data`), `EXPOSE 8787`, a `HEALTHCHECK` by `flowee health` and 
 all of it the bun runtime inside the executable (measured: alpine + the same executable 115 MB; `oven/bun:alpine`
 with the sources 116 MB; distroless/cc with the glibc executable 134 MB).
 
-Multi-arch (the build stage cross-compiles, so no emulation is needed for it):
+Building it yourself, multi-arch (the build stage cross-compiles, so no emulation is needed for it):
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/flowee:<version> \
