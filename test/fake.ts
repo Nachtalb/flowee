@@ -29,7 +29,7 @@ export class FakeGitHub {
   extra?: (method: string, path: string, body: Record<string, any>, url: URL) => Response | undefined;
   private nextComment = 1;
 
-  constructor(public repo = "Nachtalb/livedu") {}
+  constructor(public repo = "acme/shop") {}
 
   owns(path: string) {
     return path.startsWith(`/repos/${this.repo}/`) || path === `/repos/${this.repo}`;
@@ -224,11 +224,11 @@ export function install() {
   const gh2 = new FakeGitHub("acme/widget");
   const app = new FakeGitHub("acme/app");
   const lib = new FakeGitHub("acme/lib");
-  const anyfile = new FakeGitHub("acme/anyfile");
-  const anydev = new FakeGitHub("acme/anydev");
+  const viewer = new FakeGitHub("acme/viewer");
+  const deps = new FakeGitHub("acme/deps");
   const web = new FakeGitHub("acme/web");
   const api = new FakeGitHub("acme/api");
-  const repos = [gh2, app, lib, anyfile, anydev, web, api];
+  const repos = [gh2, app, lib, viewer, deps, web, api];
   const tg = new FakeTelegram();
   const paste = new FakePaste();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -242,5 +242,5 @@ export function install() {
     if (host === "f.naa.gg") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, anyfile, anydev, web, api, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, tg, paste };
 }

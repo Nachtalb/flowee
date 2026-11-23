@@ -23,14 +23,14 @@ beforeEach(async () => {
 });
 afterEach(() => void vi.useRealTimers());
 
-const NICK = { id: 713276361, is_bot: false, first_name: "Nick" };
-const BOT = { id: 999, is_bot: true, first_name: "LiveDu Envoy" };
-const CHAT = { id: 713276361, type: "private" };
+const OWNER = { id: 100000001, is_bot: false, first_name: "Ann" };
+const BOT = { id: 999, is_bot: true, first_name: "Shop Envoy" };
+const CHAT = { id: 100000001, type: "private" };
 const msg = (text: string | undefined, reply?: number, extra: Record<string, unknown> = {}) => ({
   update_id: uid++,
   message: {
     message_id: 5000 + uid,
-    from: NICK,
+    from: OWNER,
     chat: CHAT,
     date: 1,
     ...(text === undefined ? {} : { text }),
@@ -40,7 +40,7 @@ const msg = (text: string | undefined, reply?: number, extra: Record<string, unk
 });
 const press = (data: string, message_id = 1) => ({
   update_id: uid++,
-  callback_query: { id: `q${uid}`, from: NICK, data, message: { message_id, chat: CHAT } },
+  callback_query: { id: `q${uid}`, from: OWNER, data, message: { message_id, chat: CHAT } },
 });
 const html = (p: Record<string, any>) => (p.rich_message?.html ?? "") as string;
 const rich = () => tg.sent("sendRichMessage");
@@ -48,7 +48,7 @@ const toasts = () => tg.of("answerCallbackQuery").map((a) => a.text);
 const texts = () => tg.of("sendMessage").map((m) => m.text);
 const reactions = () => tg.of("setMessageReaction").map((r) => r.reaction[0].emoji);
 const status = (n: number) => inFlow((f) => f.rows<{ status: string }>("SELECT status FROM inbox WHERE n = ?", n)[0]?.status);
-const ISSUE = (n: number) => `https://github.com/Nachtalb/livedu/issues/${n}`;
+const ISSUE = (n: number) => `https://github.com/acme/shop/issues/${n}`;
 const Q1 = (cid: number, n = 1, age = "⏳ 0 min", open = false) =>
   `<p>❓ <b>Question</b> · <a href="${ISSUE(n)}#issuecomment-${cid}">#${n}</a> · ${age}</p><p><b>Ticket ${n}</b></p><details${open ? " open" : ""}><summary>Details</summary><p><b>Question:</b></p><p>Blue or green? I recommend blue.</p></details>`;
 
@@ -77,7 +77,7 @@ describe("webhook and owner (51)", () => {
 
   it("ignores everyone but the owner's private chat, without a reply", async () => {
     const u = msg("/start");
-    u.message.from = { ...NICK, id: 42 };
+    u.message.from = { ...OWNER, id: 42 };
     expect((await hook(u)).status).toBe(200);
     const g = msg("/start");
     g.message.chat = { id: -5, type: "group" };
@@ -91,7 +91,7 @@ describe("webhook and owner (51)", () => {
     const u = msg("Green.", note);
     await hook(u);
     await hook(u);
-    expect(gh.issues.get(1)?.comments.filter((c) => c.body === "Nick: Green.")).toHaveLength(1);
+    expect(gh.issues.get(1)?.comments.filter((c) => c.body === "Ann: Green.")).toHaveLength(1);
   });
 });
 
@@ -101,7 +101,7 @@ describe("cards and notes (12-18, 20, 47)", () => {
     expect((await call("board", "escalate", { n: 1, comment: CARD_Q })).body.telegram).toBe("sent");
     const [note] = rich();
     expect(html(note)).toBe(Q1(1) + okRow());
-    expect(note.chat_id).toBe("713276361");
+    expect(note.chat_id).toBe("100000001");
     expect(tg.of("setMyCommands")[0]).toEqual({
       commands: [
         { command: "start", description: "what this bot does" },
@@ -109,7 +109,7 @@ describe("cards and notes (12-18, 20, 47)", () => {
         { command: "postponed", description: "0 postponed tickets" },
         { command: "new", description: "new ticket" },
       ],
-      scope: { type: "chat", chat_id: "713276361" },
+      scope: { type: "chat", chat_id: "100000001" },
     });
   });
 
@@ -171,7 +171,7 @@ describe("the bar (21-28)", () => {
     const bar = rich().at(-1)?.id as number;
     tg.calls = [];
     await hook(press("n", bar));
-    expect(gh.last(1)).toBe("Nick: The list is empty\n\nand slow");
+    expect(gh.last(1)).toBe("Ann: The list is empty\n\nand slow");
     expect(gh.label(1)).toEqual(["needs triage"]);
     expect(tg.of("editMessageText")[0]).toMatchObject({ message_id: card });
     expect(html(tg.of("editMessageText")[0])).toContain("· ✓ answered 0 min ago");
@@ -183,7 +183,7 @@ describe("the bar (21-28)", () => {
     await escalated(2);
     const { card, bar } = await start();
     await hook(press("k", bar));
-    expect(gh.last(1)).toBe("Nick: OK");
+    expect(gh.last(1)).toBe("Ann: OK");
     expect(toasts()).toEqual(["✅ #1 OK"]);
     expect(tg.of("editMessageText")[0]).toMatchObject({ message_id: card });
     expect(rich()[0].reply_markup.force_reply).toBe(true);
@@ -215,7 +215,7 @@ describe("the bar (21-28)", () => {
     await hook(msg("typed"));
     await hook(press("s"));
     expect(toasts().at(-1)).toBe("📨 #2 sent");
-    expect(gh.last(2)).toBe("Nick: typed");
+    expect(gh.last(2)).toBe("Ann: typed");
   });
 
   it("📋 List, paging, Open and « Back take turns in the bar (5, 27, 28)", async () => {
@@ -242,7 +242,7 @@ describe("the bar (21-28)", () => {
 describe("search, numbers, postponed (29-32)", () => {
   it("🔎 Search asks with ForceReply; replies search; « Back (10, 29)", async () => {
     await escalated(1);
-    await escalated(2, "### For Nick\nKind: question\nQuestion: Is the thumbnail grid right?");
+    await escalated(2, "### For Ann\nKind: question\nQuestion: Is the thumbnail grid right?");
     await hook(msg("/todo"));
     const bar = rich()[0].id;
     await hook(press("f", bar));
@@ -281,11 +281,11 @@ describe("search, numbers, postponed (29-32)", () => {
     expect(html(list)).not.toContain('data="f"');
     await hook(press("q:5:50", list.id));
     const c = rich().at(-1) as ReturnType<typeof rich>[number];
-    expect(html(c)).toContain('<p>💤 <b>Postponed</b> · <a href="https://github.com/Nachtalb/livedu/issues/5#issuecomment-50">#5</a>');
+    expect(html(c)).toContain('<p>💤 <b>Postponed</b> · <a href="https://github.com/acme/shop/issues/5#issuecomment-50">#5</a>');
     expect(html(c)).toContain("<details open>");
     expect(c.reply_markup).toBeUndefined();
     await hook(msg("Go ahead now", c.id));
-    expect(gh.last(5)).toBe("Nick: Go ahead now");
+    expect(gh.last(5)).toBe("Ann: Go ahead now");
     expect(gh.label(5)).toEqual(["needs triage"]);
     await inFlow((f) => f.cron());
     await hook(press("q:5:50", list.id));
@@ -297,7 +297,7 @@ describe("answers (34-42)", () => {
   it("a reply to a note is the whole answer: 👀 then 👍 (36)", async () => {
     const note = await escalated();
     await hook(msg("Blue.", note));
-    expect(gh.last(1)).toBe("Nick: Blue.");
+    expect(gh.last(1)).toBe("Ann: Blue.");
     expect(reactions()).toEqual(["👀", "👍"]);
     expect(await status(1)).toBe("answered");
     expect(html(rich().at(-1) as never)).toBe(nav(undefined, 0));
@@ -343,10 +343,10 @@ describe("answers (34-42)", () => {
     await hook(u);
     const name = `screenshot-${u.message.message_id}.jpg`;
     expect(paste.uploads).toEqual([{ name, body: "bytes of big", auth: "paste-test", expire: "90d" }]);
-    expect(gh.last(1)).toBe(`Nick: See this\n\n![${name}](https://f.naa.gg/${name})`);
+    expect(gh.last(1)).toBe(`Ann: See this\n\n![${name}](https://f.naa.gg/${name})`);
     const note2 = await escalated(2);
     await hook(msg(undefined, note2, { document: { file_id: "d", file_name: "my log.txt", mime_type: "text/plain", file_size: 12 } }));
-    expect(gh.last(2)).toBe("Nick: [my_log.txt](https://f.naa.gg/my_log.txt)");
+    expect(gh.last(2)).toBe("Ann: [my_log.txt](https://f.naa.gg/my_log.txt)");
   });
 
   it("too big, upload failure, voice and stickers are refused with the reference's texts (40, 41)", async () => {
@@ -374,14 +374,14 @@ describe("answers (34-42)", () => {
     expect(tg.calls).toEqual([]);
     await inFlow((f) => f.sql.exec("UPDATE albums SET ts = ts - 5000"));
     expect(await runDurableObjectAlarm(stub())).toBe(true);
-    expect(gh.issues.get(1)?.comments.filter((c) => c.body.startsWith("Nick:"))).toHaveLength(1);
-    expect(gh.last(1)).toMatch(/^Nick: Both broken\n\n!\[screenshot-\d+\.jpg\]\(https:\/\/f\.naa\.gg\/screenshot-\d+\.jpg\)\n\n!\[screenshot-\d+\.jpg\]/);
+    expect(gh.issues.get(1)?.comments.filter((c) => c.body.startsWith("Ann:"))).toHaveLength(1);
+    expect(gh.last(1)).toMatch(/^Ann: Both broken\n\n!\[screenshot-\d+\.jpg\]\(https:\/\/f\.naa\.gg\/screenshot-\d+\.jpg\)\n\n!\[screenshot-\d+\.jpg\]/);
   });
 
   it("an answer through the API re-renders the card on screen", async () => {
     await escalated();
     const { card } = await start();
-    await call("owner", "answer", { n: 1, text: "Nick: blue" });
+    await call("owner", "answer", { n: 1, text: "Ann: blue" });
     expect(tg.of("editMessageText")[0]).toMatchObject({ message_id: card });
     expect(html(tg.of("editMessageText")[0])).toContain("✓ answered");
   });
@@ -401,15 +401,15 @@ describe("new ticket (7, 43-46)", () => {
     await hook(press("F"));
     const [st] = tg.sent("sendMessage");
     expect(st.text).toBe("⏳ Filing your ticket…");
-    expect(tg.of("editMessageText")[0]).toEqual({ chat_id: "713276361", message_id: st.id, text: "🆕 #1 filed for the Board" });
+    expect(tg.of("editMessageText")[0]).toEqual({ chat_id: "100000001", message_id: st.id, text: "🆕 #1 filed for the Board" });
     const i = gh.issues.get(1)!;
     expect(i.title).toBe("Dark mode is too dark");
     expect(i.body).toBe(
-      "Filed by Nick through Envoy; the Board writes the spec from his words.\n\n> Dark mode is too dark\n> The text is unreadable.\n",
+      "Filed by Ann through Envoy; the Board writes the spec from his words.\n\n> Dark mode is too dark\n> The text is unreadable.\n",
     );
-    expect(gh.last(1)).toBe("Nick: Dark mode is too dark\nThe text is unreadable.");
+    expect(gh.last(1)).toBe("Ann: Dark mode is too dark\nThe text is unreadable.");
     await hook(msg("Also on mobile.", st.id));
-    expect(gh.last(1)).toBe("Nick: Also on mobile.");
+    expect(gh.last(1)).toBe("Ann: Also on mobile.");
     expect(reactions().slice(-2)).toEqual(["👀", "👍"]);
   });
 
@@ -474,15 +474,15 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
       );
       f.sql.exec("INSERT INTO messages VALUES (42, 1, 'card', '<b>old</b>', 1)");
     });
-    const r = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu;
+    const r = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop;
     expect(r).toMatchObject({ cards: "1/1 re-rendered", hello: "sent" });
     expect(tg.of("editMessageText")[0]).toMatchObject({ message_id: 42, rich_message: { html: Q1(7) + okRow() } });
     expect(texts()).toEqual([WELCOME, `📋 <b>1 open</b>\n❓ <a href="${ISSUE(1)}#issuecomment-7">#1</a> Ticket 1`]);
     await hook(msg("Green.", 42));
-    expect(gh.last(1)).toBe("Nick: Green.");
+    expect(gh.last(1)).toBe("Ann: Green.");
     await inFlow((f) => f.sql.exec("DELETE FROM meta WHERE k = 'setup'"));
     tg.calls = [];
-    const again = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu;
+    const again = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop;
     expect(again.hello).toBeUndefined();
     expect(texts()).toEqual([]);
   });
@@ -492,7 +492,7 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
     await escalated();
     await inFlow((f) => f.sql.exec("DELETE FROM meta WHERE k IN ('ui', 'setup')"));
     tg.calls = [];
-    expect((await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu.hello).toBe("sent");
+    expect((await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop.hello).toBe("sent");
     expect(texts()).toEqual([WELCOME, `📋 <b>1 open</b>\n❓ <a href="${ISSUE(1)}#issuecomment-1">#1</a> Ticket 1`]);
     expect(tg.of("sendMessage")[1].reply_markup).toEqual({ inline_keyboard: [[{ text: "▶ Start", callback_data: "n" }]] });
     expect(tg.of("editMessageText")).toEqual([]);
@@ -500,13 +500,13 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
 
   it("GET /setup publishes the profile, the commands and the webhook once (1, 52)", async () => {
     const { SELF } = await import("cloudflare:test");
-    const first = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu;
+    const first = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop;
     expect(first).toEqual({ name: "set", description: "set", short_description: "set", commands: "set", photo: "set", webhook: "set" });
-    expect(tg.of("setMyName")[0]).toEqual({ name: "LiveDu Envoy" });
+    expect(tg.of("setMyName")[0]).toEqual({ name: "Shop Envoy" });
     expect(tg.of("setMyDescription")[0]).toEqual({
-      description: "Your livedu review inbox as a todo list: tests, questions and decisions waiting for you, answered by replying.",
+      description: "Your shop review inbox as a todo list: tests, questions and decisions waiting for you, answered by replying.",
     });
-    expect(tg.of("setMyShortDescription")[0]).toEqual({ short_description: "The livedu review inbox as a todo list." });
+    expect(tg.of("setMyShortDescription")[0]).toEqual({ short_description: "The shop review inbox as a todo list." });
     expect(tg.of("setMyCommands")[0]).toEqual({
       commands: [
         { command: "start", description: "what this bot does" },
@@ -518,18 +518,18 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
     const photo = tg.of("setMyProfilePhoto")[0];
     expect(JSON.parse(photo.photo)).toEqual({ type: "static", photo: "attach://f" });
     expect(tg.of("setWebhook")[0]).toEqual({
-      url: "https://livedu-envoy.na-4e9.workers.dev/telegram",
+      url: "https://shop-envoy.example.workers.dev/telegram",
       secret_token: "hook-test",
       allowed_updates: ["message", "callback_query"],
     });
     tg.calls = [];
-    expect((await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu).toEqual({ setup: "current" });
+    expect((await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop).toEqual({ setup: "current" });
     await inFlow((f) => f.cron());
     tg.calls = [];
     await inFlow((f) => f.cron());
     expect(tg.calls).toEqual([]);
     await inFlow((f) => f.sql.exec("DELETE FROM meta WHERE k = 'setup'"));
-    const again = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).livedu;
+    const again = (await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop;
     expect(Object.values(again)).toEqual(Array(6).fill("current"));
     expect(tg.calls.map((c) => c.method)).toEqual(["getWebhookInfo"]);
   });

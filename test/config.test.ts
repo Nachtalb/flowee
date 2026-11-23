@@ -48,7 +48,7 @@ const schemaPaths = (s: Record<string, any>, p = "$"): string[] =>
       : [];
 
 const secrets = (names: Record<string, string>) => ({ get: (n: string) => names[n] });
-const livedu = workspaces.workspaces[0] as unknown as WorkspaceDoc;
+const shop = workspaces.workspaces[0] as unknown as WorkspaceDoc;
 
 describe("the schema", () => {
   it("is committed as generated (bun run schema)", () => {
@@ -119,10 +119,10 @@ describe("the schema", () => {
 describe("export and import", () => {
   it("round-trips a workspace and the whole instance unchanged, secrets only by name", () => {
     const r = new StaticRegistry(secrets({}), workspaces);
-    const once = r.export("livedu");
+    const once = r.export("shop");
     r.import(once);
-    expect(r.export("livedu")).toEqual(once);
-    expect(once).toEqual(livedu);
+    expect(r.export("shop")).toEqual(once);
+    expect(once).toEqual(shop);
     const all = r.exportAll();
     expect(all).toEqual(workspaces);
     const r2 = new StaticRegistry(secrets({}), all);
@@ -132,20 +132,20 @@ describe("export and import", () => {
 
   it("an invalid import changes nothing and says why", () => {
     const r = new StaticRegistry(secrets({}), workspaces);
-    const bad = { ...livedu, roles: [] };
+    const bad = { ...shop, roles: [] };
     expect(() => r.import(bad)).toThrow("$.roles: must have at least 1 item(s).");
-    expect(r.export("livedu")).toEqual(livedu);
+    expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi", "anyfile", "anydev", "suite"]);
-    expect(() => r.importAll({ flowee: 1, workspaces: [livedu, livedu] })).toThrow("$.workspaces[1].id: 'livedu' is used twice.");
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite"]);
+    expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });
 
   it("an import needs no secret to validate and names the missing ones", () => {
     const r = new StaticRegistry(secrets({}));
-    expect(r.import(livedu).id).toBe("livedu");
-    expect(missingSecrets(livedu, secrets({ GITHUB_TOKEN: "x", TOKEN_BOARD: "y" }))).toEqual([
+    expect(r.import(shop).id).toBe("shop");
+    expect(missingSecrets(shop, secrets({ GITHUB_TOKEN: "x", TOKEN_BOARD: "y" }))).toEqual([
       "TOKEN_DEV1",
       "TOKEN_DEV2",
       "TOKEN_TESTER",
@@ -158,9 +158,9 @@ describe("export and import", () => {
 
   it("finds a workspace by token digest and by chat binding (a topic binds only that topic)", () => {
     const r = new StaticRegistry(secrets({ TOKEN_DEV1: "AB12" }), workspaces);
-    expect(r.byDigest("ab12")).toMatchObject({ instance: "dev1", role: "developer", doc: { id: "livedu" } });
+    expect(r.byDigest("ab12")).toMatchObject({ instance: "dev1", role: "developer", doc: { id: "shop" } });
     expect(r.byChat({ chat: "555" })?.id).toBe("other");
-    const t = { ...livedu, id: "topic", tracker: { ...livedu.tracker, repos: ["acme/topic"] }, chat: { ...livedu.chat, chatId: "-100", topicId: 3 } } as WorkspaceDoc;
+    const t = { ...shop, id: "topic", tracker: { ...shop.tracker, repos: ["acme/topic"] }, chat: { ...shop.chat, chatId: "-100", topicId: 3 } } as WorkspaceDoc;
     r.import(t);
     expect(r.byChat({ chat: "-100", topic: 3 })?.id).toBe("topic");
     expect(r.byChat({ chat: "-100", topic: 4 })).toBeUndefined();
@@ -168,9 +168,9 @@ describe("export and import", () => {
 
   it("refuses a repository that is already in another workspace", () => {
     const r = new StaticRegistry(secrets({}), workspaces);
-    const { chat: _c, files: _f, profile: _p, ...rest } = livedu;
+    const { chat: _c, files: _f, profile: _p, ...rest } = shop;
     const again = { ...rest, id: "again" } as WorkspaceDoc;
-    expect(() => r.import(again)).toThrow(`$.workspaces[${workspaces.workspaces.length}].tracker.repos[0]: '${livedu.tracker.repos[0]}' is already in workspace '${livedu.id}'; a repository belongs to one workspace only.`);
+    expect(() => r.import(again)).toThrow(`$.workspaces[${workspaces.workspaces.length}].tracker.repos[0]: '${shop.tracker.repos[0]}' is already in workspace '${shop.id}'; a repository belongs to one workspace only.`);
     expect(r.get("again")).toBeUndefined();
   });
 });

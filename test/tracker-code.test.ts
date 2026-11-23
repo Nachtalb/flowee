@@ -13,7 +13,7 @@ let t: GitHub;
 beforeEach(() => {
   ({ gh } = setup());
   code = new FakeCode(gh);
-  t = new GitHub({ repo: "Nachtalb/livedu", token: "x", tokenName: "GITHUB_TOKEN" });
+  t = new GitHub({ repo: "acme/shop", token: "x", tokenName: "GITHUB_TOKEN" });
 });
 
 const refusal = async (p: Promise<unknown>) => {
@@ -80,7 +80,7 @@ describe("GitHub capabilities", () => {
     const b = gh.commit("feat: b (#2)");
     await t.tags.move("tested", b);
     expect(await t.tags.get("tested")).toBe(b);
-    expect(gh.writes.filter((w) => w.includes("/git/refs"))).toEqual(["POST /repos/Nachtalb/livedu/git/refs", "PATCH /repos/Nachtalb/livedu/git/refs/tags/tested"]);
+    expect(gh.writes.filter((w) => w.includes("/git/refs"))).toEqual(["POST /repos/acme/shop/git/refs", "PATCH /repos/acme/shop/git/refs/tags/tested"]);
   });
 
   it("a tracker without a capability answers 501 unsupported", async () => {

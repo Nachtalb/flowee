@@ -494,7 +494,7 @@ describe("the instance bot's profile", () => {
     ]);
     expect(tg.of("setMyCommands")[0].scope).toEqual({ type: "all_private_chats" });
     expect(tg.of("setWebhook")[0]).toMatchObject({ url: "https://flowee.test/telegram", allowed_updates: ["message", "callback_query", "managed_bot"] });
-    expect(tg.of("setMyDescription")[0].description).not.toMatch(/Nick|owner's name/);
+    expect(tg.of("setMyDescription")[0].description).not.toMatch(/Ann|owner's name/);
     tg.calls = [];
     const again = (await (await worker.fetch(new Request("https://flowee.test/setup"), menv())).json()) as Record<string, Record<string, string>>;
     expect(Object.values(again.instance).every((v) => v === "current")).toBe(true);

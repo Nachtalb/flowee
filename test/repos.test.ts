@@ -89,7 +89,7 @@ describe("several repositories", () => {
 
   it("the chat shows alias#n on cards and opens a typed alias#n", async () => {
     lib.add({ number: 2, state_label: "board review" });
-    const r = await m("board", "escalate", { n: "lib#2", comment: CARD_Q.replace("For Nick", "For the owner") });
+    const r = await m("board", "escalate", { n: "lib#2", comment: CARD_Q.replace("For Ann", "For the owner") });
     expect(r.body).toEqual({ ok: true, state: "human review", telegram: "sent" });
     expect(tg.of("sendRichMessage").at(-1)?.rich_message.html).toContain(">lib#2</a>");
     tg.calls = [];

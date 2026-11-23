@@ -82,7 +82,7 @@ describe("auth", () => {
 describe("file", () => {
   it("files into needs triage with the project status", async () => {
     const r = await call("tester", "file", { title: "Crash on start", body: "It crashes." });
-    expect(r.body).toEqual({ ok: true, n: 1, url: "https://github.com/Nachtalb/livedu/issues/1" });
+    expect(r.body).toEqual({ ok: true, n: 1, url: "https://github.com/acme/shop/issues/1" });
     expect(gh.label(1)).toEqual(["needs triage"]);
     expect(gh.status.get("I_1")).toBe("Todo");
   });
@@ -289,7 +289,7 @@ describe("pass / fail", () => {
     const { c, done } = testing();
     await done;
     const base = { n: 1, build: c, gates: { sha: c, ok: true }, owner_check: true };
-    expect((await call("tester", "pass", { ...base, comment: "### For Nick\nKind: test\nChanged: x" })).body).toEqual({
+    expect((await call("tester", "pass", { ...base, comment: "### For Ann\nKind: test\nChanged: x" })).body).toEqual({
       ok: false,
       error: "bad_card",
       message: "The card has no Check: lines (needed for Kind: test).",
@@ -347,7 +347,7 @@ describe("board commands", () => {
       error: "claimed",
       message: "#2 is claimed by dev1.",
     });
-    gh.add({ number: 3, state_label: "human review", assignees: [{ login: "Nachtalb" }] });
+    gh.add({ number: 3, state_label: "human review", assignees: [{ login: "ann-dev" }] });
     expect((await call("board", "triage", { n: 3, comment: "specified" })).body.state).toBe("ready");
     expect(gh.issues.get(3)!.assignees).toEqual([]);
   });
@@ -376,20 +376,20 @@ describe("board commands", () => {
     await call("board", "resume", { n: 1 });
     expect((await call("board", "approve", { n: 1 })).body.error).toBe("wrong_state");
   });
-  it("escalate: card checked, human review, Nick assigned, card sent", async () => {
+  it("escalate: card checked, human review, Ann assigned, card sent", async () => {
     gh.add({ number: 1, state_label: "ready" });
     expect((await call("board", "escalate", { n: 1, comment: "no card" })).body).toEqual({
       ok: false,
       error: "bad_card",
-      message: "The comment has no ### For Nick card.",
+      message: "The comment has no ### For Ann card.",
     });
-    expect((await call("board", "escalate", { n: 1, comment: "### For Nick\nKind: maybe\nQuestion: x" })).body.error).toBe("bad_card");
+    expect((await call("board", "escalate", { n: 1, comment: "### For Ann\nKind: maybe\nQuestion: x" })).body.error).toBe("bad_card");
     const r = await call("board", "escalate", { n: 1, comment: CARD_Q });
     expect(r.body).toEqual({ ok: true, state: "human review", telegram: "sent" });
-    expect(gh.issues.get(1)!.assignees).toEqual([{ login: "Nachtalb" }]);
+    expect(gh.issues.get(1)!.assignees).toEqual([{ login: "ann-dev" }]);
     expect(gh.status.get("I_1")).toBe("Owner");
     const [m] = tg.of("sendRichMessage");
-    expect(m.chat_id).toBe("713276361");
+    expect(m.chat_id).toBe("100000001");
     expect(m.rich_message.html).toContain("Blue or green?");
     expect(m.rich_message.html).toContain('data="k">✅ OK');
     expect((await call("board", "queue")).body.inbox).toEqual([1]);
@@ -404,7 +404,7 @@ describe("board commands", () => {
     expect(tg.of("sendRichMessage")[0].rich_message.html).toContain("Lessons load faster");
   });
   it("approve, drop, postpone, resume", async () => {
-    gh.add({ number: 1, state_label: "human review", assignees: [{ login: "Nachtalb" }] });
+    gh.add({ number: 1, state_label: "human review", assignees: [{ login: "ann-dev" }] });
     expect((await call("board", "approve", { n: 1 })).body.state).toBe("closed");
     expect(gh.issues.get(1)).toMatchObject({ state_reason: "completed", assignees: [] });
     gh.add({ number: 2, state_label: "ready" });
@@ -436,10 +436,10 @@ describe("board commands", () => {
 });
 
 describe("answer", () => {
-  it("from human review to needs triage, signed Nick:", async () => {
-    gh.add({ number: 1, state_label: "human review", assignees: [{ login: "Nachtalb" }] });
+  it("from human review to needs triage, signed Ann:", async () => {
+    gh.add({ number: 1, state_label: "human review", assignees: [{ login: "ann-dev" }] });
     expect((await call("owner", "answer", { n: 1, text: "Board: blue" })).body).toEqual({ ok: true, state: "needs triage" });
-    expect(gh.last(1)).toBe("Nick: blue");
+    expect(gh.last(1)).toBe("Ann: blue");
     expect(gh.issues.get(1)!.assignees).toEqual([]);
     expect((await call("board", "show")).status).toBe(400);
     const s = await call("board", "show?n=1");

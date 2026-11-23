@@ -4,10 +4,12 @@
 Starts a stand-in GitHub (stdlib HTTP, in memory) and `wrangler dev` with two trunk workspaces whose tracker API
 is that stand-in, then walks a ticket from filing to closed with each client given:
 
-  python3 test/e2e/wire.py [--flow-py PATH]
+  python3 test/e2e/wire.py [--flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]]
 
-`client/flowee.py` always runs (workspace w2, URL /w/w2). `--flow-py` adds livedu's scripts/flow.py, unchanged
-(workspace w1, plain /v1 paths resolved by its token): the proof that the API stays wire-compatible with it.
+`client/flowee.py` always runs (workspace w2, URL /w/w2). `--flow-py` adds an external client written against the
+same wire contract, run unchanged (workspace w1, plain /v1 paths resolved by its token): the proof that the API stays
+wire-compatible with it. It reads `<PREFIX>_URL`, `<PREFIX>_AS` and `<PREFIX>_TOKEN`, and writes owner cards under
+`### <TEXT>`.
 Then flowee.py walks a `pr-release` ticket (workspace w3: pull requests with a required check, releases with a held
 card and the tested tag) through a branch pushed to a scratch bare repository the stand-in GitHub reads.
 Everything lives in a scratch directory that is removed at the end; wrangler is stopped at the end.
@@ -313,11 +315,13 @@ def walk_pr(c, gh, url, repo_name):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--flow-py", help="livedu's scripts/flow.py, run unchanged against workspace w1")
+    ap.add_argument("--flow-py", help="an external client with the same wire contract, run unchanged against workspace w1")
+    ap.add_argument("--flow-env", default="FLOW", help="the external client's environment prefix (<PREFIX>_URL, _AS, _TOKEN)")
+    ap.add_argument("--flow-heading", default="For the owner", help="the card heading the external client writes")
     a = ap.parse_args()
     scratch = Path(tempfile.mkdtemp(prefix="flowee-wire-"))
     gh = GitHub()
-    worker, url = start_worker(scratch, gh, "For Nick" if a.flow_py else "For the owner")
+    worker, url = start_worker(scratch, gh, a.flow_heading)
     results = {}
     try:
         def repo(name):
@@ -330,11 +334,12 @@ def main():
             subprocess.run(["git", "config", "user.email", "t@example.org"], cwd=d, check=True)
             return d
         if a.flow_py:
-            r1 = repo("livedu-client")
-            c = Client("livedu flow.py", [sys.executable, a.flow_py],
-                       lambda who: {"LIVEDU_FLOW_URL": url, "LIVEDU_FLOW_AS": who, "LIVEDU_FLOW_TOKEN": f"w1-{who}"}, "flow-gates.json", r1)
+            r1 = repo("external-client")
+            e = a.flow_env
+            c = Client("external flow.py", [sys.executable, a.flow_py],
+                       lambda who: {f"{e}_URL": url, f"{e}_AS": who, f"{e}_TOKEN": f"w1-{who}"}, "flow-gates.json", r1)
             print(f"{c.name} -> {url}/v1 (workspace w1 by token)")
-            results[c.name] = walk(c, gh, "acme/w1", "For Nick")
+            results[c.name] = walk(c, gh, "acme/w1", a.flow_heading)
         r2 = repo("flowee-client")
         c = Client("flowee.py", [sys.executable, str(ROOT / "client/flowee.py")],
                    lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w2", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w2-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},

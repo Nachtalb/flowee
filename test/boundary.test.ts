@@ -1,6 +1,7 @@
 // The layers stay apart: core, ports, envoy and api import no adapter and nothing of Cloudflare, GitHub or
 // Telegram; nothing in src names a project, a person, a repository or a chat.
 import { describe, expect, it } from "vitest";
+import fixtures from "./workspaces.json";
 
 const files = import.meta.glob("../src/**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const imports = (src: string) => [...src.matchAll(/^\s*(?:import|export)[^"']*from\s+["']([^"']+)["']/gm)].map((m) => m[1]);
@@ -49,7 +50,15 @@ describe("architecture boundaries", () => {
   });
 
   it("nothing in src names a project, a person, a repository or a chat id", () => {
-    for (const [path, src] of Object.entries(files))
-      expect(/livedu|nachtalb(?!\/flowee)|\bNick\b|713276361|naa\.gg/i.exec(src)?.[0], path).toBeUndefined();
+    // the test workspaces stand for real ones: none of their repositories, people or chats may leak into the code
+    const named = (fixtures.workspaces as any[]).flatMap((w) => [
+      ...w.tracker.repos.map((r: any) => (typeof r === "string" ? r : r.repo)),
+      ...w.owners.flatMap((o: any) => [o.name, o.tracker, o.chat]),
+      w.chat?.chatId,
+      w.chat?.username,
+    ]);
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+    const re = new RegExp(`\\b(${[...new Set(named.filter((x): x is string => !!x))].map(esc).join("|")})\\b|nachtalb(?!\\/flowee)|naa\\.gg`, "i");
+    for (const [path, src] of Object.entries(files)) expect(re.exec(src)?.[0], path).toBeUndefined();
   });
 });

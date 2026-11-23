@@ -1,4 +1,4 @@
-// Ported from livedu-envoy (itself from the AnyFile Envoy's render.rs, nav.rs and search.rs tests).
+// The reference envoy's render, navigation and search cases.
 import { describe, expect, it } from "vitest";
 import { richHtml } from "../src/adapters/chat-telegram";
 import {
@@ -38,7 +38,7 @@ const mk = (o: Partial<Item> = {}): Item => ({
   n: 12,
   cid: 34,
   title: "A <b> & c",
-  url: "https://github.com/Nachtalb/livedu/issues/12",
+  url: "https://github.com/acme/shop/issues/12",
   content: { kind: "none" },
   since: Date.parse("2026-11-10T09:00:00Z"),
   status: "open",
@@ -50,7 +50,7 @@ describe("cards", () => {
     const t = mk({ content: { kind: "test", changed: "lessons load faster", check: "- open a lesson\n- zoom" } });
     const c = card(t, null, true, NOW);
     expect(c).toBe(
-      '<p>🧪 <b>Test</b> · <a href="https://github.com/Nachtalb/livedu/issues/12#issuecomment-34">#12</a> · ⏳ 3 d</p><p><b>A &lt;b&gt; &amp; c</b></p><details open><summary>Details</summary><p><b>Changed:</b></p><p>lessons load faster</p><p><b>Check:</b></p><ul><li>open a lesson</li><li>zoom</li></ul></details>',
+      '<p>🧪 <b>Test</b> · <a href="https://github.com/acme/shop/issues/12#issuecomment-34">#12</a> · ⏳ 3 d</p><p><b>A &lt;b&gt; &amp; c</b></p><details open><summary>Details</summary><p><b>Changed:</b></p><p>lessons load faster</p><p><b>Check:</b></p><ul><li>open a lesson</li><li>zoom</li></ul></details>',
     );
     expect(card(t, null, false, NOW)).toContain("<details><summary>");
     const a = card(t, Date.parse("2026-11-13T07:00:00Z"), true, NOW);
@@ -67,7 +67,7 @@ describe("cards", () => {
       "<p><i>Older ticket without a hand-over note: open the issue for the details.</i></p>",
     );
     expect(card(mk(), null, true, NOW)).not.toContain("<details");
-    expect(card(mk({ cid: 0 }), null, true, NOW)).toContain('href="https://github.com/Nachtalb/livedu/issues/12">');
+    expect(card(mk({ cid: 0 }), null, true, NOW)).toContain('href="https://github.com/acme/shop/issues/12">');
   });
 
   it("shows code as code, never as a quote", () => {
@@ -149,7 +149,7 @@ describe("bar and lists", () => {
   it("todo lines split under 4096 characters", () => {
     expect(todo([], "x")).toEqual(["✨ Inbox empty"]);
     expect(todo([mk({ content: { kind: "question", question: "q" } })], todoHeader(1))).toEqual([
-      '📋 <b>1 open</b>\n❓ <a href="https://github.com/Nachtalb/livedu/issues/12#issuecomment-34">#12</a> A &lt;b&gt; &amp; c',
+      '📋 <b>1 open</b>\n❓ <a href="https://github.com/acme/shop/issues/12#issuecomment-34">#12</a> A &lt;b&gt; &amp; c',
     ]);
     const parts = todo(Array.from({ length: 200 }, () => mk()), todoHeader(200));
     expect(parts.length).toBeGreaterThan(1);

@@ -3,20 +3,20 @@
   "workspaces": [
     {
       "flowee": 1,
-      "id": "livedu",
-      "name": "livedu",
+      "id": "shop",
+      "name": "shop",
       "flow": {
         "preset": "trunk"
       },
       "tracker": {
         "type": "github",
         "repos": [
-          "Nachtalb/livedu"
+          "acme/shop"
         ],
         "mainBranch": "main",
         "token": "GITHUB_TOKEN",
         "project": {
-          "owner": "Nachtalb",
+          "owner": "ann-dev",
           "number": 9
         }
       },
@@ -49,18 +49,18 @@
       ],
       "owners": [
         {
-          "name": "Nick",
-          "tracker": "Nachtalb",
-          "chat": "713276361"
+          "name": "Ann",
+          "tracker": "ann-dev",
+          "chat": "100000001"
         }
       ],
       "chat": {
         "type": "telegram",
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
-        "username": "LiveDuEnvoyBot",
-        "chatId": "713276361",
-        "publicUrl": "https://livedu-envoy.na-4e9.workers.dev"
+        "username": "ShopEnvoyBot",
+        "chatId": "100000001",
+        "publicUrl": "https://shop-envoy.example.workers.dev"
       },
       "files": {
         "url": "https://f.naa.gg/",
@@ -68,12 +68,12 @@
         "expire": "90d"
       },
       "texts": {
-        "owner": "Nick",
-        "cardHeading": "For Nick",
-        "botName": "LiveDu Envoy",
-        "project": "livedu",
-        "filedBody": "Filed by Nick through Envoy; the Board writes the spec from his words.",
-        "untitled": "Request from Nick"
+        "owner": "Ann",
+        "cardHeading": "For Ann",
+        "botName": "Shop Envoy",
+        "project": "shop",
+        "filedBody": "Filed by Ann through Envoy; the Board writes the spec from his words.",
+        "untitled": "Request from Ann"
       },
       "schedule": {
         "timezone": "Europe/Zurich",
@@ -203,7 +203,7 @@
     },
     {
       "flowee": 1,
-      "id": "anyfile",
+      "id": "viewer",
       "flow": {
         "preset": "pr-release"
       },
@@ -244,7 +244,7 @@
       "tracker": {
         "type": "github",
         "repos": [
-          "acme/anyfile"
+          "acme/viewer"
         ],
         "token": "GITHUB_TOKEN"
       },
@@ -252,33 +252,33 @@
         {
           "instance": "board",
           "role": "board",
-          "secret": "ANYFILE_BOARD"
+          "secret": "VIEWER_BOARD"
         },
         {
           "instance": "dev1",
           "role": "developer",
-          "secret": "ANYFILE_DEV1"
+          "secret": "VIEWER_DEV1"
         },
         {
           "instance": "tester",
           "role": "tester",
-          "secret": "ANYFILE_TESTER"
+          "secret": "VIEWER_TESTER"
         },
         {
           "instance": "owner",
           "role": "owner",
-          "secret": "ANYFILE_OWNER"
+          "secret": "VIEWER_OWNER"
         },
         {
           "instance": "sampler",
           "role": "sampler",
-          "secret": "ANYFILE_SAMPLER"
+          "secret": "VIEWER_SAMPLER"
         }
       ],
       "owners": [
         {
-          "name": "Nick",
-          "tracker": "Nachtalb",
+          "name": "Ann",
+          "tracker": "ann-dev",
           "chat": "888"
         }
       ],
@@ -289,13 +289,13 @@
         "chatId": "888"
       },
       "texts": {
-        "owner": "Nick",
-        "cardHeading": "For Nick"
+        "owner": "Ann",
+        "cardHeading": "For Ann"
       }
     },
     {
       "flowee": 1,
-      "id": "anydev",
+      "id": "deps",
       "flow": {
         "preset": "pr-release"
       },
@@ -308,7 +308,7 @@
       "tracker": {
         "type": "github",
         "repos": [
-          "acme/anydev"
+          "acme/deps"
         ],
         "token": "GITHUB_TOKEN"
       },
@@ -316,28 +316,28 @@
         {
           "instance": "board",
           "role": "board",
-          "secret": "ANYDEV_BOARD"
+          "secret": "DEPS_BOARD"
         },
         {
           "instance": "dev1",
           "role": "developer",
-          "secret": "ANYDEV_DEV1"
+          "secret": "DEPS_DEV1"
         },
         {
           "instance": "tester",
           "role": "tester",
-          "secret": "ANYDEV_TESTER"
+          "secret": "DEPS_TESTER"
         },
         {
           "instance": "owner",
           "role": "owner",
-          "secret": "ANYDEV_OWNER"
+          "secret": "DEPS_OWNER"
         }
       ],
       "owners": [
         {
-          "name": "Nick",
-          "tracker": "Nachtalb",
+          "name": "Ann",
+          "tracker": "ann-dev",
           "chat": "889"
         }
       ],
@@ -348,8 +348,8 @@
         "chatId": "889"
       },
       "texts": {
-        "owner": "Nick",
-        "cardHeading": "For Nick"
+        "owner": "Ann",
+        "cardHeading": "For Ann"
       }
     },
     {

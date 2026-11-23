@@ -1,4 +1,4 @@
-// The pr-release preset: AnyFile's flow with every feature a switch. XState runs the file, the feature matrix, a
+// The pr-release preset: the full flow with every feature a switch. XState runs the file, the feature matrix, a
 // full ticket walk with pull requests, checks, UI review, a held card, the release and the tested tag, and the
 // sampler, untrusted-text, dependency-ticket and developer-merges variants against the Worker.
 import { beforeEach, describe, expect, it } from "vitest";
@@ -22,7 +22,7 @@ const load = (f: FeaturesDoc) => {
 };
 const p = (who: string, cmd: string, body?: unknown) => call(who, cmd, body, undefined, "p");
 const q = (who: string, cmd: string, body?: unknown) => call(who, cmd, body, undefined, "q");
-const CARD = "Works.\n\n### For Nick\nKind: test\nChanged: .qoi files open as images\nSamples: a.qoi\nCheck:\n- open a.qoi";
+const CARD = "Works.\n\n### For Ann\nKind: test\nChanged: .qoi files open as images\nSamples: a.qoi\nCheck:\n- open a.qoi";
 const ALL = { pullRequests: true, releases: { testedTag: "tested" }, samples: true, uiReview: { paths: ["**/ui/**"] }, dependencyTickets: true, untrustedReports: true };
 
 describe("the pr-release statechart", () => {
@@ -135,14 +135,14 @@ let devCode: FakeCode;
 let tg: FakeTelegram;
 beforeEach(async () => {
   let x: ReturnType<typeof setup>;
-  ({ anyfile: any, anydev: dev, tg } = x = setup());
+  ({ viewer: any, deps: dev, tg } = x = setup());
   void x;
   code = new FakeCode(any);
   devCode = new FakeCode(dev);
-  await wipe("anyfile");
-  await wipe("anydev");
+  await wipe("viewer");
+  await wipe("deps");
 });
-const cron = (ws = "anyfile") => inFlow((f) => f.cron(), ws);
+const cron = (ws = "viewer") => inFlow((f) => f.cron(), ws);
 const state = async (n: number, who = "board") => (await p(who, "show", undefined).catch(() => null), (await call(who, `show?n=${n}`, undefined, undefined, "p")).body.state);
 const labels = (n: number) => any.label(n);
 
@@ -164,7 +164,7 @@ describe("a pr-release ticket from filing to the owner's release", () => {
     expect((await p("dev1", "pr", { n })).body).toMatchObject({ error: "no_branch", message: "Push flowee/1 first; it does not exist on the tracker." });
     const head = code.push("flowee/1", { "app/src/main/ui/QoiView.kt": "@@ -0,0 +1 @@\n+@Composable fun QoiView()" });
     const pr = (await p("dev1", "pr", { n })).body;
-    expect(pr).toEqual({ ok: true, pull: { number: 1001, url: "https://github.com/acme/anyfile/pull/1001", branch: "flowee/1" } });
+    expect(pr).toEqual({ ok: true, pull: { number: 1001, url: "https://github.com/acme/viewer/pull/1001", branch: "flowee/1" } });
     expect(code.pulls[0]).toMatchObject({ title: "QOI images (#1)", body: "Closes #1" });
     expect((await p("dev1", "handoff", { n, comment: "Done." })).body).toMatchObject({ error: "checks_pending", message: `Checks of ${head.slice(0, 7)} are not done yet: build (queued); wait and try again.` });
     code.checks.set(head, [{ name: "build", status: "completed", conclusion: "failure" }]);
@@ -177,7 +177,7 @@ describe("a pr-release ticket from filing to the owner's release", () => {
     expect((await p("tester", "next", {})).body.ticket).toMatchObject({ n, state: "testing" });
     const gates = { sha: head, ok: true };
     expect((await p("tester", "pass", { n, comment: "Opens.", build: "0".repeat(40), gates: { sha: "0".repeat(40), ok: true } })).body).toMatchObject({ error: "not_in_build" });
-    expect((await p("tester", "pass", { n, comment: "Opens.", build: head, gates })).body).toMatchObject({ error: "bad_card", message: "The comment has no ### For Nick card." });
+    expect((await p("tester", "pass", { n, comment: "Opens.", build: head, gates })).body).toMatchObject({ error: "bad_card", message: "The comment has no ### For Ann card." });
     const passed = (await p("tester", "pass", { n, comment: CARD, build: head, gates })).body;
     expect(passed).toMatchObject({ state: "board review" });
     const merge = any.main.at(-1)!;
@@ -202,7 +202,7 @@ describe("a pr-release ticket from filing to the owner's release", () => {
     code.publish("1.4.0", merge.sha);
     await cron();
     expect(labels(n)).toContain("human review");
-    const card = await inFlow((f) => JSON.parse(f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = ?", n)[0].card), "anyfile");
+    const card = await inFlow((f) => JSON.parse(f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = ?", n)[0].card), "viewer");
     expect(card).toMatchObject({ kind: "test", samples: "a.qoi", version: "1.4.0" });
     expect(JSON.stringify(tg.of("sendRichMessage").slice(sentBefore))).toContain("📦 In 1.4.0 or later");
 
@@ -216,7 +216,7 @@ describe("a pr-release ticket from filing to the owner's release", () => {
     const sha = any.commit("feat: thing (#3)");
     code.publish("2.0.0", sha);
     expect((await p("board", "escalate", { n: 3, comment: CARD })).body.state).toBe("human review");
-    const card = await inFlow((f) => JSON.parse(f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = 3")[0].card), "anyfile");
+    const card = await inFlow((f) => JSON.parse(f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = 3")[0].card), "viewer");
     expect(card.version).toBe("2.0.0");
   });
 
@@ -241,20 +241,20 @@ describe("a pr-release ticket from filing to the owner's release", () => {
 describe("samples", () => {
   it("unobtainable goes to the board; it reaches the owner only with a Kind: sample card; sendback asks the sampler again", async () => {
     any.add({ number: 1, state_label: "in procurement" });
-    await claim(1, "sampler" as never, "sampler", Date.now(), "anyfile");
-    const draft = "Looked everywhere.\n\n### For Nick\nKind: sample\nSamples: a.qoi\nCheck:\n- export one from the QOI tool, drop it in Samples/Images";
+    await claim(1, "sampler" as never, "sampler", Date.now(), "viewer");
+    const draft = "Looked everywhere.\n\n### For Ann\nKind: sample\nSamples: a.qoi\nCheck:\n- export one from the QOI tool, drop it in Samples/Images";
     expect((await p("sampler", "unobtainable", { n: 1, comment: draft })).body.state).toBe("board review");
-    expect((await p("board", "escalate", { n: 1, comment: "### For Nick\nKind: question\nQuestion: Can you make one?" })).body).toMatchObject({
+    expect((await p("board", "escalate", { n: 1, comment: "### For Ann\nKind: question\nQuestion: Can you make one?" })).body).toMatchObject({
       error: "bad_card",
       message: "#1 could not get its sample: escalate it only with a complete Kind: sample card.",
     });
     expect((await p("board", "escalate", { n: 1, comment: draft.replace("Samples: a.qoi", "Samples: Samples/a.qoi") })).body).toMatchObject({ error: "bad_card" });
     expect((await p("board", "escalate", { n: 1, comment: draft })).body.state).toBe("samples unobtainable");
-    expect(any.issues.get(1)!.assignees.map((a) => a.login)).toEqual(["Nachtalb"]);
-    expect((await p("board", "needsamples", { n: 1, comment: "Nick dropped one in." })).body.state).toBe("needs samples");
+    expect(any.issues.get(1)!.assignees.map((a) => a.login)).toEqual(["ann-dev"]);
+    expect((await p("board", "needsamples", { n: 1, comment: "Ann dropped one in." })).body.state).toBe("needs samples");
 
     any.add({ number: 2, state_label: "in procurement" });
-    await claim(2, "sampler" as never, "sampler", Date.now(), "anyfile");
+    await claim(2, "sampler" as never, "sampler", Date.now(), "viewer");
     await p("sampler", "unobtainable", { n: 2, comment: draft });
     expect((await p("board", "sendback", { n: 2, comment: "Try the QOI test images repository." })).body.state).toBe("needs samples");
   });
@@ -288,8 +288,8 @@ describe("dependency tickets and a developer who merges", () => {
     devCode.push("dependabot/npm/x-2");
     const pr = devCode.pr("dependabot/npm/x-2", "Bump x from 1 to 2", "dependabot[bot]");
     devCode.pr("someone/else", "Not a bump", "ann");
-    await cron("anydev");
-    await cron("anydev");
+    await cron("deps");
+    await cron("deps");
     expect([...dev.issues.values()].map((i) => [i.title, i.labels.map((l) => l.name)])).toEqual([["deps: Bump x from 1 to 2 (PR #1001)", ["needs triage"]]]);
     const n = 1;
     expect(dev.issues.get(n)!.body).toContain("Pull request: #1001");
@@ -308,7 +308,7 @@ describe("dependency tickets and a developer who merges", () => {
   it("with merger developer: pr, merge with green checks, hand-off, the tester tests the main branch", async () => {
     dev.commit("feat: base");
     dev.add({ number: 1, state_label: "in development", title: "Dark mode" });
-    await claim(1, "dev1", "developer", Date.now(), "anydev");
+    await claim(1, "dev1", "developer", Date.now(), "deps");
     const head = devCode.push("flowee/1");
     expect((await q("dev1", "pr", { n: 1 })).body.pull.number).toBe(1001);
     expect((await q("dev1", "handoff", { n: 1, comment: "Done." })).body).toMatchObject({ error: "not_merged" });
@@ -324,15 +324,15 @@ describe("dependency tickets and a developer who merges", () => {
 describe("the remaining feature transitions", () => {
   it("the sampler releases, gets stuck, expires; the board sends a stuck sampler ticket back and asks for samples on the owner's word", async () => {
     any.add({ number: 1, state_label: "in procurement" });
-    await claim(1, "sampler" as never, "sampler", Date.now(), "anyfile");
+    await claim(1, "sampler" as never, "sampler", Date.now(), "viewer");
     expect((await p("sampler", "release", { n: 1 })).body).toMatchObject({ error: "comment_required" });
     expect((await p("sampler", "release", { n: 1, comment: "Out of time." })).body.state).toBe("needs samples");
     any.issues.get(1)!.labels = [{ name: "in procurement" }];
-    await claim(1, "sampler" as never, "sampler", Date.now(), "anyfile");
+    await claim(1, "sampler" as never, "sampler", Date.now(), "viewer");
     expect((await p("sampler", "stuck", { n: 1, comment: "Which variant?" })).body.state).toBe("board review");
     expect((await p("board", "sendback", { n: 1, comment: "The 2019 one." })).body.state).toBe("needs samples");
     any.issues.get(1)!.labels = [{ name: "in procurement" }];
-    await claim(1, "sampler" as never, "sampler", Date.now() - 4 * 3600e3, "anyfile");
+    await claim(1, "sampler" as never, "sampler", Date.now() - 4 * 3600e3, "viewer");
     await cron();
     expect(labels(1)).toEqual(["needs samples"]);
     expect(any.last(1)).toContain("The claim of sampler expired after 3 h");
@@ -341,7 +341,7 @@ describe("the remaining feature transitions", () => {
     expect((await p("board", "needsamples", { n: 2 })).body).toMatchObject({ error: "wrong_state" });
     await inFlow((f) => {
       f.sql.exec("INSERT INTO answers (n, ts, text, via) VALUES (2, ?, 'needs a sample', 'api')", Date.now());
-    }, "anyfile");
+    }, "viewer");
     expect((await p("board", "needsamples", { n: 2 })).body.state).toBe("needs samples");
   });
 
@@ -351,7 +351,7 @@ describe("the remaining feature transitions", () => {
 
     any.commit("feat: base");
     any.add({ number: 2, state_label: "testing" });
-    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    await claim(2, "tester", "tester", Date.now(), "viewer");
     const head = code.push("flowee/2");
     code.green(head);
     code.pr("flowee/2", "Thing (#2)").mergeable = false;
@@ -363,7 +363,7 @@ describe("the remaining feature transitions", () => {
   it("UI review reads every file of the pull request, not only its head commit", async () => {
     any.commit("feat: base");
     any.add({ number: 2, state_label: "testing", title: "Viewer" });
-    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    await claim(2, "tester", "tester", Date.now(), "viewer");
     code.push("flowee/2", { "app/src/main/ui/Viewer.kt": "@@ -0,0 +1 @@\n+fun Viewer()" });
     const head = code.push("flowee/2", { "app/src/main/Engine.kt": "@@ -1 +1 @@\n+val x = 2" });
     code.green(head);
@@ -376,7 +376,7 @@ describe("the remaining feature transitions", () => {
   it("a pass whose merge went through but whose tracker write failed completes on retry", async () => {
     any.commit("feat: base");
     any.add({ number: 2, state_label: "testing", title: "Thing" });
-    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    await claim(2, "tester", "tester", Date.now(), "viewer");
     const head = code.push("flowee/2");
     code.green(head);
     code.pr("flowee/2", "Thing (#2)");
@@ -400,7 +400,7 @@ describe("the remaining feature transitions", () => {
     code.checks.set(head, [{ name: "build", status: "in_progress", conclusion: null }]);
     expect((await call("board", "show?n=1", undefined, undefined, "p")).body.pull).toEqual({
       number: 1001,
-      url: "https://github.com/acme/anyfile/pull/1001",
+      url: "https://github.com/acme/viewer/pull/1001",
       state: "open",
       head,
       checks: "pending",

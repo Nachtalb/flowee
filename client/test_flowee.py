@@ -201,14 +201,14 @@ class FeatureCommands(Remote):
         call("found", "4", "Samples/a.qoi", "Samples/b.qoi", stdin="got them")
         call("triage", "4", "--samples", stdin="needs one")
         call("triage", "4", "Samples/a.qoi", stdin="ready")
-        call("unobtainable", "4", stdin="### For Nick")
+        call("unobtainable", "4", stdin="### For the owner")
         call("checked", "4", stdin="nothing new")
         call("merge", "4")
         self.assertEqual([(g["path"], g["body"]) for g in self.s.got], [
             ("/w/acme/v1/found", {"n": 4, "comment": "got them", "paths": ["Samples/a.qoi", "Samples/b.qoi"]}),
             ("/w/acme/v1/triage", {"n": 4, "comment": "needs one", "paths": [], "samples": True}),
             ("/w/acme/v1/triage", {"n": 4, "comment": "ready", "paths": ["Samples/a.qoi"], "samples": False}),
-            ("/w/acme/v1/unobtainable", {"n": 4, "comment": "### For Nick"}),
+            ("/w/acme/v1/unobtainable", {"n": 4, "comment": "### For the owner"}),
             ("/w/acme/v1/checked", {"n": 4, "comment": "nothing new"}),
             ("/w/acme/v1/merge", {"n": 4}),
         ])

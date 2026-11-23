@@ -10,7 +10,7 @@ export function setup() {
   return install();
 }
 
-export const stub = (ws = "livedu") => env.WORKSPACE.get(env.WORKSPACE.idFromName(ws));
+export const stub = (ws = "shop") => env.WORKSPACE.get(env.WORKSPACE.idFromName(ws));
 
 /** The workspace's service with its store's SQL, as the original tests saw the Flow object. */
 export type F = Flowee & {
@@ -19,16 +19,16 @@ export type F = Flowee & {
 };
 
 /** Runs fn inside the workspace's Durable Object (storage seeding, cron, env changes). */
-export const inFlow = <R>(fn: (f: F) => R | Promise<R>, ws = "livedu") =>
+export const inFlow = <R>(fn: (f: F) => R | Promise<R>, ws = "shop") =>
   runInDurableObject(stub(ws), (o: Workspace) => {
     const f = o.runtime(ws).flow as F;
     f.sql = { exec: (q, ...a) => o.store.exec(q, ...a) };
     return fn(f);
   });
 
-export const inObject = <R>(fn: (o: Workspace) => R | Promise<R>, ws = "livedu") => runInDurableObject(stub(ws), fn);
+export const inObject = <R>(fn: (o: Workspace) => R | Promise<R>, ws = "shop") => runInDurableObject(stub(ws), fn);
 
-export async function wipe(ws = "livedu") {
+export async function wipe(ws = "shop") {
   await inFlow((f) => {
     for (const t of TABLES) f.sql.exec(`DELETE FROM ${t}`);
   }, ws);
@@ -47,7 +47,7 @@ export async function call(who: Who | string | null, cmd: string, body?: unknown
   return { status: res.status, body: (await res.json()) as Record<string, any> };
 }
 
-export const claim = (n: number, instance: Who, role: string, touched = Date.now(), ws = "livedu") =>
+export const claim = (n: number, instance: Who, role: string, touched = Date.now(), ws = "shop") =>
   inFlow((f) => {
     f.sql.exec("INSERT OR REPLACE INTO claims VALUES (?, ?, ?, ?, ?)", n, instance, role, touched, touched);
   }, ws);
@@ -60,6 +60,6 @@ export async function hook(update: Record<string, unknown>, secret = "hook-test"
   });
 }
 
-export const CARD_TEST = "Looks good.\n\n### For Nick\nKind: test\nChanged: Lessons load faster\nCheck:\n- open a lesson\n- it shows at once";
-export const CARD_Q = "### For Nick\nKind: question\nQuestion: Blue or green? I recommend blue.";
+export const CARD_TEST = "Looks good.\n\n### For Ann\nKind: test\nChanged: Lessons load faster\nCheck:\n- open a lesson\n- it shows at once";
+export const CARD_Q = "### For Ann\nKind: question\nQuestion: Blue or green? I recommend blue.";
 export const sha = (c: string) => c.padStart(40, "0");

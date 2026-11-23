@@ -11,7 +11,7 @@ let gh2: FakeGitHub;
 let tg: FakeTelegram;
 beforeEach(async () => {
   ({ gh, gh2, tg } = setup());
-  await wipe("livedu");
+  await wipe("shop");
   await wipe("other");
 });
 
@@ -25,7 +25,7 @@ const msg = (chat: number, from: number, text: string) => ({
 describe("two workspaces", () => {
   it("tokens resolve to their workspace; a token of one is unknown in the other", async () => {
     expect((await other("dev1", "whoami")).body).toEqual({ ok: true, instance: "dev1", role: "developer" });
-    const r = await SELF.fetch("https://flow.test/w/livedu/v1/whoami", { headers: { authorization: "Bearer o-dev1" } });
+    const r = await SELF.fetch("https://flow.test/w/shop/v1/whoami", { headers: { authorization: "Bearer o-dev1" } });
     expect(r.status).toBe(401);
     const ok = await SELF.fetch("https://flow.test/w/other/v1/whoami", { headers: { authorization: "Bearer o-dev1" } });
     expect(await ok.json()).toEqual({ ok: true, instance: "dev1", role: "developer" });
@@ -42,7 +42,7 @@ describe("two workspaces", () => {
     expect((await other("dev1", "next", {})).body.ticket).toMatchObject({ n: 1, resumed: false });
     expect(gh.label(1)).toEqual(["in development"]);
     expect(gh2.label(1)).toEqual(["in development"]);
-    expect(await inFlow((f) => f.rows("SELECT n, instance FROM claims"), "livedu")).toEqual([{ n: 1, instance: "dev1" }]);
+    expect(await inFlow((f) => f.rows("SELECT n, instance FROM claims"), "shop")).toEqual([{ n: 1, instance: "dev1" }]);
     expect(await inFlow((f) => f.rows("SELECT n, instance FROM claims"), "other")).toEqual([{ n: 1, instance: "dev1" }]);
     await claim(2, "dev2", "developer", Date.now(), "other");
     expect((await call("dev2", "queue")).body.claim).toBeNull();
@@ -51,14 +51,14 @@ describe("two workspaces", () => {
 
   it("the inbox and the chat are per workspace", async () => {
     gh2.add({ number: 3, state_label: "board review" });
-    const r = await other("board", "escalate", { n: 3, comment: CARD_Q.replace("For Nick", "For the owner") });
+    const r = await other("board", "escalate", { n: 3, comment: CARD_Q.replace("For Ann", "For the owner") });
     expect(r.body).toEqual({ ok: true, state: "human review", telegram: "sent" });
     expect(tg.of("sendRichMessage").map((m) => m.chat_id)).toEqual(["555"]);
     expect(gh2.last(3)).toBe("Board: ### For the owner\nKind: question\nQuestion: Blue or green? I recommend blue.");
     expect((await call("board", "queue")).body.inbox).toEqual([]);
     expect((await other("board", "queue")).body.inbox).toEqual([3]);
     tg.calls = [];
-    // the owner of the other workspace answers in his chat; the livedu owner's chat stays untouched
+    // the owner of the other workspace answers in his chat; the shop owner's chat stays untouched
     const note = await inFlow((f) => f.rows<{ message_id: number }>("SELECT message_id FROM messages")[0].message_id, "other");
     const u = msg(555, 555, "Blue.");
     (u.message as Record<string, unknown>).reply_to_message = { message_id: note, from: { id: 999 } };
@@ -68,8 +68,8 @@ describe("two workspaces", () => {
     expect(tg.calls.every((c) => c.params.chat_id === undefined || c.params.chat_id === "555")).toBe(true);
     // a stranger in the other chat, and an owner of one workspace in the other's chat, are ignored
     tg.calls = [];
-    await hook(msg(555, 713276361, "/start"));
-    await hook(msg(713276361, 555, "/start"));
+    await hook(msg(555, 100000001, "/start"));
+    await hook(msg(100000001, 555, "/start"));
     await hook(msg(4242, 4242, "/start"));
     expect(tg.calls).toEqual([]);
   });
@@ -77,12 +77,12 @@ describe("two workspaces", () => {
 
 describe("standalone mode", () => {
   it("ignores management updates and commands and never calls a managed-bot method", async () => {
-    await hook({ update_id: uid++, managed_bot: { user: { id: 713276361 }, bot: { id: 77, is_bot: true, first_name: "B" } } });
-    await hook({ update_id: uid++, my_chat_member: { chat: { id: -100 }, from: { id: 713276361 } } });
-    for (const t of ["/newworkspace", "/workspaces", "/newbot", "/setup"]) await hook(msg(713276361, 713276361, t));
+    await hook({ update_id: uid++, managed_bot: { user: { id: 100000001 }, bot: { id: 77, is_bot: true, first_name: "B" } } });
+    await hook({ update_id: uid++, my_chat_member: { chat: { id: -100 }, from: { id: 100000001 } } });
+    for (const t of ["/newworkspace", "/workspaces", "/newbot", "/setup"]) await hook(msg(100000001, 100000001, t));
     await hook({
       update_id: uid++,
-      message: { message_id: 7, from: { id: 713276361 }, chat: { id: 713276361, type: "private" }, managed_bot_created: { bot: { id: 77 } } },
+      message: { message_id: 7, from: { id: 100000001 }, chat: { id: 100000001, type: "private" }, managed_bot_created: { bot: { id: 77 } } },
     });
     expect(tg.calls.some((c) => /ManagedBot/i.test(c.method))).toBe(false);
     // the owner's private chat answers as to any stray message; the rest gets no reply at all
