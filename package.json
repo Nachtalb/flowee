@@ -1,0 +1,25 @@
+{
+  "name": "flowee",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ticket flow for AI agent teams, with a Telegram envoy for the human in the loop",
+  "license": "MIT",
+  "author": "Nachtalb <na@nachtalb.io>",
+  "repository": "github:Nachtalb/flowee",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "test:client": "python3 client/test_flowee.py",
+    "typecheck": "tsc",
+    "schema": "bun scripts/schema.ts",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.9.0",
+    "@cloudflare/workers-types": "^5.20261122.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.166.0",
+    "xstate": "^5.20.0"
+  }
+}
