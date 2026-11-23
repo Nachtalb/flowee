@@ -18,7 +18,7 @@ The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "insta
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `instance.bot.token`, `instance.bot.webhookSecret` | secret names | required | The instance bot (Telegram: `@FloweeAgent`) with bot management enabled. |
+| `instance.bot.token`, `instance.bot.webhookSecret` | secret names | required | The instance bot (on Telegram: a bot with bot management enabled in BotFather). |
 | `instance.bot.username` | string | | Its username, shown in the wizard. |
 | `instance.publicUrl` | `https://…` | required | The Worker's URL; webhooks: `<url>/telegram` (instance bot), `<url>/telegram/w/<workspace>` (own bots). |
 | `instance.transport` | `webhook`, `polling` | `webhook` | How the instance bot's and the own bots' updates arrive; `polling` only self-hosted (docs/self-hosting.md), the Worker refuses it. |
