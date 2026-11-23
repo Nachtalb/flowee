@@ -173,6 +173,15 @@ dir = "."
 cmd = ["bun", "run", "test"]
 ```
 
+With pull requests (`features.pullRequests`; the Worker names the branch in `show`): `branch N` switches to the
+ticket's branch (fetched when it exists on `origin`, else created from the main branch); `pr N` pushes it (fast-forward
+only, commits signed and ending with the ticket suffix) and calls `pr`; `checks N` prints the pull request's checks
+(`green`, `pending: build (in progress)`, `failed`, `none`; exit 0 green or merged, 3 still waiting, 2 failed or no
+pull request); `merge N` calls `merge`, which the Worker refuses unless the flow lets the developer merge. `push` on
+a ticket branch pushes that branch and never the main branch; the client never merges by itself. A tester checks out
+the ticket's branch with `branch N`, so `pass` sends its head as the build. Samples and untrusted text:
+`found N PATH…`, `triage N [--samples] [PATH…]`, `unobtainable N`, `needsamples N`, `checked N`.
+
 Exit codes: 0 ok, 2 refused, 1 failure, 3 `next` found nothing. `pass` sends `HEAD` as the build and refuses
 locally unless `flowee.py gates` passed on a clean `HEAD`; `commit` refuses unless the gates passed on exactly
 the working tree; `push` only ever pushes to the clone's own `origin`.

@@ -10,10 +10,18 @@ Remote commands (comments and bodies come on stdin):
   board      triage N | spec N [--title T] | sendback N | rework N | escalate N
              approve N | drop N | postpone N | resume N
   owner      answer N
+  sampler    found N PATH… | unobtainable N                 (feature samples)
+  board      triage N [--samples] [PATH…] | needsamples N | checked N
+Pull requests (when the workspace's flow has them; the Worker names the branch):
+  branch N              switch to the ticket's branch (created from the main branch, or fetched when it exists)
+  pr N                  push the ticket's branch and open or update its pull request
+  checks N              the pull request's checks: prints green|pending|failed|none; exit 0 green, 3 pending, 2 failed
+  merge N               merge it (only where the flow lets the developer merge, e.g. dependency tickets)
 Local commands:
   gates                 run the gates of .flowee.toml on the working tree, one log per step, stop at the first failure
   commit N MSG [PATH…]  signed one-line commit `MSG (#N)` (`MSG (alias#N)`); refused unless the gates passed on exactly this tree
-  push                  fetch origin + signed rebase onto the main branch, push to origin; a rejected push is retried
+  push                  fetch origin + signed rebase onto the main branch, push to origin; a rejected push is retried;
+                        on a ticket branch: push that branch (fast-forward only), never the main branch
   busy                  'busy' (exit 2) when uncommitted changes younger than busy_hours exist, else 'idle'
 
 Configuration: .flowee.toml in the repository root (FLOWEE_CONFIG names another file), see docs/api.md.
@@ -257,24 +265,85 @@ def cmd_commit(n, msg, paths):
     return 0
 
 
+def check_mine(base):
+    """The commits base..HEAD: signed, one line, ending with a ticket suffix."""
+    mine = git("log", "--format=%H%x09%G?%x09%s", f"{base}..HEAD").splitlines()
+    for line in mine:
+        sha, sig, subj = line.split("\t", 2)
+        body = git("log", "-1", "--format=%b", sha)
+        if sig == "N" or body or not re.search(tag_re() + "$", subj):
+            raise Refused(f"{sha[:10]} is unsigned, has a body or lacks '{suffix('N')}': fix it before pushing")
+    return mine
+
+
+def push_branch(branch):
+    """Pushes HEAD to the ticket's branch on origin, fast-forward only."""
+    git(*git_config(), "fetch", "-q", "origin", main_branch())
+    mine = check_mine("FETCH_HEAD")
+    if not mine:
+        raise Refused(f"no commit on {branch} beyond {main_branch()}: commit first")
+    r = subprocess.run(["git", *git_config(), "push", "-q", "origin", f"HEAD:refs/heads/{branch}"], capture_output=True, text=True)
+    if r.returncode:
+        raise Refused(f"push of {branch} refused: {r.stderr.strip()[:400]}")
+    print(f"pushed {branch} at {git('rev-parse', '--short', 'HEAD')}", file=sys.stderr)
+
+
+def ticket_branch(n):
+    """The ticket's branch as the Worker names it; refused when the workspace's flow has no pull requests."""
+    b = api("GET", f"/v1/show?n={urllib.parse.quote(str(n))}").get("branch")
+    if not b:
+        raise Refused("this workspace's flow has no pull requests: work on the main branch")
+    return b
+
+
+def cmd_branch(n):
+    b = ticket_branch(n)
+    if git("rev-parse", "-q", "--verify", f"refs/heads/{b}", check=False):
+        git("switch", "-q", b)
+    else:
+        remote = git(*git_config(), "ls-remote", "--heads", "origin", b, check=False)
+        git(*git_config(), "fetch", "-q", "origin", b if remote else main_branch())
+        git("switch", "-q", "-c", b, "FETCH_HEAD")
+    print(b)
+    return 0
+
+
+def cmd_pr(n):
+    b = ticket_branch(n)
+    if git("rev-parse", "--abbrev-ref", "HEAD") != b:
+        raise Refused(f"switch to {b} first: flowee.py branch {label(n)}")
+    push_branch(b)
+    out = api("POST", "/v1/pr", {"n": n})
+    out.pop("ok", None)
+    print(json.dumps(out))
+    return 0
+
+
+def cmd_checks(n):
+    pull = api("GET", f"/v1/show?n={urllib.parse.quote(str(n))}").get("pull")
+    if not pull:
+        raise Refused(f"{label(n)} has no pull request yet: flowee.py pr {label(n)}")
+    state = pull.get("checks") or pull.get("state")
+    print(state + (f": {pull['waiting']}" if pull.get("waiting") else ""))
+    return {"green": 0, "merged": 0, "failed": 2}.get(state, 3)
+
+
 def cmd_push(tries=3):
     branch = main_branch()
-    tag = tag_re() + "$"
+    current = git("rev-parse", "--abbrev-ref", "HEAD")
+    if current not in (branch, "HEAD"):
+        push_branch(current)
+        return 0
     for attempt in range(tries):
         git(*git_config(), "fetch", "-q", "origin", branch)
         r = subprocess.run(["git", *sign_args(), "rebase", "-q", "-S", "FETCH_HEAD"], capture_output=True, text=True)
         if r.returncode:
             subprocess.run(["git", "rebase", "--abort"], capture_output=True)
             raise Refused(f"rebase onto {branch} conflicts, nothing pushed: {(r.stderr or r.stdout).strip()[:400]}")
-        mine = git("log", "--format=%H%x09%G?%x09%s", "FETCH_HEAD..HEAD").splitlines()
+        mine = check_mine("FETCH_HEAD")
         if not mine:
             print("nothing to push")
             return 0
-        for line in mine:
-            sha, sig, subj = line.split("\t", 2)
-            body = git("log", "-1", "--format=%b", sha)
-            if sig == "N" or body or not re.search(tag, subj):
-                raise Refused(f"{sha[:10]} is unsigned, has a body or lacks '{suffix('N')}': fix it before pushing")
         r = subprocess.run(["git", *git_config(), "push", "-q", "origin", f"HEAD:{branch}"], capture_output=True, text=True)
         if r.returncode == 0:
             print(f"pushed {len(mine)} commit(s), {branch} is {git('rev-parse', '--short', 'HEAD')}")
@@ -321,6 +390,8 @@ def main(argv):
         return cmd_push()
     if c == "busy":
         return cmd_busy()
+    if c in ("branch", "pr", "checks"):
+        return {"branch": cmd_branch, "pr": cmd_pr, "checks": cmd_checks}[c](num())
     if c in ("whoami", "queue"):
         out = api("GET", f"/v1/{c}")
     elif c == "show":
@@ -353,8 +424,15 @@ def main(argv):
                 raise Refused("pass needs green gates on a clean HEAD: run `flowee.py gates` first")
             body |= {"gates": {"sha": g["sha"], "ok": True}, "owner_check": "--owner-check" in rest}
         out = api("POST", f"/v1/{c}", body)
-    elif c in ("release", "handoff", "stuck", "triage", "sendback", "rework", "escalate", "approve", "drop",
-               "postpone", "resume"):
+    elif c in ("found", "triage"):
+        body = {"n": num(), "comment": stdin_text(), "paths": [x for x in rest[1:] if not x.startswith("--")]}
+        if c == "triage":
+            body["samples"] = "--samples" in rest
+        out = api("POST", f"/v1/{c}", body)
+    elif c == "merge":
+        out = api("POST", "/v1/merge", {"n": num()})
+    elif c in ("release", "handoff", "stuck", "sendback", "rework", "escalate", "approve", "drop",
+               "postpone", "resume", "unobtainable", "needsamples", "checked"):
         out = api("POST", f"/v1/{c}", {"n": num(), "comment": stdin_text()})
     else:
         raise Refused(f"unknown command {c}; see --help")

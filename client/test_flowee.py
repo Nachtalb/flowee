@@ -194,6 +194,39 @@ class Local(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("gpg"), "gpg missing")
+class FeatureCommands(Remote):
+    """Samples, untrusted text and pull request commands send what the API expects."""
+
+    def test_feature_bodies(self):
+        call("found", "4", "Samples/a.qoi", "Samples/b.qoi", stdin="got them")
+        call("triage", "4", "--samples", stdin="needs one")
+        call("triage", "4", "Samples/a.qoi", stdin="ready")
+        call("unobtainable", "4", stdin="### For Nick")
+        call("checked", "4", stdin="nothing new")
+        call("merge", "4")
+        self.assertEqual([(g["path"], g["body"]) for g in self.s.got], [
+            ("/w/acme/v1/found", {"n": 4, "comment": "got them", "paths": ["Samples/a.qoi", "Samples/b.qoi"]}),
+            ("/w/acme/v1/triage", {"n": 4, "comment": "needs one", "paths": [], "samples": True}),
+            ("/w/acme/v1/triage", {"n": 4, "comment": "ready", "paths": ["Samples/a.qoi"], "samples": False}),
+            ("/w/acme/v1/unobtainable", {"n": 4, "comment": "### For Nick"}),
+            ("/w/acme/v1/checked", {"n": 4, "comment": "nothing new"}),
+            ("/w/acme/v1/merge", {"n": 4}),
+        ])
+
+    def test_checks_exit_codes_wait_on_pending(self):
+        for pull, rc, text in (({"state": "open", "checks": "green"}, 0, "green"), ({"state": "open", "checks": "pending", "waiting": "build (in progress)"}, 3, "pending: build (in progress)"),
+                               ({"state": "open", "checks": "failed"}, 2, "failed"), ({"state": "merged"}, 0, "merged")):
+            self.s.replies["/w/acme/v1/show"] = [(200, {"ok": True, "pull": pull})]
+            self.assertEqual(call("checks", "4")[:2], (rc, text))
+        self.s.replies["/w/acme/v1/show"] = [(200, {"ok": True, "pull": None})]
+        self.assertEqual(call("checks", "4")[0], 2)
+
+    def test_branch_commands_need_a_flow_with_pull_requests(self):
+        self.s.replies["/w/acme/v1/show"] = [(200, {"ok": True, "state": "in development"})]
+        rc, _, err = call("branch", "4")
+        self.assertEqual((rc, err), (2, "refused: this workspace's flow has no pull requests: work on the main branch"))
+
+
 class GitSteps(unittest.TestCase):
     """commit, push with a rejected-push retry, gates, busy: real git and a throwaway gpg key, in scratch repos."""
 
@@ -278,6 +311,42 @@ class GitSteps(unittest.TestCase):
         log = self.g("log", "--format=%G? %s", "main", cwd=self.d / "origin.git").splitlines()
         self.assertEqual([x[2:] for x in log], ["feat(x): from b (#6)", "fix(x): from a (#2)", "chore(x): start (#1)"])
         self.assertTrue(all(x[0] != "N" for x in log), log)
+
+    def test_branch_pr_and_push_stay_on_the_ticket_branch(self):
+        s = Server()
+        try:
+            os.chdir(self.d / "a")
+            (self.d / "a/.flowee.toml").write_text(f'url = "{s.url}"\ninstance = "dev1"\nmain_branch = "main"\n[[gates]]\nname = "one"\ncmd = ["true"]\n')
+            os.environ["FLOWEE_TOKEN"] = "t"
+            flowee._config = None
+            s.replies["/v1/show"] = [(200, {"ok": True, "branch": "flowee/5"})]
+            s.replies["/v1/pr"] = [(200, {"ok": True, "pull": {"number": 9, "url": "u", "branch": "flowee/5"}})]
+            self.assertEqual(call("branch", "5")[:2], (0, "flowee/5"))
+            self.assertEqual(self.g("rev-parse", "--abbrev-ref", "HEAD", cwd=self.d / "a").strip(), "flowee/5")
+            rc, _, err = call("pr", "5")
+            self.assertEqual(rc, 2)
+            self.assertIn("refused: no commit on flowee/5 beyond main: commit first", err)
+            (self.d / "a/f").write_text("5\n")
+            self.green()
+            with contextlib.redirect_stdout(io.StringIO()):
+                flowee.cmd_commit(5, "fix(x): five", ["f"])
+            rc, out, _ = call("pr", "5")
+            self.assertEqual((rc, json.loads(out)), (0, {"pull": {"number": 9, "url": "u", "branch": "flowee/5"}}))
+            self.assertEqual(s.got[-1]["body"], {"n": 5})
+            heads = self.g("ls-remote", "--heads", "origin", cwd=self.d / "a")
+            self.assertIn("refs/heads/flowee/5", heads)
+            main = self.g("rev-parse", "origin/main", cwd=self.d / "a").strip()
+            self.assertEqual(self.g("ls-remote", "origin", "refs/heads/main", cwd=self.d / "a").split()[0], main)  # main untouched
+            (self.d / "a/f").write_text("6\n")
+            self.green()
+            with contextlib.redirect_stdout(io.StringIO()):
+                flowee.cmd_commit(5, "fix(x): six", ["f"])
+                self.assertEqual(flowee.cmd_push(), 0)
+            self.assertIn(self.g("rev-parse", "HEAD", cwd=self.d / "a").strip(), self.g("ls-remote", "origin", "refs/heads/flowee/5", cwd=self.d / "a"))
+            self.g("switch", "-q", "main", cwd=self.d / "a")
+            self.assertEqual(call("branch", "5")[:2], (0, "flowee/5"))  # the existing local branch again
+        finally:
+            s.srv.shutdown()
 
     def test_push_refuses_a_commit_without_ticket(self):
         os.chdir(self.d / "b")
