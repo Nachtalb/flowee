@@ -21,6 +21,8 @@ export interface Options {
   telegramApi?: string;
   /** Behind a reverse proxy: the client address is the first X-Forwarded-For entry (FLOWEE_TRUST_PROXY=1). */
   trustProxy?: boolean;
+  /** Seconds between ticks (FLOWEE_TICK_SECONDS, default 60: the Worker's cron); the tests shorten it. */
+  tick?: number;
 }
 
 type Chat = { publicUrl?: string; transport?: string };
@@ -78,7 +80,9 @@ export async function load(raw: Record<string, string | undefined>, cwd = "."): 
     debug: (vars.FLOWEE_LOG ?? "info") === "debug",
     telegramApi: vars.FLOWEE_TELEGRAM_API,
     trustProxy: vars.FLOWEE_TRUST_PROXY === "1",
+    tick: Number(vars.FLOWEE_TICK_SECONDS ?? 60),
   };
+  if (!(options.tick && options.tick >= 1 && options.tick <= 3600)) errs.push(`FLOWEE_TICK_SECONDS: '${vars.FLOWEE_TICK_SECONDS}' must be 1 to 3600.`);
   if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) errs.push(`FLOWEE_PORT: '${vars.FLOWEE_PORT}' is no port.`);
   if (options.publicUrl && !/^https?:\/\//.test(options.publicUrl)) errs.push("FLOWEE_PUBLIC_URL: must start with https:// (or http:// behind a proxy that terminates TLS for the trackers only).");
   let text = vars.FLOWEE_CONFIG;

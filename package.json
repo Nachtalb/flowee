@@ -16,6 +16,7 @@
     "schema": "bun scripts/schema.ts",
     "dev": "wrangler dev",
     "start": "bun src/runtime/bun/main.ts",
+    "compile": "bun scripts/compile.ts",
     "validate": "bun scripts/validate.ts",
     "deploy": "bun scripts/deploy.ts"
   },

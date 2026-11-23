@@ -67,6 +67,21 @@ const assets = (dir: string) => ({
   },
 });
 
+let embedded: Record<string, [string, string]> | undefined;
+/** The compiled executable's served material: path → [embedded file, ETag]. */
+export const embed = (files: Record<string, [string, string]>) => void (embedded = files);
+
+const embeddedAssets = (files: Record<string, [string, string]>) => ({
+  async fetch(r: Request | string): Promise<Response> {
+    const req = typeof r === "string" ? new Request(r) : r;
+    const hit = files[decodeURIComponent(new URL(req.url).pathname)];
+    if (!hit) return new Response(null, { status: 404 });
+    const [file, etag] = hit;
+    if (req.headers.get("if-none-match")?.split(/,\s*/).includes(etag)) return new Response(null, { status: 304, headers: { etag } });
+    return new Response(Bun.file(file), { headers: { etag } });
+  },
+});
+
 export class App {
   readonly platform: Platform;
   readonly scheduler: Scheduler;
@@ -86,7 +101,9 @@ export class App {
     if (o.telegramApi) setTelegramApi(o.telegramApi);
     env.FLOWEE_RUNTIME = "bun";
     if (o.publicUrl) env.FLOWEE_PUBLIC_URL = o.publicUrl;
-    if (o.assets) (env as Record<string, unknown>).ASSETS = assets(resolve(o.assets));
+    // a served/ directory given or next to the process wins; else what the executable embeds
+    const reader = o.assets ? assets(resolve(o.assets)) : embedded && embeddedAssets(embedded);
+    if (reader) (env as Record<string, unknown>).ASSETS = reader;
     this.lock = lockData(o.data);
     mkdirSync(join(o.data, "workspaces"), { recursive: true });
     this.platform = { env, workspace: (id) => this.workspace(id), instance: () => this.instance() };
@@ -99,6 +116,7 @@ export class App {
       },
       () => Date.now(),
       (m) => this.log("warn", m),
+      (o.tick ?? 60) * 1000,
     );
   }
 

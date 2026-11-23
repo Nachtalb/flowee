@@ -20,6 +20,8 @@ export class Scheduler {
     private tick: () => Promise<void>,
     private now = () => Date.now(),
     private log: (msg: string) => void = () => {},
+    /** The tick's period (FLOWEE_TICK_SECONDS; a minute, as the Worker's cron). */
+    private every = MINUTE,
   ) {
     db.run("CREATE TABLE IF NOT EXISTS alarms (room TEXT PRIMARY KEY, at INTEGER NOT NULL)");
     for (const r of db.query("SELECT room, at FROM alarms").all() as { room: string; at: number }[]) this.due.set(r.room, r.at);
@@ -31,7 +33,7 @@ export class Scheduler {
     if (cur !== undefined && cur <= at) return;
     this.due.set(room, at);
     this.db.run("INSERT OR REPLACE INTO alarms VALUES (?, ?)", [room, at]);
-    if (!this.stopped && at < this.now() + MINUTE) this.arm(0);
+    if (!this.stopped && at < this.now() + this.every) this.arm(0);
   }
 
   next(room: string) {
@@ -52,20 +54,20 @@ export class Scheduler {
 
   private arm(ms: number) {
     if (this.timer !== undefined) clearTimeout(this.timer);
-    if (!this.stopped) this.timer = setTimeout(() => void this.turn(), Math.max(0, Math.min(ms, MINUTE)));
+    if (!this.stopped) this.timer = setTimeout(() => void this.turn(), Math.max(0, Math.min(ms, this.every)));
   }
 
   /** One turn: the due alarms, the tick when a minute has passed; then sleep until the next of them (≤ 1 minute). */
   async turn() {
     const now = this.now();
     for (const [room, at] of [...this.due]) if (at <= now && !this.running.has(room)) this.fire(room);
-    if (now - this.lastTick >= MINUTE && !this.ticking) {
+    if (now - this.lastTick >= this.every && !this.ticking) {
       this.lastTick = now;
       this.ticking = this.tick()
         .catch((e) => this.log(`tick failed: ${e instanceof Error ? e.message : e}`))
         .finally(() => (this.ticking = undefined));
     }
-    const soonest = Math.min(this.lastTick + MINUTE, ...this.due.values());
+    const soonest = Math.min(this.lastTick + this.every, ...this.due.values());
     this.arm(soonest - this.now());
   }
 

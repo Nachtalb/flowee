@@ -4,3 +4,5 @@ node_modules
 __pycache__/
 flowee.config.local.json
 served/
+dist/
+src/runtime/bun/embedded.gen.ts

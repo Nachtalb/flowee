@@ -1,0 +1,34 @@
+# Flowee self-hosted with Docker Compose (docs/self-hosting.md): `docker compose up -d`.
+# Put the configuration document at ./flowee.json and each secret it names in ./secrets/<NAME>.
+services:
+  flowee:
+    image: flowee:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - flowee-data:/data
+      - ./flowee.json:/config/flowee.json:ro
+    environment:
+      FLOWEE_CONFIG_FILE: /config/flowee.json
+      # behind a reverse proxy (https): Telegram and tracker webhooks; without it: polling
+      # FLOWEE_PUBLIC_URL: https://flowee.example.com
+      # FLOWEE_TRUST_PROXY: "1"
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/TELEGRAM_BOT_TOKEN
+      GITHUB_TOKEN_FILE: /run/secrets/GITHUB_TOKEN
+      TOKEN_BOARD_FILE: /run/secrets/TOKEN_BOARD
+      TOKEN_DEV1_FILE: /run/secrets/TOKEN_DEV1
+      TOKEN_OWNER_FILE: /run/secrets/TOKEN_OWNER
+      # FLOWEE_KEY_FILE: /run/secrets/FLOWEE_KEY   # else generated into the volume (back it up)
+    secrets: [TELEGRAM_BOT_TOKEN, GITHUB_TOKEN, TOKEN_BOARD, TOKEN_DEV1, TOKEN_OWNER]
+
+secrets:
+  TELEGRAM_BOT_TOKEN: { file: ./secrets/TELEGRAM_BOT_TOKEN }
+  GITHUB_TOKEN: { file: ./secrets/GITHUB_TOKEN }
+  TOKEN_BOARD: { file: ./secrets/TOKEN_BOARD }
+  TOKEN_DEV1: { file: ./secrets/TOKEN_DEV1 }
+  TOKEN_OWNER: { file: ./secrets/TOKEN_OWNER }
+
+volumes:
+  flowee-data:

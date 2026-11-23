@@ -1,0 +1,8 @@
+node_modules
+dist
+served
+data
+.wrangler
+.dev.vars
+flowee.config.local.json
+**/__pycache__
