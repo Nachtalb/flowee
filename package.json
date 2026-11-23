@@ -17,6 +17,8 @@
     "dev": "wrangler dev",
     "start": "bun src/runtime/bun/main.ts",
     "compile": "bun scripts/compile.ts",
+    "compile:tui": "bun build --compile --minify --sourcemap=none tui/main.ts --outfile dist/flowee-tui",
+    "tui": "bun tui/main.ts",
     "validate": "bun scripts/validate.ts",
     "deploy": "bun scripts/deploy.ts"
   },
