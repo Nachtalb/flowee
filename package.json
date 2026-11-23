@@ -8,12 +8,14 @@
   "repository": "github:Nachtalb/flowee",
   "type": "module",
   "scripts": {
-    "test": "bun scripts/bundle.ts && vitest run",
+    "test": "bun scripts/bundle.ts && vitest run && bun run test:bun",
+    "test:bun": "bun --bun vitest run -c vitest.bun.config.ts",
     "bundle": "bun scripts/bundle.ts",
     "test:client": "python3 client/test_flowee.py",
     "typecheck": "tsc",
     "schema": "bun scripts/schema.ts",
     "dev": "wrangler dev",
+    "start": "bun src/runtime/bun/main.ts",
     "validate": "bun scripts/validate.ts",
     "deploy": "bun scripts/deploy.ts"
   },

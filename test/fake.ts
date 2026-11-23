@@ -175,6 +175,9 @@ export class FakeTelegram {
   refuse: Record<string, string> = {};
   /** The webhook URL per bot token. */
   hooks: Record<string, string> = {};
+  /** Updates getUpdates hands out per bot token (polling); `conflict` answers 409 as when another consumer polls. */
+  pending: Record<string, { update_id: number; [k: string]: unknown }[]> = {};
+  conflict = false;
   private id = 100;
 
   of(method: string) {
@@ -191,6 +194,15 @@ export class FakeTelegram {
     this.calls.push(call);
     if (method === "setWebhook") this.hooks[bot] = params.url;
     if (this.down) return Response.json({ ok: false, description: "Bad Gateway" }, { status: 502 });
+    if (method === "getUpdates") {
+      if (this.conflict) return Response.json({ ok: false, error_code: 409, description: "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running" }, { status: 409 });
+      if (this.hooks[bot]) return Response.json({ ok: false, error_code: 409, description: "Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first" }, { status: 409 });
+      const due = () => (this.pending[bot] ?? []).filter((u) => u.update_id >= (params.offset ?? 0));
+      // a short long-poll: an empty answer after a few milliseconds
+      if (!due().length) await new Promise((ok) => setTimeout(ok, 5));
+      return Response.json({ ok: true, result: due() });
+    }
+    if (method === "deleteWebhook") delete this.hooks[bot];
     if (method in this.refuse) return Response.json({ ok: false, error_code: 400, description: this.refuse[method] }, { status: 400 });
     const result =
       method in this.answers

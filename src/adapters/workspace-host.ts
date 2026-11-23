@@ -52,6 +52,11 @@ export class WorkspaceHost {
     return r;
   }
 
+  /** Settles when the commands queued under the lock have run (a graceful stop waits for it). */
+  idle() {
+    return this.chain.then(() => {});
+  }
+
   /** Builds the workspace's runtime anew on the next request (config or env changed). */
   reset() {
     this.rt = undefined;

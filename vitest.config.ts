@@ -1,42 +1,14 @@
-import { createHash } from "node:crypto";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
-import { defineConfig } from "vitest/config";
-import workspaces from "./test/workspaces.json";
-
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
-const who = ["board", "dev1", "dev2", "tester", "owner"];
+import { configDefaults, defineConfig } from "vitest/config";
+import { bindings } from "./test/bindings";
 
 export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: "./wrangler.toml" },
-      miniflare: {
-        bindings: {
-          FLOWEE_CONFIG: JSON.stringify(workspaces),
-          GITHUB_TOKEN: "gh-test",
-          TELEGRAM_BOT_TOKEN: "999:tg-test",
-          PASTE_TOKEN: "paste-test",
-          TG_WEBHOOK_SECRET: "hook-test",
-          ...Object.fromEntries(who.map((w) => [`TOKEN_${w.toUpperCase()}`, hash(`s-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`OTHER_${w.toUpperCase()}`, hash(`o-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`MULTI_${w.toUpperCase()}`, hash(`m-${w}`)])),
-          LIB_TOKEN: "gh-lib",
-          GITLAB_TOKEN: "gl-test",
-          ...Object.fromEntries(who.map((w) => [`MIX_${w.toUpperCase()}`, hash(`x-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`MIXR_${w.toUpperCase()}`, hash(`y-${w}`)])),
-          ...Object.fromEntries([...who, "sampler"].map((w) => [`VIEWER_${w.toUpperCase()}`, hash(`p-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`DEPS_${w.toUpperCase()}`, hash(`q-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`SUITE_${w.toUpperCase()}`, hash(`u-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`HOOKS_${w.toUpperCase()}`, hash(`h-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`RELMAIN_${w.toUpperCase()}`, hash(`r-${w}`)])),
-          ...Object.fromEntries(who.map((w) => [`BRANCHY_${w.toUpperCase()}`, hash(`b-${w}`)])),
-          HOOKS2_BOARD: hash("k-board"),
-          HOOKS2_OWNER: hash("k-owner"),
-          HOOKSGL_BOARD: hash("g-board"),
-          HOOKSGL_OWNER: hash("g-owner"),
-          FLOWEE_KEY: "key-test",
-        },
-      },
+      miniflare: { bindings },
     }),
   ],
+  // test/bun/ holds the bun runtime's own suites (bun:sqlite, timers, polling): vitest.bun.config.ts runs them
+  test: { exclude: [...configDefaults.exclude, "test/bun/**"] },
 });
