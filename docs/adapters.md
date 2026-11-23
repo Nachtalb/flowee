@@ -26,7 +26,7 @@ turns a missing one into `501 unsupported` (`The tracker does not support pull r
 |---|---|---|
 | `board` | `setStatus(issue, status)` | the project board column per state (GitHub adapter: when `tracker.project` is set) |
 | `branches` | `head(name)`, `exists(ref, path)`, `changes(sha)` (files + added lines), `remove(name)` | `pullRequests` (the ticket's branch), `samples` (sample paths on main), `uiReview` (the diff) |
-| `pulls` | `forBranch(name)`, `get(n)`, `open()`, `create(head, base, title, body)`, `update(n, {title, body})`, `merge(n, method, subject)` | `pullRequests`, `dependencyTickets` |
+| `pulls` | `forBranch(name)`, `get(n)`, `open()`, `create(head, base, title, body)`, `update(n, {title, body})`, `merge(n, method, subject)`, `files(n)` (every file the pull request changes) | `pullRequests`, `dependencyTickets` |
 | `checks` | `forCommit(sha)` (check runs and commit statuses, newest per name) | `pullRequests` (`checksGreen`), `releases` (`checks`: the `tested` tag only onto a green commit) |
 | `releases` | `latest()` (tag, name, the built-from sha its notes name, body) | `releases` (`source: "release"`) |
 | `tags` | `get(name)`, `move(name, sha)` | `releases` (`source: "tag"`, `testedTag`) |

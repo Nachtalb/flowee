@@ -57,15 +57,8 @@ export class GitHubBranches implements Branches {
   }
 
   async changes(sha: string): Promise<Change[]> {
-    const c = await this.gh.req<{ files?: { filename: string; status: string; patch?: string }[] }>("GET", `${this.gh.r}/commits/${sha}`, `the changes of ${sha.slice(0, 7)}`);
-    return (c.files ?? []).map((f) => ({
-      status: STATUS[f.status] ?? "M",
-      path: f.filename,
-      added: (f.patch ?? "")
-        .split("\n")
-        .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
-        .map((l) => l.slice(1)),
-    }));
+    const c = await this.gh.req<{ files?: GhFile[] }>("GET", `${this.gh.r}/commits/${sha}`, `the changes of ${sha.slice(0, 7)}`);
+    return toChanges(c.files ?? []);
   }
 
   async remove(name: string) {
@@ -73,8 +66,31 @@ export class GitHubBranches implements Branches {
   }
 }
 
+type GhFile = { filename: string; status: string; patch?: string };
+
+const toChanges = (files: GhFile[]): Change[] =>
+  files.map((f) => ({
+    status: STATUS[f.status] ?? "M",
+    path: f.filename,
+    added: (f.patch ?? "")
+      .split("\n")
+      .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
+      .map((l) => l.slice(1)),
+  }));
+
 export class GitHubPulls implements PullRequests {
   constructor(private gh: GitHub) {}
+
+  async files(n: number): Promise<Change[]> {
+    const all: GhFile[] = [];
+    // GitHub lists at most 3000 files, 100 per page
+    for (let page = 1; page <= 30; page++) {
+      const batch = await this.gh.req<GhFile[]>("GET", `${this.gh.r}/pulls/${n}/files?per_page=100&page=${page}`, `the files of pull request #${n}`);
+      all.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return toChanges(all);
+  }
 
   async forBranch(branch: string) {
     const owner = this.gh.r.split("/")[2];

@@ -17,6 +17,8 @@ type Pull = {
 
 export class FakeCode {
   branches = new Map<string, string>();
+  /** The commits a branch has beyond main, oldest first. */
+  commitsOn = new Map<string, string[]>();
   /** sha -> index of the main commit it is based on (branch commits are not on main). */
   based = new Map<string, number>();
   files = new Set<string>();
@@ -35,6 +37,7 @@ export class FakeCode {
   /** A commit on a branch (based on main's head), the branch pointing at it. */
   push(branch: string, files: Record<string, string> = {}): string {
     const sha = `b${String(++this.n).padStart(39, "0")}`;
+    this.commitsOn.set(branch, [...(this.branches.has(branch) ? (this.commitsOn.get(branch) ?? []) : []), sha]);
     this.branches.set(branch, sha);
     this.based.set(sha, this.gh.main.length - 1);
     this.changes.set(
@@ -113,6 +116,10 @@ export class FakeCode {
       p.body = body.body;
       p.base.ref = body.base;
       return ok(pull(p), 201);
+    }
+    if ((m = /^pulls\/(\d+)\/files$/.exec(rest))) {
+      const p = this.pulls.find((x) => x.number === Number(m![1]));
+      return p ? ok((this.commitsOn.get(p.head.ref) ?? []).flatMap((sha) => this.changes.get(sha) ?? [])) : nf();
     }
     if ((m = /^pulls\/(\d+)(\/merge)?$/.exec(rest))) {
       const p = this.pulls.find((x) => x.number === Number(m![1]));

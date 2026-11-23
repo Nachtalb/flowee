@@ -360,6 +360,19 @@ describe("the remaining feature transitions", () => {
     expect(labels(2)).toEqual(["testing"]);
   });
 
+  it("UI review reads every file of the pull request, not only its head commit", async () => {
+    any.commit("feat: base");
+    any.add({ number: 2, state_label: "testing", title: "Viewer" });
+    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    code.push("flowee/2", { "app/src/main/ui/Viewer.kt": "@@ -0,0 +1 @@\n+fun Viewer()" });
+    const head = code.push("flowee/2", { "app/src/main/Engine.kt": "@@ -1 +1 @@\n+val x = 2" });
+    code.green(head);
+    code.pr("flowee/2", "Viewer (#2)");
+    const r = await p("tester", "pass", { n: 2, comment: CARD, build: head, gates: { sha: head, ok: true } });
+    expect(r.body.state).toBe("board review");
+    expect(any.last(2)).toContain("- UI file: app/src/main/ui/Viewer.kt");
+  });
+
   it("show names the branch, the pull request and its checks", async () => {
     any.add({ number: 1, state_label: "in development" });
     expect((await call("board", "show?n=1", undefined, undefined, "p")).body).toMatchObject({ branch: "flowee/1", pull: null });

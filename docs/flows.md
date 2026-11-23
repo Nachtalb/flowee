@@ -91,7 +91,7 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `merged` | check | | the ticket's pull request is merged (its merge commit counts as the ticket's) | 422 `not_merged` `Pull request #1001 of #12 is not merged yet; merge it first.` |
 | `isDependencyTicket` | selector | | the body names a pull request (`Pull request: #p`, feature `dependencyTickets`) | — |
 | `buildTested` | check | `contains` (`true`) | with the flow merging an open pull request: `build` contains its head (`contains: false`: is on it or on main); otherwise as `buildOnMain` + `buildContainsCommits` (merge commits included) | 422 `not_in_build` `Build 1a2b3c4 lacks the head 5d6e7f8 of pull request #1001; pull and test again.` (and the two above) |
-| `uiChanged` | selector | | the ticket's changes (the open pull request's head, else its commits) match `uiReview` (`paths`, added files under `addedFiles`, added lines matching `addedLines`, minus `ignore`); the reasons go to the comment as `{ui}` | — |
+| `uiChanged` | selector | | the ticket's changes (every file of its open pull request, else its commits) match `uiReview` (`paths`, added files under `addedFiles`, added lines matching `addedLines`, minus `ignore`); the reasons go to the comment as `{ui}` | — |
 | `inRelease` | selector | | the published build (`releases.source`) contains every commit of the ticket (none: true); remembers the release for the card's version line | — |
 | `awaitsRelease` | selector | | `releases.hold`, the card is `Kind: test` and the published build lacks a commit of the ticket (nothing published: all) | — |
 | `cardKind` | selector | `kinds` | the card checked by the command's input is of one of these kinds | — |

@@ -111,6 +111,8 @@ export interface PullRequests {
   update(number: number, patch: { title?: string; body?: string }): Promise<void>;
   /** Merges; the merge commit's sha. 409 not_mergeable when the tracker refuses. */
   merge(number: number, method: "merge" | "squash" | "rebase", subject?: string): Promise<string>;
+  /** Every file the pull request changes against its base, over all its commits. */
+  files(number: number): Promise<Change[]>;
 }
 
 export interface CheckRun {

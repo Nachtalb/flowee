@@ -170,7 +170,7 @@ export const CODE_GUARDS: Record<string, Guard> = {
       const { repo } = local(c.f, c.t.n);
       const pr = c.f.s.features.pullRequests ? await pullOf(c) : null;
       let changes: Change[];
-      if (pr?.state === "open") changes = await capability(repo.tracker, "branches").changes(pr.headSha);
+      if (pr?.state === "open") changes = await capability(repo.tracker, "pulls").files(pr.number);
       else {
         changes = [];
         for (const s of await ticketShas(c.f, c.t)) changes.push(...(await capability(repo.tracker, "branches").changes(s)));
