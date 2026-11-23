@@ -12,7 +12,7 @@ bun run typecheck                 # tsc (TypeScript 7), strict
 bun run test                      # vitest in workerd (@cloudflare/vitest-plugin): fake GitHub + Telegram via fetch stubs
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run schema                    # regenerate schema/workspace.schema.json after changing src/config/schema.ts
-python3 test/e2e/wire.py [--flow-py …/livedu/scripts/flow.py]   # real clients against `wrangler dev`
+python3 test/e2e/wire.py [--flow-py PATH]   # real clients against `wrangler dev`
 bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFIG in .dev.vars (git-ignored)
 ```
 
@@ -51,7 +51,7 @@ src/
 flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
 schema/       workspace.schema.json, instance.schema.json (generated)
 client/       flowee.py + test_flowee.py
-docs/         api.md, flows.md, adapters.md, configuration.md, parity.md, anyfile-parity.md, managed.md (wizard,
+docs/         api.md, flows.md, adapters.md, configuration.md, envoy.md, flow-features.md, managed.md (wizard,
               management, import), telegram.md (profiles, setMySettings, groups and topics)
 test/         vitest suites, fakes (fake.ts), fixtures (workspaces.json), e2e/wire.py
 ```

@@ -59,7 +59,7 @@ with its JSON path, e.g. `$.tracker.repos: must have at least 1 item(s).`
 | `id` | string `^[a-z0-9][a-z0-9-]{0,62}$` | required | Workspace id; the API base is `/w/<id>`. |
 | `name` | string | | Display name. |
 | `flow` | object | required | `{"preset": "trunk"}` or `{"chart": {…}, "options": {…}}` (inline XState statechart and options, see docs/flows.md). |
-| `flow.preset` | `"trunk"`, `"pr-release"` | | A preset in `flows/`: `trunk` (commits straight to main) or `pr-release` (AnyFile's flow; its parts switch with `features`). |
+| `flow.preset` | `"trunk"`, `"pr-release"` | | A preset in `flows/`: `trunk` (commits straight to main) or `pr-release` (the full flow; its parts switch with `features`, docs/flow-features.md). |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see Features below. |
 | `tracker` | object | required | The tracker that keeps the record. |
@@ -135,7 +135,7 @@ A repository removed and added again gets its old slot back.
 Each feature is off unless the document gives it: `true` switches it on with the defaults, an object with options,
 `false` or absence leaves it off. A feature the workspace's flow has no states for (`trunk` has none; `pr-release`
 has all) or that its tracker cannot do is refused. docs/flows.md ("Features") says how a flow tags them;
-docs/adapters.md lists the token permission each one needs; docs/anyfile-parity.md maps them to AnyFile's flow.
+docs/adapters.md lists the token permission each one needs; docs/flow-features.md says what each one adds.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|

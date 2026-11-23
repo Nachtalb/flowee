@@ -20,7 +20,7 @@ Descriptions say what the bot is for, never who it is for.
 | Bot | Scope | Commands |
 |---|---|---|
 | instance bot | all private chats | `start` what Flowee does, `setup`, `workspaces`, `import`, `export` |
-| a workspace's bot (own or standalone) | default | the envoy's `start`, `todo`, `postponed`, `new` (docs/parity.md row 1) |
+| a workspace's bot (own or standalone) | default | the envoy's `start`, `todo`, `postponed`, `new` (docs/envoy.md row 1) |
 | any bot serving a workspace | the bound chat (`chat` scope) | the envoy's commands with their counts (row 2) |
 
 Telegram has no command scope for one forum topic: in a group bound by one topic, the counts menu shows in the
@@ -58,6 +58,6 @@ every `/setup` where it changed. Updates are routed by the path (which bot) and 
   silently: no reply, no reaction, their button presses unanswered, so a shared group stays quiet.
 - With privacy mode on, the bot sees in a group only commands and replies to its messages. Answering in a group
   therefore means replying to a card (as the ForceReply prompt asks); the private-chat habit of typing under the
-  current card without replying is not seen by the bot there. Everything else of docs/parity.md works the same.
+  current card without replying is not seen by the bot there. Everything else of docs/envoy.md works the same.
 - In a group without topics, Telegram also sets a thread id on replies; Flowee reads a topic only from messages
   marked as topic messages, so such replies still belong to the whole-group binding.

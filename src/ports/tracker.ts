@@ -145,7 +145,7 @@ export interface Releases {
 export interface Tags {
   /** The commit a tag points at, or null when it does not exist. */
   get(name: string): Promise<string | null>;
-  /** Creates or moves a tag (AnyFile's `tested` tag moves forward over main). */
+  /** Creates or moves a tag (the `tested` tag of feature releases moves forward over main). */
   move(name: string, sha: string): Promise<void>;
 }
 

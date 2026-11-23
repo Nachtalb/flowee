@@ -1,5 +1,4 @@
-// Message views and the pure parts of navigation and search, ported from the AnyFile Envoy (render.rs, nav.rs,
-// search.rs): chat-agnostic views (rich HTML blocks, button rows, tables) for cards, the bar and the lists, and
+// Message views and the pure parts of navigation and search (docs/envoy.md): chat-agnostic views (rich HTML blocks, button rows, tables) for cards, the bar and the lists, and
 // HTML text for plain messages.
 import type { Card } from "../core/card";
 import type { Block, Button, View } from "../ports/chat";

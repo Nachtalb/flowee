@@ -1,7 +1,7 @@
 {
   "id": "pr-release",
   "initial": "needs triage",
-  "description": "AnyFile's ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency and untrusted tickets; each part tagged with its feature in meta.features and pruned when switched off.",
+  "description": "The full ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency and untrusted tickets; each part tagged with its feature in meta.features and pruned when switched off.",
   "states": {
     "needs triage": {
       "meta": {

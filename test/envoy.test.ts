@@ -1,4 +1,4 @@
-// The Telegram side against docs/parity.md (row numbers in the test names): exact texts and button layouts.
+// The Telegram side against docs/envoy.md (row numbers in the test names): exact texts and button layouts.
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { richHtml } from "../src/adapters/chat-telegram";

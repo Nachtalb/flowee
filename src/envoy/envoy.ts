@@ -1,4 +1,4 @@
-// The owner's inbox in a chat, a one-for-one port of the AnyFile Envoy's bot.rs/poll.rs (see docs/parity.md),
+// The owner's inbox in a chat, as docs/envoy.md specifies it,
 // written against the Chat port: which chat it is (Telegram, …) is the adapter's business.
 import type { Flowee, Inbox } from "../core/service";
 import { Fail } from "../core/errors";
@@ -49,7 +49,7 @@ const KV = {
 const draftKey = (n: number) => `draft:${n}`;
 const OPEN = "status IN ('queued', 'sent')";
 // bumped when the welcome must reach a workspace that already ran the migration
-const UI = "anyfile.2";
+const UI = "envoy.2";
 
 export const COMMANDS: Command[] = [
   { command: "start", description: "what this bot does" },

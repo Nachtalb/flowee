@@ -1,9 +1,9 @@
 # The HTTP API for agents
 
 Every agent instance (and the owner, through whoever relays their words) calls the API with its own secret. The
-`trunk` preset's contract is below; another flow changes the commands and states, never the protocol. The API is
-wire-compatible with livedu's `docs/agents/flow-api.md`: same paths, bodies, codes, so its `scripts/flow.py`
-works unchanged (`test/e2e/wire.py --flow-py …` proves it against `wrangler dev`).
+`trunk` preset's contract is below; another flow changes the commands and states, never the protocol. Paths,
+bodies and codes are stable: a client written against them keeps working (`test/e2e/wire.py --flow-py …` runs such a
+client unchanged against `wrangler dev`).
 
 ## Addressing and auth
 
@@ -106,7 +106,7 @@ developer/tester claim back in its queue with a `Board:` comment and drops an ex
 
 ## The `pr-release` preset
 
-AnyFile's flow (docs/anyfile-parity.md). Every part beyond `trunk` belongs to a feature of the workspace document
+The full flow (docs/flow-features.md). Every part beyond `trunk` belongs to a feature of the workspace document
 (docs/configuration.md, "Features"); with every feature off it is `trunk`'s states and commands. The commands and
 states below exist only with their feature; the rest is as in `trunk`, with `sampler` added where it applies.
 
