@@ -23,6 +23,7 @@ export default defineConfig({
           LIB_TOKEN: "gh-lib",
           ...Object.fromEntries([...who, "sampler"].map((w) => [`ANYFILE_${w.toUpperCase()}`, hash(`p-${w}`)])),
           ...Object.fromEntries(who.map((w) => [`ANYDEV_${w.toUpperCase()}`, hash(`q-${w}`)])),
+          ...Object.fromEntries(who.map((w) => [`SUITE_${w.toUpperCase()}`, hash(`u-${w}`)])),
           FLOWEE_KEY: "key-test",
         },
       },

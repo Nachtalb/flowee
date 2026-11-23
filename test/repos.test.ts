@@ -1,9 +1,11 @@
 // A workspace over several repositories: tickets are alias#n in the API, the chat and the error texts, the queue
 // interleaves repositories by number, commits and dependencies resolve in the ticket's repository, and each
-// repository uses its own token and branch. One-repository workspaces keep plain numbers (the other suites).
+// repository uses its own token and branch; with pull requests and releases, branches, merges and releases are the
+// ticket repository's. One-repository workspaces keep plain numbers (the other suites).
 import { beforeEach, describe, expect, it } from "vitest";
 import { SLOT } from "../src/core/repos";
 import type { FakeGitHub, FakeTelegram } from "./fake";
+import { FakeCode } from "./fake-code";
 import { CARD_Q, call, claim, hook, inFlow, setup, wipe } from "./helpers";
 
 let app: FakeGitHub;
@@ -96,5 +98,48 @@ describe("several repositories", () => {
     expect(tg.of("sendRichMessage")[0].rich_message.html).toContain(">lib#2</a>");
     await hook(u("app#9", 70002));
     expect(tg.of("sendMessage").at(-1)?.text).toBe("app#9: Not in your inbox");
+  });
+});
+
+describe("several repositories with pull requests and releases", () => {
+  const u = (who: string, cmd: string, body?: unknown) => call(who, cmd, body, undefined, "u");
+  const CARD = "Works.\n\n### For the owner\nKind: test\nChanged: the API answers faster\nCheck:\n- open the status page";
+
+  it("walks api#1: branch and pull request in its own repository, merging pass, held card, its own release", async () => {
+    const { web, api, tg: chat } = setup();
+    await wipe("suite");
+    const webCode = new FakeCode(web);
+    const apiCode = new FakeCode(api);
+    web.commit("feat: web base");
+    api.commit("feat: api base");
+    api.add({ number: 1, state_label: "ready", title: "Faster API", body: "## Acceptance\n- fast" });
+    web.add({ number: 1, state_label: "ready", title: "Web thing", body: "## Acceptance\n- x" });
+    expect((await u("dev1", "queue")).body.queue).toEqual(["web#1", "api#1"]);
+    await claim(SLOT + 1, "dev1", "developer", Date.now(), "suite");
+    api.issues.get(1)!.labels = [{ name: "in development" }];
+
+    expect((await u("dev1", "show?n=api%231")).body).toMatchObject({ n: "api#1", branch: "flowee/1", pull: null });
+    const head = apiCode.push("flowee/1");
+    expect((await u("dev1", "pr", { n: "api#1" })).body).toEqual({ ok: true, pull: { number: 1001, url: "https://github.com/acme/api/pull/1001", branch: "flowee/1" } });
+    expect(webCode.pulls).toEqual([]);
+    expect((await u("dev1", "handoff", { n: "api#1", comment: "Done." })).body.error).toBe("checks_pending");
+    apiCode.green(head);
+    expect((await u("dev1", "handoff", { n: "api#1", comment: "Done." })).body.state).toBe("ready for testing");
+
+    expect((await u("tester", "next", {})).body.ticket).toMatchObject({ n: "api#1", state: "testing" });
+    const passed = (await u("tester", "pass", { n: "api#1", comment: CARD, build: head, gates: { sha: head, ok: true }, owner_check: true })).body;
+    expect(passed).toMatchObject({ state: "board review", merged: api.main.at(-1)!.sha });
+    expect(api.main.at(-1)!.message).toBe("Faster API (#1)");
+    expect(web.main.map((c) => c.message)).toEqual(["feat: web base"]);
+
+    expect((await u("board", "escalate", { n: "api#1", comment: CARD })).body.state).toBe("awaiting release");
+    webCode.publish("web-9.9.9", web.main.at(-1)!.sha);
+    await inFlow((f) => f.cron(), "suite");
+    expect(api.label(1)).toEqual(["awaiting release"]);
+    apiCode.publish("api-1.0.0", api.main.at(-1)!.sha);
+    await inFlow((f) => f.cron(), "suite");
+    expect(api.label(1)).toEqual(["human review"]);
+    expect(JSON.stringify(chat.of("sendRichMessage"))).toContain("📦 In api-1.0.0 or later");
+    expect(web.label(1)).toEqual(["ready"]);
   });
 });

@@ -351,6 +351,72 @@
         "owner": "Nick",
         "cardHeading": "For Nick"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "suite",
+      "flow": {
+        "preset": "pr-release"
+      },
+      "features": {
+        "pullRequests": {
+          "checks": [
+            "build"
+          ]
+        },
+        "releases": {
+          "testedTag": "tested"
+        }
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          {
+            "repo": "acme/web",
+            "alias": "web"
+          },
+          {
+            "repo": "acme/api",
+            "alias": "api"
+          }
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "SUITE_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "SUITE_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "SUITE_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "SUITE_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "901"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "901"
+      }
     }
   ]
 }

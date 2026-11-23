@@ -137,7 +137,7 @@ describe("export and import", () => {
     expect(r.export("livedu")).toEqual(livedu);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi", "anyfile", "anydev"]);
+    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi", "anyfile", "anydev", "suite"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [livedu, livedu] })).toThrow("$.workspaces[1].id: 'livedu' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });
@@ -170,7 +170,7 @@ describe("export and import", () => {
     const r = new StaticRegistry(secrets({}), workspaces);
     const { chat: _c, files: _f, profile: _p, ...rest } = livedu;
     const again = { ...rest, id: "again" } as WorkspaceDoc;
-    expect(() => r.import(again)).toThrow(`$.workspaces[5].tracker.repos[0]: '${livedu.tracker.repos[0]}' is already in workspace '${livedu.id}'; a repository belongs to one workspace only.`);
+    expect(() => r.import(again)).toThrow(`$.workspaces[${workspaces.workspaces.length}].tracker.repos[0]: '${livedu.tracker.repos[0]}' is already in workspace '${livedu.id}'; a repository belongs to one workspace only.`);
     expect(r.get("again")).toBeUndefined();
   });
 });

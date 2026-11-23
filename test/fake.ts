@@ -226,7 +226,9 @@ export function install() {
   const lib = new FakeGitHub("acme/lib");
   const anyfile = new FakeGitHub("acme/anyfile");
   const anydev = new FakeGitHub("acme/anydev");
-  const repos = [gh2, app, lib, anyfile, anydev];
+  const web = new FakeGitHub("acme/web");
+  const api = new FakeGitHub("acme/api");
+  const repos = [gh2, app, lib, anyfile, anydev, web, api];
   const tg = new FakeTelegram();
   const paste = new FakePaste();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -240,5 +242,5 @@ export function install() {
     if (host === "f.naa.gg") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, anyfile, anydev, tg, paste };
+  return { gh, gh2, app, lib, anyfile, anydev, web, api, tg, paste };
 }
