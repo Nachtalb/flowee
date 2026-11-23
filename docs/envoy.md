@@ -124,3 +124,10 @@ Names used below:
 | T3 | The first answer to a card wins (checked and marked in one step, so two at once cannot both win); the second person gets, as a reply, `⚠️ #n was already answered by <signature>; yours was not recorded.`, a second ✅ OK the toast `#n was already answered by <signature>`. The one who answered may add to it. |
 | T4 | A reply is a whole answer (privacy mode shows the bot replies only, docs/telegram.md): no draft under the current card. |
 
+
+## In the terminal
+
+The terminal client (docs/tui.md) shows this same envoy: the card being worked on in the main pane, the bar as
+its key line, the open items in an inbox pane beside it (the envoy's side view, `panel`), notices in the status
+line and the notices window. Every row above applies; only the gestures differ (keys and clicks instead of
+replies: typing in the editor answers the card on screen).

@@ -107,3 +107,27 @@ group needs no keyboard (the `startgroup` link).
 
 `plain(view)` (`src/ports/chat.ts`) turns a view into text plus keyboard rows. Telegram never uses it; another
 backend implements the same living-message contract (docs/adapters.md, "The living message").
+
+## In a terminal
+
+The terminal client (`flowee-tui`, docs/tui.md) draws the same views; the rules above hold, in their terminal
+form:
+
+- **One living screen.** The main pane shows one message: the card being worked on, or the list, the results or
+  the setup screen that replaced it; an edit redraws it in place. The bar is its own line at the bottom, its
+  buttons with their keys. Nothing scrolls past like a chat; notices (the digest, sync messages, filed tickets)
+  go to the status line once and to the notices window (`!`).
+- **Each choice is one row with its own button**, right-aligned at the end of the row's text; when the text does
+  not leave room, the button goes on the line directly under it. A button label is never cut: a row of buttons
+  that does not fit wraps whole buttons onto the next line.
+- **Every button is reachable by keyboard** (`↑` `↓` walk the buttons, links and folds of the screen in reading
+  order; the bar's buttons have their letter) and by mouse; the focused pane has heavy borders and the selected
+  button is drawn reversed, so focus shows without colour too.
+- **No list markup** in the screens: tables as on Telegram (a grid when it fits, else each row's cells joined
+  with ` · ` and wrapped). A ticket's own text keeps its author's list, drawn with `•`.
+- **Typed input that is read is removed**: a token typed in the setup disappears from the conversation and from
+  its log once read.
+- **Colours are the terminal's own eight** and only mark meaning (green primary, cyan keys and folds, red an
+  error, yellow a notice); `NO_COLOR` drops them and nothing is lost. Width is counted per grapheme (East Asian
+  wide and emoji are two cells), so columns stay aligned in tmux and over SSH.
+- **Errors are one sentence** in the status line; a refused action never leaves the screen silent.

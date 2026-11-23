@@ -73,12 +73,17 @@ curl -fsS -H 'content-type: application/json' --data @workspace.json https://<in
 A document imported in the chat gets the workspace's own secret slot names (`W_<ID>_TRACKER`, `W_<ID>_BOT`,
 `W_<ID>_HOOK`, `W_<ID>_<INSTANCE>`), whatever it named; the admin API keeps the names given.
 
+The inbox: Telegram (`chat`), the terminal (`tui`: `flowee-tui`, docs/tui.md), or both (the same conversation in
+both). For the terminal each person runs `flowee-tui --new-key` and gives you the digest it prints: one
+`tui.people` entry each (`id`, `name`, `role` member or manager, `key` the digest; never the key itself). More than
+one person makes a team inbox. A terminal-only workspace needs no bot and no Telegram secret.
+
 When the chat id or topic id is unknown, leave `chat` out: the workspace runs API-only and the owner binds it later
 in the chat (`/workspaces` → the workspace → ✏️ Where tickets appear → 👥 In a group, then 👥 Choose a group, or `/bind <id>` inside the topic).
 
 ## Pitfalls
 
-- `chat` needs at least one `owners[].chat`; `files` needs `chat`; `profile` needs `chat.publicUrl` (unless
+- `chat` needs at least one `owners[].chat`; `files` needs `chat` or `tui`; `tui.people` ids and keys unique; `profile` needs `chat.publicUrl` (unless
   `chat.transport` is `polling`).
 - `chat.transport`: `webhook` (needs `chat.publicUrl`; the only one on Cloudflare, which refuses `polling`) or
   `polling` (self-hosted: getUpdates, no public address; the self-hosted default when no public URL is configured).

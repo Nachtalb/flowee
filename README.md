@@ -224,6 +224,24 @@ How to run agents against Flowee (roles, one run, what a cheap pre-check looks a
 [docs/agents/](docs/agents/README.md). Agent skills for installing, using and configuring Flowee:
 [skills/](skills/).
 
+## Terminal interface
+
+The owner's inbox, the setup wizard and the menu also run in a terminal: `flowee-tui`, a full-screen client for
+the same cards, bar, answers and files, over SSH and in tmux, keyboard first, with the mouse where there is one.
+A workspace can use Telegram, the terminal, or both at once (one conversation in two windows); with the terminal
+alone Flowee needs no messenger at all.
+
+![flowee-tui: the inbox beside a card, the bar with its keys](assets/tui.png)
+
+```sh
+bun run compile:tui                                   # in a clone: dist/flowee-tui, one executable
+dist/flowee-tui --new-key                             # prints the digest to add as tui.people[].key
+dist/flowee-tui --url https://flowee.acme.workers.dev # sign in and work the inbox (? lists every key)
+```
+
+Keys, pairing, several people, the setup in the terminal: [docs/tui.md](docs/tui.md). The protocol, for writing
+another client: [docs/tui-protocol.md](docs/tui-protocol.md).
+
 ## Export and import
 
 - Managed mode, in the chat: `/export` sends your workspaces as a file; send a `.json` file to the bot (or `/import`
@@ -238,6 +256,8 @@ Exports never contain a secret.
 
 | Topic | Where |
 |---|---|
+| The terminal interface: keys, pairing, people | [docs/tui.md](docs/tui.md) |
+| The terminal client protocol | [docs/tui-protocol.md](docs/tui-protocol.md) |
 | The agents' HTTP API and the client | [docs/api.md](docs/api.md) |
 | What every instance serves (root document, skills, docs, bundle, `POST /validate`) | [docs/api.md](docs/api.md#public-material-and-validation-no-authentication) |
 | Configuration and secrets | [docs/configuration.md](docs/configuration.md) |

@@ -78,3 +78,11 @@ repositories stay).
 | `/admin/…` with `FLOWEE_ADMIN_TOKEN` | the configuration API. |
 
 The envoy itself is unchanged: it serves only the owners' messages from its bound chat and topic.
+
+## In the terminal
+
+The same wizard and menu run in the terminal client (docs/tui.md): people in `instance.tui.people` (and every
+manager of a workspace's `tui.people`) get a seat *Setup and management*. A workspace set up there gets the
+terminal as its inbox (`tui`, the one who set it up as its first manager, no chat step and no bot step); the
+agents' secrets, exports and new people's keys are files the client saves with mode 600. Its menu adds
+**👥 People**: add a member or a manager (a new key, handed over once as a file), remove one.

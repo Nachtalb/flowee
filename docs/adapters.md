@@ -86,6 +86,9 @@ A chat adapter implements `Chat` (`src/ports/chat.ts`):
 - Profile: `setName`, `setDescription`, `setShortDescription`, `setPhoto(png)`, `setWebhook(url, secret)`,
   `webhookUrl()`. A backend without one of them makes it a no-op.
 
+The terminal backend (`Terminal`, docs/tui-protocol.md) is the same port over a store: every call becomes an
+event with a sequence number that terminals fetch, and its `answer` toast goes to the person who pressed.
+
 The routing of an update to its workspace is the adapter's too (`Telegram.route(update)` gives the chat and
 topic; the Worker looks the binding up in the registry). A Discord adapter would map channels/threads to
 `ChatRef {chat, topic}`, interactions to `press`, and render views with `plain()` and components.
@@ -124,6 +127,35 @@ The tracker side of the wizard: a `RepoReference` (`src/ports/tracker.ts`) turns
 permissions for the switched-on features, a link to the token form with what its link can fill in, the steps it
 cannot (`steps`, shown as highlighted rows) and an alternative kind of token (`alt`); `reach()` lists what a token
 can see, so the wizard can say when it is wider than the workspace needs.
+
+## Chat backends
+
+The backends a workspace can have are registered like the trackers: their kinds in `src/config/chats.ts`
+(`CHAT_KINDS`: name, the document section that configures it, whether it needs a messenger account) and their
+adapters in `src/adapters/chats.ts` (`CHATS`, by the same keys; `chatOf()` is the one place `build()` picks them).
+Today: `telegram` (section `chat`, `src/adapters/chat-telegram.ts`) and `tui` (section `tui`,
+`src/adapters/chat-tui.ts`, the terminal client protocol of docs/tui-protocol.md).
+
+A workspace has one or both. Both: `Tee` shows the Telegram conversation in the terminals too. Telegram gives
+the message ids, the terminal side mirrors every view under the same id, and a press or a message from a
+terminal reaches the same envoy as one from Telegram. The envoy keeps one conversation's state (the card on
+screen, the bar, the drafts, the message ids), so a second backend is a second window on the same conversation,
+never a second conversation: an answer given in one shows in the other.
+
+A new chat backend:
+
+1. Its kind in `CHAT_KINDS`, its section in `WorkspaceDoc` (`src/config/document.ts`) and the schema
+   (`src/config/schema.ts`, `bun run schema`), rows in docs/configuration.md and the configure skill's fields.
+2. Its adapter implementing `Chat` (below) and its entry in `CHATS`; when the backend has no messenger of its own
+   (a web page, an app), implement it over the terminal protocol instead: `Terminal` already is the server side,
+   and only the client is new (docs/tui-protocol.md is the contract; `tui/state.ts` the reference client state).
+3. Its route in `src/runtime/router.ts` (who it is: a key, a webhook secret; then the workspace), handed to the
+   host (`WorkspaceHost.fetch`) under the workspace's lock.
+4. Its tests: the scripted walks of `test/tui.test.ts` are the pattern (a card answered, two people, files,
+   retries and reconnects), and the views through its renderer as in `test/tui-parity.test.ts`.
+
+The optional `panel(to, view)` of the port is a side view the envoy keeps current (the open items with their
+Open buttons): the terminal's inbox pane; Telegram has none.
 
 ## WorkspaceRegistry
 

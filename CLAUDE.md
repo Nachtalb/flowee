@@ -15,6 +15,11 @@ bun run start                     # the self-hosted runtime from the clone (docs
 bun run compile                   # one executable, served/ embedded (scripts/compile.ts; --target, --outfile)
 docker build -t flowee .          # the image FROM scratch (Dockerfile); compose.yaml is the example deployment
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
+bun run tui -- --url <instance>   # the terminal client from the clone (docs/tui.md)
+bun run compile:tui               # dist/flowee-tui, one executable (bun build --compile tui/main.ts; --target for others)
+python3 test/e2e/tui_demo.py      # the real client in a pty against the bun runtime and a stand-in GitHub: the inbox,
+                                  #   answers, files, the wizard and menu; screenshots as text and PNG (Pillow) in
+                                  #   ~/.hermes/cache/scratch/flowee/t/shots or --out; --runtime worker | docker --image NAME
 bun run schema                    # regenerate schema/*.schema.json after changing src/config/schema.ts or a preset
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
 bun run bundle                    # build served/ (the public material); `bun run test`, wrangler dev and deploy run it
@@ -54,7 +59,8 @@ src/
               registration, health, fallback to polling, the listings' schedule), errors.ts (`Fail`:
               status, code, one sentence), text.ts (hashing, constant-time compare, templates)
   ports/      interfaces: tracker.ts (+ optional capabilities), hooks.ts (the trackers' webhooks, normalised
-              events), chat.ts (views, events, plain fallback), store.ts,
+              events), chat.ts (views, events, plain fallback), tui.ts (the terminal protocol's frames, messages,
+              events: shared with tui/), store.ts,
               clock.ts, secrets.ts, files.ts, bots.ts (managed bots)
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
               digest, profile), render.ts (the view building blocks every screen uses, cards, bar, lists,
@@ -64,14 +70,16 @@ src/
               living message, drafts, the document a draft makes), manage.ts (welcome, /workspaces menu, export,
               import)
   config/     document.ts (the workspace document), trackers.ts (tracker kinds: default API, path form,
-              capabilities), schema.ts (JSON Schema + validator; `problems()` behind
+              capabilities), chats.ts (chat kinds: telegram's section `chat`, tui's `tui`), schema.ts (JSON Schema + validator; `problems()` behind
               `bun run validate`; repositories unique per instance), features.ts (the
               features' schema and rules), registry.ts (WorkspaceRegistry, StoredRegistry, settings from a
               document), presets.ts (the one chart, the starting points, flowOf: a workspace's pruned flow)
   adapters/   trackers.ts (the tracker adapters by kind), tracker-github.ts (+ tracker-github-code.ts: branches,
               pulls, checks, releases, tags), tracker-gitlab.ts (REST v4: merge requests, pipelines, tags, releases),
               hooks-github.ts / hooks-gitlab.ts (each tracker's webhooks: verify, parse, register),
-              chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, workspace-host.ts (one host per
+              chat-telegram.ts (+ TelegramBots: managed bots), chat-tui.ts (Terminal: the Chat port over the
+              terminal protocol, a conversation in the store; Tee: Telegram shown in the terminals too), chats.ts
+              (the chat adapters by kind, chatOf), files-paste.ts, workspace-host.ts (one host per
               workspace on its runtime's room; wires a document to its adapters), instance.ts (mode, the instance's
               registry), instance-host.ts (managed mode: the stored registry, sealed secrets, wizard host, update
               routing, /admin, pasted imports only after /import), vault.ts (AES-GCM), photo.ts (the default bot
@@ -93,8 +101,14 @@ scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), de
 served/       generated, git-ignored: the Worker's static assets (`[assets]`, binding ASSETS, run_worker_first),
               answered by src/adapters/served.ts (the root document, headers, /version, POST /validate)
 client/       flowee.py + test_flowee.py
+tui/          flowee-tui, the terminal client (no dependency): screen.ts (the cell grid, widths, the ANSI diff; the
+              tests' headless screen), html.ts (a View laid out: lines and the targets keys and clicks reach),
+              state.ts (the conversation from the protocol's events: card, bar, focus, notices), input.ts (keys,
+              SGR mouse, paste), app.ts (screens, keys, overlays: everything drawn), main.ts (terminal, config
+              dir and key file, sync, the socket, reconnect), node.d.ts
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
 docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab's mapping and token scopes),
+              tui.md (the terminal interface: keys, pairing, people), tui-protocol.md (its client protocol),
               webhooks.md (events per feature, permissions, health and fallback, the alarm/cron split),
               envoy.md (the chat interface, row by row),
               chat-style.md (how every screen looks, the living message, the reply-keyboard exception),
@@ -155,6 +169,34 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-
   and sealed secrets (`Workspace.configure`), so a workspace object never reads the registry there. `wizard/`
   imports only `core`, `ports`, `config` types and `envoy/render`; the Telegram specifics stay in the adapter.
 
+## Terminal interface decisions
+
+- **Transport: one HTTP request for data, a WebSocket as the doorbell.** `POST /tui/v1/w/<id>/sync` carries the
+  terminal's frames (each with its own id, handled once) and answers the events after the client's sequence
+  number; the socket only says "there is something new" (`{"seq": N}`). Considered: WebSocket for everything,
+  and SSE + POST. A Durable Object holding an SSE stream stays awake (duration billed for every open terminal all
+  day); hibernatable WebSockets cost nothing while idle and are rung from the object's storage, and Bun.serve has
+  WebSockets natively. Keeping the data path a plain idempotent request makes reconnecting exact (the sequence
+  number), lets the scripted tests and any client work without a socket (polling), and keeps the socket code tiny.
+  Runtime boundary: `Room.sockets` (`accept(tag)`, `ring(tag, text)`); Cloudflare accepts with
+  `ctx.acceptWebSocket` and rings `ctx.getWebSockets(tag)`; bun answers a marked response that `Bun.serve`'s fetch
+  upgrades (`server.upgrade`), its sockets kept per room and tag. No runtime code in the adapter.
+- **One conversation per workspace**, like a Telegram group: several people and terminals share it (answers
+  signed, the first wins). A workspace with Telegram and the terminal has ONE conversation in two windows
+  (`Tee`): the envoy's state (card on screen, bar, drafts, message ids) is per conversation, so a second backend
+  is a mirror, never a second envoy.
+- **Keys**: per person, `fwk_` + 32 random bytes; only the SHA-256 is stored (`tui.people[].key`, in the
+  document: a digest is no secret); the router resolves key → people → workspaces and hands the host the person
+  in `x-flowee-person` (a client's own header never passes). The managed instance's setup seat keeps one
+  conversation per key (tables prefixed per person in the instance's store).
+- **Client: TypeScript on bun, no TUI library.** Considered Ink (React + yoga: large, a renderer meant for
+  inline CLIs), OpenTUI (a native Zig core: a shared library per platform next to a compiled binary), terminal-kit
+  and blessed (large, blessed unmaintained). What the client needs is small: a cell grid with a row diff, a
+  grapheme width table, an xterm input parser, and the layout of the view model the server already defines. Own
+  code keeps the repository at zero runtime dependencies, makes the headless test screen the same code the
+  terminal sees, and compiles to one file with `bun build --compile`. Its types are the server's
+  (`src/ports/chat.ts`, `src/ports/tui.ts`); `tui/` imports nothing else of `src/` (boundary test).
+
 ## Engine decision: own interpreter, not the xstate runtime
 
 The flow file is XState v5 JSON (loadable in Stately; `test/engine.test.ts` runs it through xstate's own
@@ -204,13 +246,17 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   as `env` (and `ASSETS` for the served material); polling bots use `polled()`. Add it to the boundary test, give
   `test/` a harness behind `cloudflare:test` (as `test/bun/cloudflare-test.ts`) and a vitest config, so every suite
   and `test/store-contract.test.ts` run on it, and a `--runtime` in `test/e2e/wire.py`.
-- **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
-  `plain()`; give the router a route for its updates (`src/runtime/router.ts`), add its `chat.type` to the schema and choose the
-  adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods
+- **a chat adapter:** its kind in `CHAT_KINDS` (`src/config/chats.ts`) and its adapter in `CHATS`
+  (`src/adapters/chats.ts`; `chatOf()` builds it for `build()`), its document section and schema, implementing
+  `Chat` (`src/ports/chat.ts`, docs/adapters.md "Chat backends"); render `View`s richly or with `plain()`; give the
+  router a route for its updates (`src/runtime/router.ts`). A backend without a messenger of its own (web, an app)
+  is a client of the terminal protocol instead (docs/tui-protocol.md): no server code at all. For the managed mode also the optional methods
   the wizard uses (docs/adapters.md, "What the wizard needs") and, for own bots, the `Bots` port.
 - **a chat screen** (wizard, menu, any message a bot shows): docs/chat-style.md is the rule (blocks, wording, the
   living message, when a new message is allowed); `test/chat-style.test.ts` and the exact payloads in
-  `test/managed.test.ts` hold it.
+  `test/managed.test.ts` hold it. The terminal draws it too: `test/tui-parity.test.ts` renders every view the walks
+  produce at 80x24 and 140x40 and snapshots them; after a wording change, `npx vitest run test/tui-parity.test.ts -u`
+  and read the diff of `test/__snapshots__/tui-parity.test.ts.snap`.
 - **a wizard step:** add it to `Step` and `STEPS` (and `COUNTED`) in `src/wizard/wizard.ts`, then its three parts:
   `needed()` (does a draft still lack it: imports and edits skip answered steps), `screen()` (the view, built from
   the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line

@@ -58,7 +58,9 @@ you deploy nothing: the "Standalone", "Managed" and "Self-hosted" sections below
 1. `git clone https://github.com/Nachtalb/flowee && cd flowee && bun install`; `bun run typecheck && bun run test`.
 2. Write the workspace document (skill `flowee-configure`) as `flowee.config.local.json`:
    `{"flowee": 1, "workspaces": [<doc>]}`. `bun run validate flowee.config.local.json`.
-3. Telegram: create the bot with BotFather; note its username for `chat.username`. The owner's chat id: the user
+3. The inbox: ask "Telegram, terminal, or both?". Terminal only: skip the bot; each person runs
+   `flowee-tui --new-key` (from `bun run compile:tui`, docs/tui.md) and hands you the digest for `tui.people`; they
+   sign in with `flowee-tui --url <url>`. Telegram (alone or with the terminal): create the bot with BotFather; note its username for `chat.username`. The owner's chat id: the user
    sends the bot a message and reads `getUpdates`, or uses a known id. Before using a token, `getMe` must name the
    expected bot, and `getWebhookInfo` must show no webhook (else the bot is in use elsewhere: stop and ask).
 4. Tracker token. GitHub: fine-grained, limited to the workspace's repositories, with the permissions of

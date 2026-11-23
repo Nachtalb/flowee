@@ -168,10 +168,18 @@ secret; without it every call is 401). In the standalone mode every `/admin/` pa
 | `PUT /admin/workspaces/<id>` | the workspace document (`id` must be `<id>`) | `id`, `created`, `missing` (the secret names still needed). Invalid: `400 bad_config` with `problems: ["$.path: one sentence.", …]`, nothing changed. Owner: the instance owner (kept when replacing). |
 | `PUT /admin/workspaces/<id>/secrets` | `{"<SECRET_NAME>": "<value>", …}` | `stored`, `missing`. Names the document does not reference are refused. An agent's secret (`roles[].secret`) is given as the secret itself and stored only as its SHA-256; the rest is sealed (AES-GCM). |
 | `DELETE /admin/workspaces/<id>` | | `deleted: true` |
+| `POST /admin/workspaces/<id>/people` | `{"id"?, "name"?, "role"?: "member" \| "manager"}` | `person`, `key`: a terminal person (docs/tui.md) with a new key, answered only this once; the document keeps its SHA-256 (`tui.people[].key`) |
+| `DELETE /admin/workspaces/<id>/people/<person>` | | `removed: true`; the key stops working at once (the last person stays: `409`) |
 | `GET /w/<id>/config` | (an agent token of that workspace) | `workspace`: its document, no secrets; `sync`: as `GET /v1/sync` |
 
 The documents keep the secret names they are given (the operator's API); the chat import gives a workspace its
 own slot names instead (docs/configuration.md, "Secrets in the managed mode").
+
+## The terminal interface
+
+`/tui/v1/…` is the terminal client protocol (docs/tui-protocol.md): `GET /tui/v1/me`, `POST /tui/v1/w/<id>/sync`,
+the WebSocket `GET /tui/v1/w/<id>/socket`, and in the managed mode the setup seat `…/tui/v1/instance/sync|socket`.
+Authentication is a person's key (`Authorization: Bearer <key>`), never an agent's token.
 
 ## Public material and validation (no authentication)
 

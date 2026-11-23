@@ -50,6 +50,27 @@ the document (`instance` → managed) unless `FLOWEE_MODE` says otherwise. Every
 Invalid configuration stops the start with every problem on its own log line (exit 2), the same sentences as
 `bun run validate`.
 
+## Without a messenger
+
+A workspace with `tui` and no `chat` runs with no bot token at all: the owner (and the team) work the inbox in
+the terminal (docs/tui.md). The whole configuration:
+
+```json
+{ "flowee": 1, "workspaces": [ {
+  "flowee": 1, "id": "shop", "flow": { "preset": "trunk" },
+  "tracker": { "repos": ["acme/shop"], "token": "GITHUB_TOKEN" },
+  "roles": [ { "instance": "board", "role": "board", "secret": "SHOP_BOARD" }, { "instance": "dev1", "role": "developer", "secret": "SHOP_DEV1" },
+             { "instance": "tester", "role": "tester", "secret": "SHOP_TESTER" }, { "instance": "owner", "role": "owner", "secret": "SHOP_OWNER" } ],
+  "owners": [ { "name": "Ann", "tracker": "ann" } ],
+  "tui": { "people": [ { "id": "ann", "name": "Ann", "role": "manager", "key": "<the digest flowee-tui --new-key printed>" } ] }
+} ] }
+```
+
+`docker run -p 8787:8787 -v flowee:/data -e FLOWEE_CONFIG="$(cat flowee.json)" -e GITHUB_TOKEN_FILE=… …` (no
+`TELEGRAM_*` secret, no public URL needed), then `flowee-tui --url http://<host>:8787`. Behind a reverse proxy,
+let it pass WebSocket upgrades on `/tui/` (the doorbell); without them the client polls and loses nothing.
+`python3 test/e2e/tui_demo.py --runtime docker --image <image>` walks exactly this configuration.
+
 ## The data directory
 
 ```
