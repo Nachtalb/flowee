@@ -25,6 +25,8 @@ RUN apk add --no-cache libstdc++ ca-certificates \
 FROM scratch
 COPY --from=libs /root-fs/ /
 COPY --from=build /out/flowee /flowee
+# the licence texts of what the image redistributes (licenses/NOTICE.txt)
+COPY licenses/ LICENSE /licenses/
 USER 65532:65532
 ENV FLOWEE_DATA=/data FLOWEE_PORT=8787
 VOLUME /data

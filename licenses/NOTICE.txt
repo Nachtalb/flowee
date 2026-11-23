@@ -1,0 +1,24 @@
+Third-party software in the Flowee container image
+==================================================
+
+Flowee itself is MIT-licensed (see /licenses/LICENSE). The image also contains:
+
+bun (the runtime inside /flowee)
+  Licence: MIT, with statically linked components under their own licences, among them
+  JavaScriptCore/WebKit (LGPL-2.1-or-later). Full list: bun-LICENSE.md, LGPL-2.1-or-later.txt
+  Source:  https://github.com/oven-sh/bun
+
+musl (/lib/ld-musl-*.so.1)
+  Licence: MIT. Text: musl-COPYRIGHT.txt
+  Source:  https://musl.libc.org/ (as packaged by Alpine Linux: https://pkgs.alpinelinux.org/package/v3.24/main/x86_64/musl)
+
+libstdc++ and libgcc_s (/usr/lib/libstdc++.so.6, /usr/lib/libgcc_s.so.1)
+  Licence: GPL-3.0-or-later with the GCC Runtime Library Exception 3.1.
+  Texts:   GPL-3.0-or-later.txt, GCC-exception-3.1.txt
+  Source:  https://gcc.gnu.org/ (as packaged by Alpine Linux: https://pkgs.alpinelinux.org/package/v3.24/main/x86_64/libstdc++)
+
+CA certificates (/etc/ssl/certs/ca-certificates.crt)
+  Licence: MPL-2.0. Text: MPL-2.0.txt
+  Source:  https://pkgs.alpinelinux.org/package/v3.24/main/x86_64/ca-certificates
+
+The Alpine package sources are at https://gitlab.alpinelinux.org/alpine/aports.
