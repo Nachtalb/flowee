@@ -14,7 +14,7 @@ livedu-envoy did before its port, and the decision. They hold for Flowee with th
   Europe/Zurich is `schedule.timezone`, its 09:00-12:00 `schedule.digestFrom`/`digestTo`.
 
 Decisions: **same** (already identical), **port** (now as in the reference), **n/a** (cannot exist in livedu,
-reason given).
+reason given), **switch** (a feature of the workspace document; docs/anyfile-parity.md).
 
 ## Where Flowee differs from livedu-envoy
 
@@ -54,13 +54,13 @@ unchanged: livedu-envoy's 95 tests run unchanged in substance against the `trunk
 | # | AnyFile Envoy | livedu-envoy before | Decision |
 |---|---|---|---|
 | 12 | Card: `<p>{emoji} <b>{Kind}</b> · <a href="{issue}#issuecomment-{id}">#n</a> · ⏳ {age}</p><p><b>{title}</b></p><details[ open]><summary>Details</summary>…</details>`; age `N min` / `N h` (under 48 h) / `N d`; answered: `· ✓ answered {age} ago` instead of `⏳` | HTML `sendMessage`: `#n title`, `<i>Kind</i>`, fields, 3500-char chunks | port |
-| 13 | Kinds: 🧪 Test, ❓ Question, ⚖️ Decision, 💤 Postponed, 👀 Review (no valid block); 📎 Sample | Test / Question / Decision as text | port; 📎 Sample n/a (livedu has no sampler or samples) |
-| 14 | Details: `<p><b>Changed:</b></p>`, `<p><b>Samples:</b> <code>a</code>, …</p>`, `<p><b>Check:</b></p>`, `<p><b>Question:</b></p>`, each value as rich blocks: fenced code `<pre>` (with language), `- ` lines a list, `` `x` `` `<code>`, never a quote | Changed, Check as bullets, Question | port; Samples n/a (no samples) |
+| 13 | Kinds: 🧪 Test, ❓ Question, ⚖️ Decision, 💤 Postponed, 👀 Review (no valid block); 📎 Sample | Test / Question / Decision as text | port; 📎 Sample with the `samples` feature |
+| 14 | Details: `<p><b>Changed:</b></p>`, `<p><b>Samples:</b> <code>a</code>, …</p>`, `<p><b>Check:</b></p>`, `<p><b>Question:</b></p>`, each value as rich blocks: fenced code `<pre>` (with language), `- ` lines a list, `` `x` `` `<code>`, never a quote | Changed, Check as bullets, Question | port; Samples with the `samples` feature |
 | 15 | No valid block: the first 600 characters of the newest comment signed `Board:`/`Tester:`/`Developer:` (unsigned text is never shown); none at all: `<i>Older ticket without a hand-over note: open the issue for the details.</i>` | a fixed "No card on this ticket" question | port (signatures: livedu's roles; legacy agent names and `Sampler:` n/a) |
 | 16 | A card is one message, never split | split into "#n continued" chunks | port |
-| 17 | `📦 In {version} or later` under test cards | none | n/a: livedu has no releases |
+| 17 | `📦 In {version} or later` under test cards | none | switch: `releases.versionLine` (docs/anyfile-parity.md) |
 | 18 | New item: the card with details folded and a centred `✅ OK` row, with sound; a reply to it answers it | card + `OK`/`Not OK`/`Later` or `Answer`/`Later`/`Drop` + `Open on GitHub` | port |
-| 19 | Test cards wait until the published build has the code | none | n/a: livedu has no releases or `tested` tag |
+| 19 | Test cards wait until the published build has the code | none | switch: `releases.hold`, as the `awaiting release` state (docs/anyfile-parity.md) |
 | 20 | First poll stores every inbox item as already notified (no flood); later polls send a note per new item; items leave the list when their ticket leaves the inbox | cards only on `escalate` | port: `escalate` notifies at once (contract), and the cron (now every minute, the reference's poll interval) picks up `human review` tickets the Worker never carded and retires the ones that left |
 
 ## The bar (one navigation message, always the last one)
@@ -68,7 +68,7 @@ unchanged: livedu-envoy's 95 tests run unchanged in substance against the `trunk
 | # | AnyFile Envoy | livedu-envoy before | Decision |
 |---|---|---|---|
 | 21 | Bar: `<p>✨ Inbox empty</p>` when nothing is open, `<p>N open</p>` when no card is shown; row `➕ New ticket`; row `◀ Prev`, `✅ OK` + `⏭ Skip` (only under an open item), `📋 List`, `▶ Next` (only when something is open), all centred; sent as a reply to the current card; the previous bar is deleted | none | port |
-| 22 | Showing an item: its card (details open) with ForceReply, placeholder `Your test result…` (Test) / `Your answer…`, then the bar | n/a | port (`Where the sample is…` n/a) |
+| 22 | Showing an item: its card (details open) with ForceReply, placeholder `Your test result…` (Test) / `Your answer…`, then the bar | n/a | port (`Where the sample is…` with the `samples` feature) |
 | 23 | ▶ Next: sends what was typed, shows the next open item (work order: skipped last, then oldest; wraps); none: bar + `✨ Inbox empty` | none | port |
 | 24 | ◀ Prev: back through the last 30 shown items (skipped ones too); else `Nothing before this one` | none | port |
 | 25 | ⏭ Skip: something typed: sent, `📨 #n sent`; else the item goes last, `⏭ #n moved to the end`; `#n isn't open`; `Nothing to skip` | none | port |

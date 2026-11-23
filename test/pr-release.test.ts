@@ -204,6 +204,7 @@ describe("a pr-release ticket from filing to the owner's release", () => {
     expect(labels(n)).toContain("human review");
     const card = await inFlow((f) => JSON.parse(f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = ?", n)[0].card), "anyfile");
     expect(card).toMatchObject({ kind: "test", samples: "a.qoi", version: "1.4.0" });
+    expect(JSON.stringify(tg.of("sendRichMessage").slice(sentBefore))).toContain("📦 In 1.4.0 or later");
 
     expect((await p("owner", "answer", { n, text: "Works on my phone." })).body.state).toBe("needs triage");
     expect((await p("board", "approve", { n })).body.state).toBe("closed");

@@ -106,12 +106,12 @@ export function withLinks(caption: string, files: [string, string, boolean][]) {
 }
 
 /** The hand-over of a ticket: the newest signed comment with a valid card, else an excerpt of the newest signed one. */
-export function handover(comments: { id: number; body: string; createdAt?: string }[], signs: string[], heading: string) {
+export function handover(comments: { id: number; body: string; createdAt?: string }[], signs: string[], heading: string, samples = false) {
   const signed = comments.filter((c) => signs.some((s) => c.body.trimStart().startsWith(`${s}:`)));
   const at = (c?: { createdAt?: string }) => (c?.createdAt ? Date.parse(c.createdAt) : Date.now());
   for (const c of [...signed].reverse()) {
     try {
-      return { cid: c.id, at: at(c), content: parseCard(c.body, heading) as Content };
+      return { cid: c.id, at: at(c), content: parseCard(c.body, heading, samples) as Content };
     } catch {}
   }
   const c = signed[signed.length - 1];
@@ -308,7 +308,7 @@ export class Envoy implements Inbox {
     await this.deleteTracked(KV.prompt);
     await this.deleteTracked(KV.find);
     await this.deleteTracked(KV.nav);
-    const id = await this.forceReply(this.cardHtml(it, true), it.content.kind === "test" ? "Your test result…" : "Your answer…");
+    const id = await this.forceReply(this.cardHtml(it, true), it.content.kind === "test" ? "Your test result…" : it.content.kind === "sample" ? "Where the sample is…" : "Your answer…");
     this.map(id, n);
     this.set(KV.card, id);
     await this.postNav(this.navView());
@@ -814,7 +814,7 @@ export class Envoy implements Inbox {
         if (row.title !== i.title) this.exec("UPDATE inbox SET title = ? WHERE n = ?", i.title, i.n);
         continue;
       }
-      const h = handover(await f.tracker.comments(i.n), this.signs(), heading);
+      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.s.features.samples);
       if (row && (row.comment_id ?? 0) === h.cid) {
         // the same hand-over back in the inbox
         this.exec("UPDATE inbox SET status = ? WHERE n = ?", row.answered_at ? "answered" : "sent", i.n);
@@ -840,7 +840,7 @@ export class Envoy implements Inbox {
     });
     for (const i of parked) {
       if (this.rows("SELECT 1 FROM postponed WHERE n = ? AND updated_at = ?", i.n, i.updatedAt).length) continue;
-      const h = handover(await f.tracker.comments(i.n), this.signs(), heading);
+      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.s.features.samples);
       this.exec("INSERT OR REPLACE INTO postponed VALUES (?, ?, ?, ?, ?, ?, ?)", i.n, h.cid, JSON.stringify(h.content), i.title, i.url, h.at, i.updatedAt);
     }
     const still = new Set(parked.map((i) => i.n));

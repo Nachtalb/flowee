@@ -89,6 +89,8 @@ export function kind(it: Item): [string, string] {
       return ["❓", "Question"];
     case "decision":
       return ["⚖️", "Decision"];
+    case "sample":
+      return ["📎", "Sample"];
     default:
       return ["👀", "Review"];
   }
@@ -127,10 +129,16 @@ export function card(it: Item, answered: number | null, open: boolean, now: numb
   else {
     body = "";
     if (c.changed) body += `<p><b>Changed:</b></p>${md(c.changed)}`;
+    const names = (c.samples ?? "")
+      .split(",")
+      .map((x) => x.trim().replace(/^`+|`+$/g, ""))
+      .filter((x) => x && x.toLowerCase() !== "none");
+    if (names.length) body += `<p><b>Samples:</b> ${names.map((x) => `<code>${esc(x)}</code>`).join(", ")}</p>`;
     if (c.check) body += `<p><b>Check:</b></p>${md(c.check)}`;
     if (c.question) body += `<p><b>Question:</b></p>${md(c.question)}`;
   }
-  return `${s}<details${open ? " open" : ""}><summary>Details</summary>${body}</details>`;
+  const version = c.kind === "excerpt" ? undefined : c.version;
+  return `${s}<details${open ? " open" : ""}><summary>Details</summary>${body}</details>${version ? `<p>📦 In ${esc(version)} or later</p>` : ""}`;
 }
 
 export const okRow = (): View => [row(button("✅ OK", "k"))];
