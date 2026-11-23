@@ -92,7 +92,8 @@ src/
               Objects, SqlStore); bun/ (main.ts: the `flowee` command; config.ts: the environment, `*_FILE`,
               FLOWEE_KEY; app.ts: hosts, Bun.serve, the data directory's lock, served material from served/ or
               embedded; store.ts: bun:sqlite; scheduler.ts: alarms and the tick; poller.ts: Telegram getUpdates;
-              compiled.ts: the executable's entry; bun.d.ts: the Bun/Node APIs it uses)
+              compiled.ts: the executable's entry; validate.ts: `flowee validate`, `bun run validate`; bun.d.ts: the Bun/Node APIs it
+              uses)
   index.ts    the Worker's entry: re-exports src/runtime/cloudflare/worker.ts
 flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
               starting points trunk and pr-release (src/config/presets.ts) only preset switches; extensions/

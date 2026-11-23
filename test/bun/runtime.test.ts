@@ -12,6 +12,7 @@ import { App, lockData } from "../../src/runtime/bun/app";
 import { load, normalise, readEnv } from "../../src/runtime/bun/config";
 import { Poller } from "../../src/runtime/bun/poller";
 import { Scheduler } from "../../src/runtime/bun/scheduler";
+import { validate } from "../../src/runtime/bun/validate";
 import { bindings } from "../bindings";
 import { install } from "../fake";
 import workspaces from "../workspaces.json";
@@ -327,5 +328,31 @@ describe("under load", () => {
     a = app({ flowee: 1, workspaces: [shop] });
     expect(a.scheduler.next("shop")).toBe(at);
     expect(existsSync(join(dir, "flowee.sqlite"))).toBe(true);
+  });
+});
+
+describe("flowee validate", () => {
+  it("checks documents before a first start: ok with the ids, one line per problem, exit 0, 1 or 2", () => {
+    const run = (...files: string[]) => {
+      const out: string[] = [];
+      const err: string[] = [];
+      return { status: validate(files, (l) => out.push(l), (l) => err.push(l)), out, err };
+    };
+    const good = join(dir, "flowee.json");
+    writeFileSync(good, JSON.stringify(workspaces));
+    expect(run(good)).toEqual({ status: 0, out: [`ok ${good}: ${workspaces.workspaces.map((w) => w.id).join(", ")}`], err: [] });
+    const one = join(dir, "shop.json");
+    writeFileSync(one, JSON.stringify(shop));
+    expect(run(one).out).toEqual([`ok ${one}: ${shop.id}`]);
+    const bad = join(dir, "bad.json");
+    writeFileSync(bad, JSON.stringify({ ...shop, roles: "x" }));
+    const b = run(good, bad);
+    expect(b.status).toBe(1);
+    expect(b.out[0]).toMatch(/^ok /);
+    for (const l of b.out.slice(1)) expect(l).toMatch(new RegExp(`^${bad}: \\$[^ ]*: .+\\.$`));
+    writeFileSync(bad, "{");
+    expect(run(bad)).toMatchObject({ status: 2, err: [expect.stringMatching(/: cannot read it as JSON \(/)] });
+    expect(run(join(dir, "none.json")).status).toBe(2);
+    expect(run()).toEqual({ status: 2, out: [], err: ["usage: flowee validate <workspace-or-instance.json>…"] });
   });
 });

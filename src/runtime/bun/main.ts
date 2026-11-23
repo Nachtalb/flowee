@@ -1,8 +1,10 @@
 // `flowee` (bun run start, or the compiled binary): serves until SIGTERM/SIGINT. `flowee health` asks a running
-// one on FLOWEE_PORT (the container's HEALTHCHECK, no shell needed); `flowee version`.
+// one on FLOWEE_PORT (the container's HEALTHCHECK, no shell needed); `flowee version`; `flowee validate <file>…` checks
+// documents before a first start, with the Worker's validator (exit 0/1/2, as `bun run validate`).
 import pkg from "../../../package.json";
 import { App, jsonLog } from "./app";
 import { load } from "./config";
+import { validate } from "./validate";
 
 const cmd = process.argv[2] ?? "serve";
 
@@ -20,8 +22,13 @@ if (cmd === "health") {
   process.exit(ok ? 0 : 1);
 }
 
+if (cmd === "validate") {
+  const out = (s: string) => process.stdout.write(`${s}\n`);
+  process.exit(validate(process.argv.slice(3), out, (s) => process.stderr.write(`${s}\n`)));
+}
+
 if (cmd !== "serve") {
-  process.stderr.write("usage: flowee [serve | health | version]   (configuration: docs/self-hosting.md)\n");
+  process.stderr.write("usage: flowee [serve | health | version | validate <file>…]   (configuration: docs/self-hosting.md)\n");
   process.exit(2);
 }
 

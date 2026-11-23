@@ -25,7 +25,9 @@ docker compose up -d
 ```
 
 `flowee health` asks the running process (`GET /health` on `FLOWEE_PORT`) and exits 0 or 1: the image's
-`HEALTHCHECK`, with no shell in the image. `flowee version` prints the version.
+`HEALTHCHECK`, with no shell in the image. `flowee version` prints the version. `flowee validate <file>…` checks a
+configuration document with the same validator as the start (and `bun run validate`, `POST /validate`) without
+starting anything: `ok <file>: <ids>` and exit 0, else one problem per line and exit 1 (2: not JSON).
 
 ## Configuration
 
