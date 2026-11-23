@@ -1,0 +1,96 @@
+# Flowee: notes for agents working on this repository
+
+Flowee is a Cloudflare Worker (TypeScript) that runs a ticket flow for AI agent teams over an issue tracker and
+brings the owner's inbox into a chat (the Envoy), plus `client/flowee.py`, the agents' stdlib Python client.
+README.md is usage only; this file is how the code is built and laid out.
+
+## Build, test, run
+
+```sh
+bun install
+bun run typecheck                 # tsc (TypeScript 7), strict
+bun run test                      # vitest in workerd (@cloudflare/vitest-plugin): fake GitHub + Telegram via fetch stubs
+bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
+bun run schema                    # regenerate schema/workspace.schema.json after changing src/config/schema.ts
+python3 test/e2e/wire.py [--flow-py …/livedu/scripts/flow.py]   # real clients against `wrangler dev`
+bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFIG in .dev.vars (git-ignored)
+```
+
+Before every commit: typecheck, `bun run test` and `bun run test:client` green, each exit status checked.
+Test runs may create `~/.wrangler`; remove it afterwards (it hides the machine's wrangler login).
+
+Deploy (not automated yet): `wrangler deploy`, then `curl https://<worker>/setup` so the new version sets the bot's
+profile and webhook. Configuration and secrets: docs/configuration.md.
+
+## Layout
+
+```
+src/
+  core/       the flow: statechart loader (chart.ts), engine (engine.ts), guards.ts, actions.ts, the service
+              (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts
+  ports/      interfaces: tracker.ts (+ optional capabilities), chat.ts (views, events, plain fallback), store.ts,
+              clock.ts, secrets.ts, files.ts
+  envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
+              digest, profile), render.ts (views, navigation, search)
+  api/        http.ts: the agents' HTTP API (auth, idempotency, dispatch)
+  config/     document.ts (the workspace document), schema.ts (JSON Schema + validator), registry.ts
+              (WorkspaceRegistry, settings from a document), presets.ts
+  adapters/   tracker-github.ts, chat-telegram.ts, files-paste.ts, store-durable-object.ts (one Durable Object
+              per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry)
+  index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup
+flows/        presets: <name>.json (XState statechart) + <name>.options.json
+schema/       workspace.schema.json (generated)
+client/       flowee.py + test_flowee.py
+docs/         api.md, flows.md, adapters.md, configuration.md, parity.md
+test/         vitest suites, fakes (fake.ts), fixtures (workspaces.json), e2e/wire.py
+```
+
+## Architecture rules
+
+- **Boundaries.** `core` imports only `core` and `ports`; `ports` only `ports` (and `core/errors`); `envoy` and
+  `api` only `core`, `ports` and themselves. Nothing outside `adapters` and `index.ts` imports an adapter or
+  `cloudflare:*`, or names a platform API. `test/boundary.test.ts` enforces this, and that no source file names a
+  project, a person, a repository or a chat id: those live in configuration only.
+- **The tracker is the record.** Every command re-reads the ticket; the store keeps only what the tracker cannot
+  (claims, origins, handed commits, answers, the inbox, idempotency, chat message ids).
+- **One workspace, one Durable Object, one store.** Every API token, chat update and stored key resolves a
+  workspace first (`index.ts`); a Durable Object refuses a request for another workspace than its own. Commands of
+  a workspace run under its lock (`Workspace.lock`).
+- **Configuration, not constants.** A workspace is one JSON document (docs/configuration.md); secrets are named in
+  it, never held. Defaults are neutral (`Owner:`, `### For the owner`).
+- **Standalone mode** (`FLOWEE_MODE`) serves exactly the configured workspaces with one bot. Management (workspace
+  creation, managed bots) belongs to the managed mode and must not be reachable in standalone.
+
+## Engine decision: own interpreter, not the xstate runtime
+
+The flow file is XState v5 JSON (loadable in Stately; `test/engine.test.ts` runs it through xstate's own
+`createMachine` + `transition`), but `src/core/engine.ts` interprets it. Reason: each command is a request that
+re-reads the ticket, evaluates async guards against the tracker, runs async writes, and must say *why* a
+transition is refused with a code and one sentence; xstate's guards are synchronous and a disabled event is
+silently dropped, so its runtime would need the same wrapping plus a dependency in the bundle. The subset used:
+states, `initial`, `on` (string, object or array), `target`, one `guard` (string or `{type, params}`; `all`
+combines), `actions`, `entry`, `exit`, `meta`. One deviation: exit actions run after the transition's (a failed
+tracker write leaves storage untouched). `xstate` is a dev dependency only.
+
+## How to add …
+
+- **a guard or an action:** `src/core/guards.ts` (`kind: "selector" | "check"`) / `src/core/actions.ts`; a row in
+  docs/flows.md (a test checks); a test. Reach the tracker, store and clock through `c.f` only.
+- **a flow preset:** `flows/<name>.json` + `flows/<name>.options.json`, register in `src/config/presets.ts`,
+  `bun run schema`, tests that walk it.
+- **a tracker adapter:** implement `Tracker` (`src/ports/tracker.ts`); optional capabilities as objects or absent;
+  add its `tracker.type` to the schema and to `build()` in `store-durable-object.ts`.
+- **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
+  `plain()`; give the Worker a route for its updates.
+- **a configuration field:** `src/config/document.ts` (type), `src/config/schema.ts` (schema + cross-field rules),
+  `bun run schema`, the full example in `test/config.test.ts` (the compiler demands it), a row in
+  docs/configuration.md (a test checks).
+- **a storage change:** append to `MIGRATIONS` in `src/core/schema.ts`; never edit a shipped entry.
+
+## Conventions
+
+- As few dependencies as possible: runtime has none; dev: wrangler, vitest + the Workers pool, TypeScript,
+  workers-types, xstate (test only).
+- Error messages are one sentence for the agent, with a stable `error` code.
+- Comments only where the code is not obvious.
+- Commits: one logical change, one line `type(scope): subject`, GPG-signed, pushed to `main`; never force-push.
