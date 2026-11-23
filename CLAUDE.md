@@ -13,6 +13,8 @@ bun run test                      # vitest in workerd (@cloudflare/vitest-plugin
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run schema                    # regenerate schema/*.schema.json after changing src/config/schema.ts or a preset
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
+bun run bundle                    # build served/ (the public material); `bun run test`, wrangler dev and deploy run it
+python3 test/e2e/serve.py         # the served material, the root document, /validate, flowee.py version/update in wrangler dev
 python3 test/e2e/wire.py          # flowee.py against `wrangler dev` and a stand-in GitHub and GitLab, trunk and pr-release
 #   --flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]: also an external client with the same wire contract
 bun test/e2e/gitlab-live.ts       # the GitLab adapter's reads against gitlab.com, anonymous and read-only (network)
@@ -25,7 +27,10 @@ Test runs may create `~/.wrangler`; remove it afterwards (it hides the machine's
 Deploy (not automated, no CI): `bun run deploy` (`scripts/deploy.ts`): refuses while `~/.wrangler` exists, validates
 `flowee.config.local.json` (git-ignored, the deployment's own; else `flowee.config.json`), runs `wrangler deploy`
 with `FLOWEE_MODE` from the document and the local document as the `FLOWEE_CONFIG` secret (on stdin), then calls
-`<publicUrl>/setup` so the new version sets the bot's profile and webhook.
+`<publicUrl>/setup` so the new version sets the bot's profile and webhook. `wrangler deploy` (and `dev`) first runs
+`[build]`, `bun scripts/bundle.ts`, which builds `served/` (git-ignored), the `[assets]` directory, so the served
+material always is the deployed commit's; the build fails when a file looks like a secret or holds a value of
+`flowee.config.local.json` (chat and user ids, URLs, bot names, repositories).
 Configuration and secrets: docs/configuration.md; the operator's steps: skills/flowee-install.
 
 ## Layout
@@ -71,7 +76,11 @@ src/
 flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
               starting points trunk and pr-release (src/config/presets.ts) only preset switches
 schema/       workspace.schema.json, instance.schema.json (generated)
-scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`)
+scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`),
+              bundle.ts (`bun run bundle`: served/ from SOURCES, the skills/ and docs/ indexes, manifest.json,
+              bundle.tar.gz; the secret and deployment-value check)
+served/       generated, git-ignored: the Worker's static assets (`[assets]`, binding ASSETS, run_worker_first),
+              answered by src/adapters/served.ts (the root document, headers, /version, POST /validate)
 client/       flowee.py + test_flowee.py
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
 docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab's mapping and token scopes),
@@ -84,7 +93,8 @@ skills/       agent skills: flowee-install, flowee-use, flowee-configure (the fu
 test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-hooks.ts: hooks routes, signed
               deliveries), hooks.test.ts (counts tracker calls), tracker-contract.test.ts (every tracker
               adapter, the same cases), fixtures (workspaces.json: neutral names), docs.test.ts
-              (docs and skills complete, the skills' examples valid), e2e/wire.py
+              (docs and skills complete, the skills' examples valid), served.test.ts (every served file equals its
+              source, the bundle, links, no secrets, the root document, /validate), e2e/wire.py, e2e/serve.py
 ```
 
 ## Architecture rules
@@ -176,6 +186,12 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   `bun run schema`, the full example in `test/config.test.ts` (the compiler demands it), a row in
   docs/configuration.md and in skills/flowee-configure/references/fields.md (a test checks both).
 - **a storage change:** append to `MIGRATIONS` in `src/core/schema.ts`; never edit a shipped entry.
+- **a served file** (public, for agents setting Flowee up): it is served at its repository path. A new file under
+  skills/, docs/, schema/ or flows/ is served and bundled by itself; a file elsewhere needs its glob in `SOURCES`
+  (`scripts/bundle.ts`) and in the `import.meta.glob` of `test/served.test.ts`, its prefix in `MATERIAL`
+  (`src/adapters/served.ts`) and a content type in `TYPES` when its extension is new. Relative links in served
+  markdown must resolve to served paths (a test follows every one); never link to `src/` or `test/` from a served file.
+  The root document (`rootDoc()` in served.ts) is generated per request: keep it short, numbered and literal.
 
 ## Conventions
 

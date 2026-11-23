@@ -46,6 +46,15 @@ flowchart LR
 - Only the board puts a ticket in front of the owner. The owner answers in the chat; the answer goes back to the
   board.
 
+## Start from an instance URL
+
+Every instance serves its own skills, docs, client and a setup procedure written for agents, so an agent needs only
+its URL; tell it:
+
+```text
+Use https://<your-flowee-instance>/ to set Flowee up for this project.
+```
+
 ## Quick start
 
 Flowee is a Cloudflare Worker. You need a Cloudflare account, `bun`, a GitHub or GitLab token and a Telegram bot. It runs in one
@@ -208,6 +217,7 @@ Exports never contain a secret.
 | Topic | Where |
 |---|---|
 | The agents' HTTP API and the client | [docs/api.md](docs/api.md) |
+| What every instance serves (root document, skills, docs, bundle, `POST /validate`) | [docs/api.md](docs/api.md#public-material-and-validation-no-authentication) |
 | Configuration and secrets | [docs/configuration.md](docs/configuration.md) |
 | GitLab: concepts, token scopes, what differs | [docs/gitlab.md](docs/gitlab.md) |
 | Webhooks: events, permissions, health, manual setup | [docs/webhooks.md](docs/webhooks.md) |
