@@ -44,7 +44,8 @@ with `FLOWEE_MODE` from the document and the local document as the `FLOWEE_CONFI
 `[build]`, `bun scripts/bundle.ts`, which builds `served/` (git-ignored), the `[assets]` directory, so the served
 material always is the deployed commit's; the build fails when a file looks like a secret or holds a value of
 `flowee.config.local.json` (chat and user ids, URLs, bot names, repositories).
-Configuration and secrets: docs/configuration.md; the operator's steps: skills/flowee-install.
+Configuration and secrets: docs/configuration.md; installing, every variant (the agent-led procedure, served at
+`/INSTALL.md`; test/served.test.ts checks its links and that every command names the published image): INSTALL.md.
 
 ## Layout
 

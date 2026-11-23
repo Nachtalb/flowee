@@ -46,6 +46,17 @@ flowchart LR
 - Only the board puts a ticket in front of the owner. The owner answers in the chat; the answer goes back to the
   board.
 
+## Install
+
+[INSTALL.md](INSTALL.md) is the installation procedure, written for an agent that leads you through it (and
+readable as it is): the four ways to use Flowee (a hosted instance through its Telegram bot, the published container
+image under Docker, Podman or `wslc`, one executable from a clone, your own Cloudflare deployment), the questions
+asked once, and every step before the first start. Tell your agent:
+
+```text
+Follow https://github.com/Nachtalb/flowee/blob/main/INSTALL.md to install Flowee for me.
+```
+
 ## Start from an instance URL
 
 Every instance serves its own skills, docs, client and a setup procedure written for agents, so an agent needs only
@@ -132,6 +143,7 @@ bun run compile -- --target bun-linux-x64 --outfile flowee
 FLOWEE_CONFIG_FILE=flowee.json FLOWEE_DATA=./data GITHUB_TOKEN_FILE=secrets/GITHUB_TOKEN ./flowee
 ```
 
+Every step (directories, ownership, secrets, Podman, Quadlet, `wslc`, checks): [INSTALL.md](INSTALL.md), section 5.
 Configuration, the data directory, backup, upgrade, polling and webhooks: [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Configuration
@@ -272,6 +284,7 @@ Exports never contain a secret.
 | Feature catalogue | [docs/flow-features.md](docs/flow-features.md) |
 | The chat interface | [docs/envoy.md](docs/envoy.md), [docs/telegram.md](docs/telegram.md) |
 | Managed mode, wizard, import | [docs/managed.md](docs/managed.md) |
+| Installing, every variant, step by step | [INSTALL.md](INSTALL.md) |
 | Self-hosting: the executable, Docker, polling or webhooks | [docs/self-hosting.md](docs/self-hosting.md) |
 | Running agents | [docs/agents/](docs/agents/README.md) |
 | Ports and adapters (Discord, another tracker) | [docs/adapters.md](docs/adapters.md) |

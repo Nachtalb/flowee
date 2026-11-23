@@ -227,16 +227,17 @@ public, max-age=60, must-revalidate` and an `ETag` (`If-None-Match` answers `304
 | Path | Answer |
 |---|---|
 | `/`, `/llms.txt`, `/index.md` | the root document for an agent told "use this URL to set Flowee up": this instance's facts (base URL, version and commit, mode, bot, trackers, chat backends, who may create workspaces and how), the questions to ask the user and the procedure. `text/markdown`; `/` with `Accept: text/html` answers the same as a small HTML page |
+| `/INSTALL.md` | the installation procedure for every variant (a hosted instance, the published image, one executable, Cloudflare), written for an agent; the root document points to it |
 | `/skills/`, `/skills/<skill>/SKILL.md`, `/skills/<skill>/references/<file>.md` | the three skills; `/skills/` is a generated index, one line per file |
 | `/docs/`, `/docs/<file>.md`, `/docs/agents/` (`README.md`), `/docs/agents/<role>.md` | the docs and the agent role templates; `/docs/` is a generated index |
 | `/client/flowee.py` | the client (`text/plain`) |
 | `/schema/workspace.schema.json`, `/schema/instance.schema.json`, `/flows/<file>.json` | the JSON Schemas, the flow and its options |
 | `/LICENSE`, `/assets/logo.svg` | the licence, the logo |
-| `/bundle.tar.gz` | all of the above but the logo under `flowee/` (`skills/`, `docs/`, `client/`, `schema/`, `flows/`, `LICENSE`) |
+| `/bundle.tar.gz` | all of the above but the logo under `flowee/` (`INSTALL.md`, `skills/`, `docs/`, `client/`, `schema/`, `flows/`, `LICENSE`) |
 | `/manifest.json` | `flowee` (version), `commit`, `client: {version, sha256}`, `files`, `bundle` (the archive's entries) |
 | `/version` | `{"ok": true, "flowee", "commit", "client": {"version", "sha256"}}`; `flowee.py version` reads it |
 
-`POST /validate` checks a workspace or instance document with the same validator as `bun run validate` and the
+`POST /validate` checks a workspace or instance document with the same validator as `bun run validate`, `flowee validate` and the
 import, against this instance's version. Nothing is stored, logged or changed; it does not know the instance's other
 workspaces (a repository another workspace already has is refused only at submission).
 

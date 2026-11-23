@@ -10,7 +10,7 @@ import { VALIDATE_MAX, VALIDATE_PER_MINUTE } from "../src/adapters/served";
 import worker from "../src/index";
 import workspaces from "./workspaces.json";
 
-const raw = import.meta.glob(["../skills/**/*", "../docs/**/*", "../client/flowee.py", "../schema/*.json", "../flows/*.json", "../LICENSE", "../assets/*.svg"], {
+const raw = import.meta.glob(["../INSTALL.md", "../skills/**/*", "../docs/**/*", "../client/flowee.py", "../schema/*.json", "../flows/*.json", "../LICENSE", "../assets/*.svg"], {
   query: "?raw",
   import: "default",
   eager: true,
@@ -205,7 +205,7 @@ describe("the root document", () => {
     const html = await r.text();
     expect(html).toMatch(/^<!doctype html>/);
     expect(html).toContain('<img src="/assets/logo.svg"');
-    expect(html).toContain('<a href="https://flowee.test/skills/flowee-install/SKILL.md">');
+    expect(html).toContain('<a href="https://flowee.test/INSTALL.md">');
     expect(html).toContain("<h1>Flowee: set it up from this URL</h1>");
     expect(html).toContain("<ol>");
     expect(html).toContain("<code>trunk</code>");
@@ -217,6 +217,35 @@ describe("the root document", () => {
     const v = (await (await get("/version")).json()) as { ok: boolean; flowee: string; commit: string; client: { version: string; sha256: string } };
     const m = await manifest();
     expect(v).toEqual({ ok: true, flowee: m.flowee, commit: m.commit, client: m.client });
+  });
+});
+
+describe("INSTALL.md", () => {
+  it("is served and bundled, and the root document names it as the procedure to follow", async () => {
+    const r = await get("/INSTALL.md");
+    expect([r.status, r.headers.get("content-type")]).toEqual([200, "text/markdown; charset=utf-8"]);
+    expect(await r.text()).toBe(sources.get("INSTALL.md"));
+    expect((await manifest()).bundle).toContain("flowee/INSTALL.md");
+    const md = await (await get("/")).text();
+    expect(md).toContain("- The installation procedure, for you to follow: https://flowee.test/INSTALL.md (");
+    expect(md).toContain("Then read https://flowee.test/INSTALL.md and follow it: it is the procedure.");
+    for (const s of ["## 1. The variants", "## 2. Detect, then ask once", "## 10. Never"]) expect(sources.get("INSTALL.md"), s).toContain(s);
+  });
+
+  it("every command that runs or pulls the image, and every Compose or Quadlet image line, names the published image", () => {
+    const texts = import.meta.glob(["../INSTALL.md", "../README.md", "../docs/**/*.md", "../skills/**/*.md", "../compose.yaml"], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    let n = 0;
+    for (const [p, t] of Object.entries(texts)) {
+      const blocks = [...t.matchAll(/```[^\n]*\n([\s\S]*?)```/g), ...t.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+      if (p.endsWith(".yaml")) blocks.push(t);
+      // a command continued over lines (sh `\`, PowerShell `` ` ``) is one line
+      for (const line of blocks.flatMap((b) => b.replace(/ [\\`]\n/g, " ").split("\n"))) {
+        if (!/\b(docker|podman|wslc)\s+(run|pull|create)\b(?!.*--help)|^\s*(image:|Image=)/.test(line)) continue;
+        n++;
+        expect(line, `${p}: ${line}`).toMatch(/ghcr\.io\/nachtalb\/flowee(:[\w.-]+)?(\s|$)/);
+      }
+    }
+    expect(n).toBeGreaterThan(15);
   });
 });
 

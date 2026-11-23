@@ -7,6 +7,9 @@ public URL, and it receives Telegram and tracker webhooks exactly as the Worker 
 
 ## Run it
 
+The step-by-step procedure for every runtime (Docker, Docker Compose, Podman with a run command or a Quadlet unit,
+`wslc`), with the directories, ownership, secrets and checks, is [INSTALL.md](../INSTALL.md), section 5.
+
 ```sh
 # the published image (amd64, arm64): ghcr.io/nachtalb/flowee:latest, :<commit>, :<version>
 docker run -d --name flowee --user "$(id -u):$(id -g)" -p 127.0.0.1:8787:8787 -v "$PWD/data:/data" \

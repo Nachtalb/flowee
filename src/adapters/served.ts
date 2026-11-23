@@ -37,7 +37,7 @@ const TYPES: Record<string, string> = {
   gz: "application/gzip",
 };
 const CACHE = "public, max-age=60, must-revalidate";
-const MATERIAL = /^\/(skills|docs|client|schema|flows|assets)\/|^\/(LICENSE|bundle\.tar\.gz|manifest\.json)$/;
+const MATERIAL = /^\/(skills|docs|client|schema|flows|assets)\/|^\/(INSTALL\.md|LICENSE|bundle\.tar\.gz|manifest\.json)$/;
 const INDEXES: Record<string, string> = {
   "/skills": "/skills/index.md",
   "/skills/": "/skills/index.md",
@@ -168,6 +168,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     "",
     "## What is served here",
     "",
+    `- The installation procedure, for you to follow: ${u("/INSTALL.md")} (every way to use Flowee: this or another hosted instance through its bot, self-hosted with the published image ghcr.io/nachtalb/flowee under Docker, Podman or wslc, one executable, an own Cloudflare deployment; the one round of questions to ask; the steps before the first start)`,
     `- Skills: ${u("/skills/")} (flowee-install, flowee-configure, flowee-use)`,
     `- Docs: ${u("/docs/")}; agent role templates: ${u("/docs/agents/")}`,
     `- Client: ${u("/client/flowee.py")}; JSON Schema: ${u("/schema/workspace.schema.json")}; the flow: ${f.flows.map((p) => u(`/${p}`)).join(", ") || "none"}`,
@@ -176,7 +177,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     "",
     "## The procedure",
     "",
-    `1. Get the material: \`curl -fsSL ${u("/bundle.tar.gz")} | tar -xz\`. Copy the three directories under \`flowee/skills/\` into your skills directory (wherever your agent runner keeps skills), or read them in place. Then read ${u("/skills/flowee-install/SKILL.md")} and follow its section "Starting from an instance URL".`,
+    `1. Get the material: \`curl -fsSL ${u("/bundle.tar.gz")} | tar -xz\`. Copy the three directories under \`flowee/skills/\` into your skills directory (wherever your agent runner keeps skills), or read them in place. Then read ${u("/INSTALL.md")} and follow it: it is the procedure. When the user is to use THIS instance, the steps below are its variant 1 with this instance's addresses filled in; when they want an instance of their own, follow its variant 2, 3 or 4 instead (that instance then serves its own root document).`,
     "2. Ask the user these questions, ALL IN ONE MESSAGE (not one by one), each with its default, so they can answer \"defaults\" to any of them:",
     "   - Which repository or repositories (`owner/name`, GitHub or GitLab, self-hosted API URL if any)? Why: one workspace covers a project; a repository belongs to one workspace per instance. Default: this directory's `git remote get-url origin`.",
     "   - Commits straight to the main branch, or a feature branch and pull request per ticket? Why: it picks the flow preset (`trunk` or `pr-release`). Default: main branch (`trunk`).",
