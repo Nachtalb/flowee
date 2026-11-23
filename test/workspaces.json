@@ -417,6 +417,132 @@
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "901"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "mixed",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          {
+            "repo": "acme/mixweb",
+            "alias": "web"
+          },
+          {
+            "repo": "acme/backend/api",
+            "alias": "api",
+            "type": "gitlab",
+            "token": "GITLAB_TOKEN"
+          }
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "MIX_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "MIX_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "MIX_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "MIX_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "902"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "902"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "mixrel",
+      "flow": {
+        "preset": "pr-release"
+      },
+      "features": {
+        "pullRequests": {
+          "checks": [
+            "build"
+          ]
+        },
+        "releases": {
+          "testedTag": "tested"
+        }
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          {
+            "repo": "acme/relweb",
+            "alias": "web"
+          },
+          {
+            "repo": "acme/backend/svc",
+            "alias": "svc",
+            "type": "gitlab",
+            "token": "GITLAB_TOKEN"
+          }
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "MIXR_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "MIXR_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "MIXR_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "MIXR_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann",
+          "chat": "903"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "903"
+      }
     }
   ]
 }

@@ -252,10 +252,13 @@ export function install() {
   const deps = new FakeGitHub("acme/deps");
   const web = new FakeGitHub("acme/web");
   const api = new FakeGitHub("acme/api");
-  const repos = [gh2, app, lib, viewer, deps, web, api];
-  // GitLab projects: gitlab.com (gl, glshop), a self-managed instance at gitlab.example.com (glself)
+  const mixweb = new FakeGitHub("acme/mixweb");
+  const relweb = new FakeGitHub("acme/relweb");
+  const repos = [gh2, app, lib, viewer, deps, web, api, mixweb, relweb];
+  // GitLab projects on gitlab.com (gl, and those of the mixed workspaces) and on a self-managed instance (glself)
   const gl = new FakeGitLab();
   const glmix = new FakeGitLab("acme/backend/api", 501);
+  const glrel = new FakeGitLab("acme/backend/svc", 502);
   const glself = new FakeGitLab("team/tools/lib", 777);
   const tg = new FakeTelegram();
   const paste = new FakePaste();
@@ -263,7 +266,7 @@ export function install() {
     const req = new Request(input, init);
     const host = new URL(req.url).host;
     if (host === "api.github.com") return (repos.find((r) => r.owns(new URL(req.url).pathname)) ?? gh).handle(req);
-    if (host === "gitlab.com") return ([glmix].find((r) => r.owns(new URL(req.url).pathname)) ?? gl).handle(req);
+    if (host === "gitlab.com") return ([glmix, glrel].find((r) => r.owns(new URL(req.url).pathname)) ?? gl).handle(req);
     if (host === "gitlab.example.com") return glself.handle(req);
     if (host === "assets.test") return new Response(new Uint8Array([137, 80, 78, 71]));
     if (host === "api.telegram.org" && new URL(req.url).pathname.startsWith("/file/"))
@@ -272,5 +275,5 @@ export function install() {
     if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, viewer, deps, web, api, gl, glmix, glself, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, gl, glmix, glrel, glself, tg, paste };
 }

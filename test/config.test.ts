@@ -164,7 +164,7 @@ describe("export and import", () => {
     expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite"]);
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "mixed", "mixrel"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });
