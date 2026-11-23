@@ -7,6 +7,7 @@ import type { Instance } from "../src/adapters/instance-durable-object";
 import worker from "../src/index";
 import type { FakeGitHub, FakeTelegram } from "./fake";
 import { setup } from "./helpers";
+import workspaces from "./workspaces.json";
 
 const CFG = {
   flowee: 1,
@@ -19,7 +20,8 @@ const CFG = {
   },
   workspaces: [],
 };
-const menv = () => ({ ...env, FLOWEE_MODE: "managed", FLOWEE_CONFIG: JSON.stringify(CFG), FLOWEE_ADMIN_TOKEN: "admin-test" }) as typeof env;
+let cfg: object = CFG;
+const menv = () => ({ ...env, FLOWEE_MODE: "managed", FLOWEE_CONFIG: JSON.stringify(cfg), FLOWEE_ADMIN_TOKEN: "admin-test" }) as typeof env;
 const TOKEN = `github_pat_${"a".repeat(40)}`;
 const CARD = "### For the owner\nKind: question\nQuestion: Blue or green?";
 
@@ -32,6 +34,7 @@ const files: Record<string, string> = {};
 
 beforeEach(async () => {
   ({ app, gh2, lib, tg } = setup());
+  cfg = CFG;
   const fake = globalThis.fetch;
   globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
     const u = new URL(new Request(i, init).url);
@@ -270,6 +273,55 @@ describe("the setup wizard", () => {
     expect(said()).toBe("You have no workspace yet. /setup creates one; /import takes a configuration file.");
     await dm(100, "/workspaces");
     expect(tg.of("sendMessage").at(-1)?.reply_markup.inline_keyboard).toEqual([[{ text: "app", callback_data: "m:ws:app" }]]);
+  });
+});
+
+describe("groups, topics and preconfigured workspaces", () => {
+  it("the shared bot bound to a group picked with the chat request: only owners, only that chat; commands scoped", async () => {
+    await dm(100, "/setup");
+    await tap(100, "w:bot:shared");
+    await dm(100, "acme/app");
+    await tap(100, "w:flow:trunk");
+    await tap(100, "w:flow:done");
+    await post("/telegram", msg(100, undefined, undefined, { chat_shared: { request_id: 2, chat_id: -100777 } }));
+    expect(tg.of("sendMessage").at(-2)?.text).toBe("Bound to group -100777.");
+    await dm(100, TOKEN);
+    await tap(100, "w:role:board:1");
+    await tap(100, "w:roles:done");
+    await tap(100, "w:confirm");
+    const s = await handed();
+    app.add({ number: 3, state_label: "board review" });
+    await api(s.board, "/v1/escalate", { n: 3, comment: CARD });
+    const card = tg.sent("sendRichMessage").at(-1);
+    expect(card).toMatchObject({ chat_id: "-100777" });
+    expect(card?.message_thread_id).toBeUndefined();
+    const group = (from: number, text: string, extra: Record<string, unknown> = {}) => post("/telegram", msg(from, text, { id: -100777, type: "supergroup" }, extra));
+    tg.calls = [];
+    // a stranger's command and reply in the group: silence
+    await group(300, "/todo");
+    await group(300, "No.", { reply_to_message: { message_id: card?.id, from: { id: 999 } } });
+    expect(tg.calls).toEqual([]);
+    // the owner's reply (Telegram adds a thread id to replies in groups without topics) answers it
+    await group(100, "Yes.", { reply_to_message: { message_id: card?.id, from: { id: 999 } }, message_thread_id: card?.id });
+    expect(app.last(3)).toBe("Owner: Yes.");
+    // the wizard runs in private chats only: in the bound group /setup is the envoy's unknown command (text)
+    tg.calls = [];
+    await group(100, "/setup");
+    expect(tg.of("sendMessage").map((m) => [m.chat_id, m.text])).toEqual([["-100777", "Reply to a card to answer it."]]);
+  });
+
+  it("a preconfigured workspace of FLOWEE_CONFIG is served, owned by the instance owner, editable in the menu", async () => {
+    const other = { ...workspaces.workspaces[1] };
+    cfg = { ...CFG, workspaces: [other] };
+    expect((await api("o-dev1", "/v1/whoami")).body).toEqual({ ok: true, instance: "dev1", role: "developer" });
+    await dm(100, "/workspaces");
+    expect(tg.of("sendMessage").at(-1)?.reply_markup.inline_keyboard).toEqual([[{ text: "other", callback_data: "m:ws:other" }]]);
+    // editing the flow keeps everything else; nothing new to hand over
+    await tap(100, "m:edit:other:flow");
+    expect(said()).toContain("3 Flow");
+    await tap(100, "w:flow:trunk");
+    await tap(100, "w:flow:done");
+    expect(said()).toContain("Replace workspace <code>other</code>");
   });
 });
 
