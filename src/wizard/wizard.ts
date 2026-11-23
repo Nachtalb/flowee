@@ -149,7 +149,7 @@ const OPTIONS: Record<string, [string, string]> = {
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
   untrustedReports: ["Outside reports", "Tickets with text from users go to the board first, until it has checked them."],
 };
-const ROLES: Record<string, [string, string]> = {
+export const ROLES: Record<string, [string, string]> = {
   board: ["🧭 Board", "Plans and sorts the tickets, and asks you."],
   developer: ["🛠 Developers", "Build what the tickets ask for."],
   tester: ["🧪 Testers", "Test each ticket before it closes."],
@@ -158,7 +158,7 @@ const ROLES: Record<string, [string, string]> = {
 /** The way of working in words: the branching, then every option switched on. */
 export const wayOf = (features: Record<string, unknown> = {}) =>
   [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f]).map((f) => OPTIONS[f][0])].join(", ");
-const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
+export const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
 
 /** The parts of a screen: text blocks, then button rows; a warning goes between them. */
 interface Screen {
@@ -400,7 +400,7 @@ export class Wizard {
   }
 
   /** The roles agents can have with the draft's features. */
-  private agentRoles(d: Draft) {
+  agentRoles(d: Draft) {
     const p = this.host.flow();
     const on = this.switches(d);
     const holds = (t: string) => !!on[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
@@ -601,8 +601,8 @@ export class Wizard {
         return {
           body: [
             top,
-            question("How many agents do you want?"),
-            text(`Each agent gets its own secret to sign in with. You get them all once at the end, with a ready ${code(".flowee.toml")}.`),
+            question("Agent identities"),
+            text("Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start with these; you can add or remove agents any time."),
           ],
           rows: [options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? "", b("−", `role:${r}:-1`), { label: String(d.roles[r] ?? 0) }, b("+", `role:${r}:1`)))), this.nav(s, "roles:done")],
         };

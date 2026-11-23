@@ -268,6 +268,33 @@ export class InstanceHost implements InstanceApi {
         await self.push(id);
         return secret;
       },
+      async addAgent(id, role) {
+        const doc = structuredClone(reg.get(id) as WorkspaceDoc);
+        const taken = new Set(doc.roles.map((r) => r.instance));
+        const short = role === "developer" ? "dev" : role;
+        let instance = role === "developer" ? "dev1" : short;
+        for (let i = 2; taken.has(instance); i++) instance = `${short}${i}`;
+        doc.roles.splice(doc.roles.findIndex((r) => r.role === flow.ownerRole), 0, { instance, role, secret: slot(id, instance) });
+        const errs = validate(doc);
+        if (errs.length) throw new Error(errs.join(" "));
+        reg.import(doc);
+        const secret = randomSecret();
+        await self.put(slot(id, instance), id, await digestOf(secret));
+        reg.reindex();
+        await self.push(id);
+        return { instance, secret };
+      },
+      async removeAgent(id, instance) {
+        const doc = structuredClone(reg.get(id) as WorkspaceDoc);
+        const r = doc.roles.find((x) => x.instance === instance && x.role !== flow.ownerRole);
+        if (!r) throw new Error(`The workspace has no agent '${instance}'.`);
+        doc.roles = doc.roles.filter((x) => x !== r);
+        reg.import(doc);
+        self.dropSecret(r.secret);
+        reg.reindex();
+        // the workspace releases the claims of an instance its document no longer names (configure)
+        await self.push(id);
+      },
       async replaceBotToken(id) {
         const doc = reg.get(id) as WorkspaceDoc;
         const botId = botOf(id);

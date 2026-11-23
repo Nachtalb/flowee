@@ -6,7 +6,7 @@ import type { SyncStatus } from "../core/events";
 import { btn, esc, facts, heading, option, options, question, row, text } from "../envoy/render";
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
-import { chatLabel, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
+import { chatLabel, ROLES, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
   owned(user: string): WorkspaceDoc[];
@@ -17,6 +17,10 @@ export interface ManageHost extends WizardHost {
   remove(id: string): Promise<void>;
   /** A new secret for one agent; only its fingerprint is kept. */
   rotate(id: string, instance: string): Promise<string>;
+  /** One more agent of `role` with a new identity and secret; the other agents keep theirs. */
+  addAgent(id: string, role: string): Promise<{ instance: string; secret: string }>;
+  /** One agent goes: its secret stops working and the tickets it holds go back to the queue. */
+  removeAgent(id: string, instance: string): Promise<void>;
   /** A new token for the workspace's own bot (the old one stops working). */
   replaceBotToken(id: string): Promise<void>;
   access(id: string): Promise<BotAccess>;
@@ -148,10 +152,12 @@ export class Manager {
         { cells: ["🔀 Way of working", wayOf(d.features)], buttons: [edit("flow")] },
         { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] },
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
-        { cells: ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"], buttons: [edit("roles")] },
+        ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),
       options(
+        option("➕ Add an agent", "A new identity with its own secret; the other agents keep theirs.", b("➕ Add", `add:${d.id}`)),
+        option("➖ Remove an agent", "Its secret stops working, and the tickets it holds go back to the queue.", b("➖ Remove", `rmag:${d.id}`)),
         option("🔑 New agent secret", "One agent gets a new secret; its old one stops working.", b("🔑 New secret", `rot:${d.id}`)),
         ...(own
           ? [
@@ -172,7 +178,7 @@ export class Manager {
   /** A management button; null when the data is not the menu's, else the toast for the press (if any). */
   async press(user: string, at: ChatRef, data: string): Promise<string | undefined | null> {
     if (!data.startsWith("m:")) return null;
-    const [k, id, v] = data.slice(2).split(":");
+    const [k, id, v, w] = data.slice(2).split(":");
     if (k === "list") {
       await this.list(user, at);
       return;
@@ -220,6 +226,52 @@ export class Manager {
         await this.show(user, at, [heading("🔑", `New secret for ${code(v)}`), text("It is in the file below, <b>shown only this once</b>. The old one no longer works."), row(back(id))]);
         await this.wizard.handOver(at, id, { [v]: await this.host.rotate(id, v) });
         return "🔑 New secret below";
+      case "add": {
+        const roles = this.wizard.agentRoles(this.host.draftOf(d));
+        if (!v || !roles.includes(v)) {
+          await this.show(user, at, [
+            heading("➕", "Add an agent", code(id)),
+            question("Which kind of agent?"),
+            text("It gets its own secret, shown once; the other agents keep theirs."),
+            options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? "", b("➕ Add", `add:${id}:${r}`)))),
+            row(back(id)),
+          ]);
+          return;
+        }
+        const a = await this.host.addAgent(id, v);
+        await this.show(user, at, [heading("➕", `${code(a.instance)} added`), text("Its secret is in the file below, <b>shown only this once</b>; the other agents keep theirs."), row(back(id))]);
+        await this.wizard.handOver(at, id, { [a.instance]: a.secret });
+        return "➕ Agent added";
+      }
+      case "rmag": {
+        const agents = d.roles.filter((r) => r.role !== this.host.flow().ownerRole);
+        const r = agents.find((x) => x.instance === v);
+        if (!r) {
+          await this.show(user, at, [
+            heading("➖", "Remove an agent", code(id)),
+            question("Which agent goes?"),
+            text("Its secret stops working at once, and the tickets it holds go back to the queue."),
+            options(...agents.map((x) => option(esc(x.instance), roleName(x.role), b("➖ Remove", `rmag:${id}:${x.instance}`)))),
+            row(back(id)),
+          ]);
+          return;
+        }
+        if (agents.length === 1) {
+          await this.workspace(user, at, d, "⚠️ At least one agent is needed: add another one first.");
+          return;
+        }
+        if (w !== "yes") {
+          await this.show(user, at, [
+            heading("➖", `Remove ${code(r.instance)}?`),
+            text("Its secret stops working at once, and the tickets it holds go back to the queue; the other agents are not touched."),
+            row(b("➖ Remove it", `rmag:${id}:${r.instance}:yes`), back(id)),
+          ]);
+          return;
+        }
+        await this.host.removeAgent(id, r.instance);
+        await this.workspace(user, at, this.host.doc(id) ?? d, `➖ ${code(r.instance)} is removed; its tickets go back to the queue.`);
+        return "➖ Agent removed";
+      }
       case "exp":
         if (this.chat.sendFile) await this.chat.sendFile(at, `${id}.flowee.json`, `${JSON.stringify(d, null, 2)}\n`, "📤 The configuration, without secrets: edit it and send it back to import it.");
         return "📤 Sent below";

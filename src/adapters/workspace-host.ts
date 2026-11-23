@@ -80,7 +80,11 @@ export class WorkspaceHost {
     if (publicUrl) this.store.exec("INSERT OR REPLACE INTO meta VALUES ('publicUrl', ?)", publicUrl);
     this.store.exec("DELETE FROM meta WHERE k LIKE 'vault:%'");
     for (const [n, v] of Object.entries(sealed)) this.store.exec("INSERT INTO meta VALUES (?, ?)", `vault:${n}`, v);
+    // a removed agent's claims expire now: the reaper hands its tickets back as for a lapsed lease
+    const names = doc.roles.map((r) => r.instance);
+    const gone = this.store.exec(`UPDATE claims SET touched = 0 WHERE instance NOT IN (${names.map(() => "?").join(", ")})`, ...names);
     this.reset();
+    if (gone.rowsWritten) await this.room.wake(Date.now());
   }
 
   /** How the workspace learns of tracker changes (webhooks or polling), per repository. */

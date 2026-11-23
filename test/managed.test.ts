@@ -190,8 +190,8 @@ const AGENT_ROW = (r: string, label: string, desc: string, n: number) => OPT(lab
 const ROLES = (board: number, dev: number, tester: number, extra = "") =>
   [
     "<p>🆕 <b>New workspace</b> · Step 6 of 6</p>",
-    "<p><b>How many agents do you want?</b></p>",
-    "<p>Each agent gets its own secret to sign in with. You get them all once at the end, with a ready <code>.flowee.toml</code>.</p>",
+    "<p><b>Agent identities</b></p>",
+    "<p>Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start with these; you can add or remove agents any time.</p>",
     extra,
     TABLE(
       AGENT_ROW("board", "🧭 Board", "Plans and sorts the tickets, and asks you.", board),
@@ -534,7 +534,7 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(CREDENTIAL("app", "acme/app"));
     await dm(100, TOKEN);
     await tap(100, "w:wide:keep");
-    expect(screen()).toContain("<p><b>How many agents do you want?</b></p>");
+    expect(screen()).toContain("<p><b>Agent identities</b></p>");
     globalThis.fetch = fake;
   });
 
@@ -774,10 +774,12 @@ describe("the management menu: one living message", () => {
         FACT("🔀 Way of working", "Single branch", CB("✏️ Change", "m:edit:app:flow")),
         FACT("💬 Tickets appear", "your private chat with this bot", CB("✏️ Change", "m:edit:app:bind")),
         FACT("🔑 GitHub token", "never shown", CB("✏️ Change", "m:edit:app:credential")),
-        FACT("👥 Agents", "board, dev1, tester", CB("✏️ Change", "m:edit:app:roles")),
+        FACT("👥 Agents", "board, dev1, tester"),
         FACT("⚡ Instant updates", "off for app (not set up yet); the tracker is checked every minute", CB("⚡ Turn on", "m:hook:app")),
       ),
       TABLE(
+        OPT("➕ Add an agent", "A new identity with its own secret; the other agents keep theirs.", CB("➕ Add", "m:add:app")),
+        OPT("➖ Remove an agent", "Its secret stops working, and the tickets it holds go back to the queue.", CB("➖ Remove", "m:rmag:app")),
         OPT("🔑 New agent secret", "One agent gets a new secret; its old one stops working.", CB("🔑 New secret", "m:rot:app")),
         OPT("📤 Export", "The configuration without secrets, as a file to edit and import again.", CB("📤 Export", "m:exp:app")),
         paused
@@ -843,6 +845,59 @@ describe("the management menu: one living message", () => {
     edited(id, ["<p>🗑 <b><code>app</code> is deleted</b></p>", "<p>The repositories and their issues are untouched.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""));
     expect((await api(fresh.dev1, "/v1/whoami")).status).toBe(401);
     expect((await admin("GET", "/admin/workspaces")).body.workspaces).toEqual([]);
+  });
+
+  it("add an agent and remove one: one identity minted or revoked, the others untouched, a removed agent's ticket back in the queue", async () => {
+    const s = await sharedSetup(100);
+    await dm(100, "/workspaces");
+    const id = living(100)?.id as number;
+    await tap(100, "m:ws:app");
+    await tap(100, "m:add:app");
+    edited(
+      id,
+      [
+        "<p>➕ <b>Add an agent</b> · <code>app</code></p>",
+        "<p><b>Which kind of agent?</b></p>",
+        "<p>It gets its own secret, shown once; the other agents keep theirs.</p>",
+        TABLE(
+          OPT("🧭 Board", "Plans and sorts the tickets, and asks you.", CB("➕ Add", "m:add:app:board")),
+          OPT("🛠 Developers", "Build what the tickets ask for.", CB("➕ Add", "m:add:app:developer")),
+          OPT("🧪 Testers", "Test each ticket before it closes.", CB("➕ Add", "m:add:app:tester")),
+        ),
+        ROW(CB("« Back", "m:ws:app")),
+      ].join(""),
+    );
+    await tap(100, "m:add:app:developer");
+    edited(id, ["<p>➕ <b><code>dev2</code> added</b></p>", "<p>Its secret is in the file below, <b>shown only this once</b>; the other agents keep theirs.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➕ Agent added");
+    const dev2 = (await handed()).dev2;
+    expect((await api(dev2, "/v1/whoami")).body).toEqual({ ok: true, instance: "dev2", role: "developer" });
+    expect((await api(s.dev1, "/v1/whoami")).body.instance).toBe("dev1");
+    app.add({ number: 1, state_label: "ready" });
+    expect((await api(s.dev1, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
+    await tap(100, "m:ws:app");
+    await tap(100, "m:rmag:app");
+    expect(screen()).toContain(OPT("dev1", "🛠 Developers", CB("➖ Remove", "m:rmag:app:dev1")));
+    await tap(100, "m:rmag:app:dev1");
+    edited(
+      id,
+      [
+        "<p>➖ <b>Remove <code>dev1</code>?</b></p>",
+        "<p>Its secret stops working at once, and the tickets it holds go back to the queue; the other agents are not touched.</p>",
+        ROW(CB("➖ Remove it", "m:rmag:app:dev1:yes"), CB("« Back", "m:ws:app")),
+      ].join(""),
+    );
+    await tap(100, "m:rmag:app:dev1:yes");
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➖ Agent removed");
+    expect(screen()).toContain("<p>➖ <code>dev1</code> is removed; its tickets go back to the queue.</p>");
+    expect(screen()).toContain(FACT("👥 Agents", "board, tester, dev2"));
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➖ Agent removed");
+    expect((await api(s.dev1, "/v1/whoami")).status).toBe(401);
+    expect((await api(s.board, "/v1/whoami")).body.instance).toBe("board");
+    await runDurableObjectAlarm(env.WORKSPACE.get(env.WORKSPACE.idFromName("app")));
+    expect((await api(dev2, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
+    // the workspace object outlives the test: wipe it, so its claim does not reach the next test's
+    await tap(100, "m:del:app:yes");
   });
 
   it("instant updates: the workspace screen offers them, the manual way shows the address and a secret once; a paused workspace acknowledges deliveries and ignores them", async () => {
