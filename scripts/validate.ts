@@ -24,6 +24,6 @@ for (const f of files) {
   if (errs.length) {
     status = 1;
     for (const e of errs) console.log(`${f}: ${e}`);
-  } else console.log(`ok ${f}: ${(d.workspaces ?? [d]).map((w) => w.id).join(", ")}`);
+  } else console.log(`ok ${f}: ${(d.workspaces ?? [d]).map((w) => w.id).join(", ") || "no workspaces"}`);
 }
 process.exit(status);
