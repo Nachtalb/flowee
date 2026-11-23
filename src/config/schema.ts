@@ -321,3 +321,8 @@ export function repoList(d: WorkspaceDoc) {
 export function secretNames(d: WorkspaceDoc): string[] {
   return [...new Set([d.tracker.token, ...repoList(d).map((r) => r.token), ...d.roles.map((r) => r.secret), ...(d.chat ? [d.chat.token, d.chat.webhookSecret] : []), ...(d.files ? [d.files.token] : [])])];
 }
+
+/** Problems of a workspace document or of an instance document (`{"flowee": 1, "workspaces": [...]}`). */
+export function problems(doc: unknown): string[] {
+  return kind(doc) === "object" && "workspaces" in (doc as object) ? validateInstance(doc) : validate(doc);
+}

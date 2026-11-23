@@ -5,7 +5,7 @@ import committed from "../schema/workspace.schema.json";
 import committedInstance from "../schema/instance.schema.json";
 import type { WorkspaceDoc } from "../src/config/document";
 import { missingSecrets, StaticRegistry } from "../src/config/registry";
-import { INSTANCE, SCHEMA, validate } from "../src/config/schema";
+import { INSTANCE, problems, SCHEMA, validate } from "../src/config/schema";
 import { plain } from "../src/ports/chat";
 import workspaces from "./workspaces.json";
 
@@ -186,5 +186,14 @@ describe("plain chat fallback", () => {
       text: "2 open\n7 · Test · 1 h · A & B",
       buttons: [[{ label: "Open #7", data: "o:7:1" }], [{ label: "« Back", data: "b" }]],
     });
+  });
+});
+
+describe("bun run validate", () => {
+  it("checks a workspace document or an instance document with the Worker's validator", () => {
+    expect(problems(shop)).toEqual([]);
+    expect(problems(workspaces)).toEqual([]);
+    expect(problems({ ...shop, roles: [] })).toEqual(["$.roles: must have at least 1 item(s)."]);
+    expect(problems({ flowee: 1, workspaces: [shop, shop] })).toEqual(["$.workspaces[1].id: 'shop' is used twice.", "$.workspaces[1].chat: another workspace is bound to the same chat and topic."]);
   });
 });

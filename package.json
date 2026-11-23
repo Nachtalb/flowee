@@ -12,7 +12,8 @@
     "test:client": "python3 client/test_flowee.py",
     "typecheck": "tsc",
     "schema": "bun scripts/schema.ts",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "validate": "bun scripts/validate.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.9.0",
