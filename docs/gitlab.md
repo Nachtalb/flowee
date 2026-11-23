@@ -99,3 +99,6 @@ Maintainer on a protected main (or Developer with "Allowed to merge: Developers 
 - **Several assignees** need GitLab Premium; on Free the flow assigns only one owner anyway.
 - **The wizard** (managed mode) asks for GitHub repositories today; GitLab workspaces come as a document
   (`bun run validate`, then import or deploy). The GitLab link reader is `TRACKERS.gitlab.parseRepo(api)`.
+
+A command reads at most 1000 commits of a branch (`MAX_COMMITS`, as on GitHub); more is refused with `422
+too_many_commits` rather than paging into the Workers subrequest limit.

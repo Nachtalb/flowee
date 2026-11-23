@@ -157,6 +157,15 @@ describe.each(Object.keys(HARNESSES) as TrackerKind[])("tracker contract: %s", (
     expect(await t.contains(br, b)).toBe(false);
   });
 
+  it("reads at most 1000 commits of a branch per command and refuses beyond it in one sentence", async () => {
+    for (let i = 0; i < 1001; i++) h.commit(`chore: c${i}`);
+    await expect(t.commits("main", "2026-01-01T00:00:00Z")).rejects.toMatchObject({
+      status: 422,
+      code: "too_many_commits",
+      message: "main has more than 1000 commits since 2026-01-01T00:00:00Z, more than one command reads; hand the ticket over in smaller steps or ask the board to re-triage it.",
+    });
+  });
+
   it("names the failed call in a 502 and refuses without a token", async () => {
     const n = h.issue();
     h.fail("POST", "/issues", 500);

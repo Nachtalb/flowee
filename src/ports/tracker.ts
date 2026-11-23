@@ -149,6 +149,13 @@ export interface Release {
   publishedAt: string;
 }
 
+/** The most commits one command reads from a branch (10 pages of 100): beyond it a command is refused, not cut off. */
+export const MAX_COMMITS = 1000;
+
+/** The refusal past `MAX_COMMITS`: one sentence, instead of running into the platform's subrequest limit. */
+export const tooManyCommits = (branch: string, since: string) =>
+  new Fail(422, "too_many_commits", `${branch} has more than ${MAX_COMMITS} commits since ${since}, more than one command reads; hand the ticket over in smaller steps or ask the board to re-triage it.`);
+
 /** How far back the minimum version of a test card is looked for (feature releases). */
 export const RECENT_RELEASES = 10;
 

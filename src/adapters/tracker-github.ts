@@ -2,6 +2,7 @@
 // board, a user's Projects (v2) board over GraphQL. Plain fetch, no SDK.
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
+import { MAX_COMMITS, tooManyCommits } from "../ports/tracker";
 import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, RepoReference, Tags, TokenHelp, Tracker } from "../ports/tracker";
 import { GitHubHooks } from "./hooks-github";
 import { GitHubBranches, GitHubChecks, GitHubPulls, GitHubReleases, GitHubTags } from "./tracker-github-code";
@@ -138,14 +139,15 @@ export class GitHub implements Tracker {
     return (res.status === 204 ? null : await res.json()) as T;
   }
 
-  private async pages<T>(path: string, what: string): Promise<T[]> {
+  private async pages<T>(path: string, what: string, max = Infinity): Promise<T[]> {
     const out: T[] = [];
-    for (let page = 1; ; page++) {
+    for (let page = 1; page <= max; page++) {
       const sep = path.includes("?") ? "&" : "?";
       const batch = await this.req<T[]>("GET", `${path}${sep}per_page=100&page=${page}`, what);
       out.push(...batch);
       if (batch.length < 100) return out;
     }
+    return out;
   }
 
   get r() {
@@ -203,7 +205,9 @@ export class GitHub implements Tracker {
   }
 
   async commits(branch: string, since: string): Promise<Commit[]> {
-    const all = await this.pages<{ sha: string; commit: { message: string } }>(`${this.r}/commits?sha=${branch}&since=${since}`, `the commits on ${branch}`);
+    // one page past the cap tells whether there are more
+    const all = await this.pages<{ sha: string; commit: { message: string } }>(`${this.r}/commits?sha=${branch}&since=${since}`, `the commits on ${branch}`, MAX_COMMITS / 100 + 1);
+    if (all.length > MAX_COMMITS) throw tooManyCommits(branch, since);
     return all.map((c) => ({ sha: c.sha, subject: c.commit.message.split("\n")[0] })).reverse();
   }
 

@@ -16,7 +16,9 @@ document to its adapters. `test/boundary.test.ts` fails when a layer imports acr
 ## Tracker
 
 Required: `issue`, `openIssues`, `create`, `update` (labels, assignees, open/closed with reason, title, body; one
-write), `comment`, `comments`, `commits(branch, since)` (oldest first, first line only), `contains(base, head)`.
+write), `comment`, `comments`, `commits(branch, since)` (oldest first, first line only; at most `MAX_COMMITS` = 1000, ten pages of 100: one more is
+refused with `422 too_many_commits` in one sentence instead of running into the platform's subrequest limit, on
+GitHub and GitLab alike), `contains(base, head)`.
 Errors are `Fail`s: `404 not_found` for a missing issue, `502 <tracker>` naming the write that failed, `503
 rate_limited` when the tracker's rate limit asks for more than a two-second wait (a shorter `Retry-After` is waited
 out once).

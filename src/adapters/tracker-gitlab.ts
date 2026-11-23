@@ -21,7 +21,7 @@
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
 import { GitLabHooks } from "./hooks-gitlab";
-import { RECENT_RELEASES, type TokenHelp } from "../ports/tracker";
+import { MAX_COMMITS, RECENT_RELEASES, type TokenHelp, tooManyCommits } from "../ports/tracker";
 import type {
   Branches,
   Change,
@@ -308,7 +308,9 @@ export class GitLab implements Tracker {
     const all = await this.pages<{ id: string; message: string; title?: string }>(
       `${this.p}/repository/commits?ref_name=${encodeURIComponent(branch)}&since=${encodeURIComponent(since)}`,
       `the commits on ${branch}`,
+      MAX_COMMITS / 100 + 1,
     );
+    if (all.length > MAX_COMMITS) throw tooManyCommits(branch, since);
     return all.map((c) => ({ sha: c.id, subject: c.message.split("\n")[0] })).reverse();
   }
 
