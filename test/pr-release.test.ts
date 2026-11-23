@@ -320,3 +320,59 @@ describe("dependency tickets and a developer who merges", () => {
     expect((await q("tester", "pass", { n: 1, comment: "ok", build: sha, gates: { sha, ok: true } })).body.state).toBe("closed");
   });
 });
+
+describe("the remaining feature transitions", () => {
+  it("the sampler releases, gets stuck, expires; the board sends a stuck sampler ticket back and asks for samples on the owner's word", async () => {
+    any.add({ number: 1, state_label: "in procurement" });
+    await claim(1, "sampler" as never, "sampler", Date.now(), "anyfile");
+    expect((await p("sampler", "release", { n: 1 })).body).toMatchObject({ error: "comment_required" });
+    expect((await p("sampler", "release", { n: 1, comment: "Out of time." })).body.state).toBe("needs samples");
+    any.issues.get(1)!.labels = [{ name: "in procurement" }];
+    await claim(1, "sampler" as never, "sampler", Date.now(), "anyfile");
+    expect((await p("sampler", "stuck", { n: 1, comment: "Which variant?" })).body.state).toBe("board review");
+    expect((await p("board", "sendback", { n: 1, comment: "The 2019 one." })).body.state).toBe("needs samples");
+    any.issues.get(1)!.labels = [{ name: "in procurement" }];
+    await claim(1, "sampler" as never, "sampler", Date.now() - 4 * 3600e3, "anyfile");
+    await cron();
+    expect(labels(1)).toEqual(["needs samples"]);
+    expect(any.last(1)).toContain("The claim of sampler expired after 3 h");
+
+    any.add({ number: 2 });
+    expect((await p("board", "needsamples", { n: 2 })).body).toMatchObject({ error: "wrong_state" });
+    await inFlow((f) => {
+      f.sql.exec("INSERT INTO answers (n, ts, text, via) VALUES (2, ?, 'needs a sample', 'api')", Date.now());
+    }, "anyfile");
+    expect((await p("board", "needsamples", { n: 2 })).body.state).toBe("needs samples");
+  });
+
+  it("a held card can still be reworked; a merge the tracker refuses is 409 not_mergeable and changes nothing", async () => {
+    any.add({ number: 1, state_label: "awaiting release" });
+    expect((await p("board", "rework", { n: 1, comment: "Red CI on main." })).body.state).toBe("back to development");
+
+    any.commit("feat: base");
+    any.add({ number: 2, state_label: "testing" });
+    await claim(2, "tester", "tester", Date.now(), "anyfile");
+    const head = code.push("flowee/2");
+    code.green(head);
+    code.pr("flowee/2", "Thing (#2)").mergeable = false;
+    const r = await p("tester", "pass", { n: 2, comment: "ok", build: head, gates: { sha: head, ok: true } });
+    expect(r.body).toMatchObject({ error: "not_mergeable", message: "GitHub refused to merge pull request #1001 (405): it is not mergeable or its head moved." });
+    expect(labels(2)).toEqual(["testing"]);
+  });
+
+  it("show names the branch, the pull request and its checks", async () => {
+    any.add({ number: 1, state_label: "in development" });
+    expect((await call("board", "show?n=1", undefined, undefined, "p")).body).toMatchObject({ branch: "flowee/1", pull: null });
+    const head = code.push("flowee/1");
+    code.pr("flowee/1", "x (#1)");
+    code.checks.set(head, [{ name: "build", status: "in_progress", conclusion: null }]);
+    expect((await call("board", "show?n=1", undefined, undefined, "p")).body.pull).toEqual({
+      number: 1001,
+      url: "https://github.com/acme/anyfile/pull/1001",
+      state: "open",
+      head,
+      checks: "pending",
+      waiting: "build (in progress)",
+    });
+  });
+});
