@@ -526,7 +526,8 @@ export class Wizard {
     const body = `# Flowee workspace ${id}: agent secrets (shown once; only digests are stored)\n${Object.entries(secrets)
       .map(([k, v]) => `${k} = ${v}`)
       .join("\n")}\n\n# .flowee.toml\n${toml}\n`;
-    if (this.chat.sendFile) await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "Agent secrets: shown once.");
-    else await this.say(at, `<pre>${esc(body)}</pre>`);
+    // shown once: a refused file must not lose them, so they come as a message instead
+    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "Agent secrets: shown once.").then(() => true, () => false))) return;
+    await this.say(at, `<pre>${esc(body)}</pre>`);
   }
 }

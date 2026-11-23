@@ -258,6 +258,14 @@ describe("the setup wizard", () => {
     expect(tg.calls.at(-1)?.method).toBe("sendMessage"); // nothing else to try: the notice itself was refused, quietly
   });
 
+  it("agents' secrets the chat refuses as a file come as a message: they are shown once", async () => {
+    tg.refuse = { sendDocument: "Bad Request: file is too big" };
+    await sharedSetup(100);
+    const last = said();
+    expect(last).toMatch(/^<pre># Flowee workspace app: agent secrets/);
+    expect(last).toMatch(/^board = [0-9a-f]{64}$/m);
+  });
+
   it("Back, Cancel, resume and expiry", async () => {
     await dm(100, "/setup");
     await tap(100, "w:bot:shared");
