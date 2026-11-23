@@ -15,7 +15,8 @@
 //   CI          GET /projects/:id/pipelines?sha=, GET /projects/:id/repository/commits/:sha/statuses
 //   tags        GET/DELETE /projects/:id/repository/tags/:tag, POST /projects/:id/repository/tags
 //   releases    GET /projects/:id/releases?order_by=released_at&sort=desc
-// Pagination follows `x-next-page` (offset pagination, 100 per page); a 429 is waited out once when its
+// Pagination follows `x-next-page` (offset pagination, 100 per page, every page as the GitHub adapter reads them; merge
+// request files stop at 3000 like GitHub's); a 429 is waited out once when its
 // Retry-After is short, else answered `503 rate_limited`.
 import { Fail } from "../core/errors";
 import type {
@@ -204,7 +205,7 @@ export class GitLab implements Tracker {
   }
 
   /** Every page of a list (`x-next-page` names the next one; empty on the last). */
-  async pages<T>(path: string, what: string, max = 100): Promise<T[]> {
+  async pages<T>(path: string, what: string, max = Infinity): Promise<T[]> {
     const out: T[] = [];
     const sep = path.includes("?") ? "&" : "?";
     for (let page = 1; page <= max; ) {
@@ -428,7 +429,7 @@ class GitLabChecks implements Checks {
   async forCommit(sha: string): Promise<CheckRun[]> {
     const what = `the checks of ${sha.slice(0, 7)}`;
     const pipes = await this.gl.req<{ id: number; status: string }[]>("GET", `${this.gl.p}/pipelines?sha=${sha}&order_by=id&sort=desc&per_page=1`, what);
-    const st = await this.gl.pages<{ id: number; name: string; status: string; allow_failure?: boolean }>(`${this.gl.p}/repository/commits/${sha}/statuses`, what, 10);
+    const st = await this.gl.pages<{ id: number; name: string; status: string; allow_failure?: boolean }>(`${this.gl.p}/repository/commits/${sha}/statuses`, what);
     const out = new Map<string, CheckRun>();
     if (pipes[0]) out.set("pipeline", run("pipeline", pipes[0].status));
     for (const s of [...st].sort((a, b) => b.id - a.id)) if (!out.has(s.name)) out.set(s.name, run(s.name, s.status, s.allow_failure));
