@@ -66,7 +66,7 @@ export class Manager {
       at,
       [
         heading("👋", "Welcome to Flowee"),
-        text("Flowee runs a ticket flow for teams of AI agents on your GitHub repositories. The tests, questions and decisions that need you arrive here as cards, and you answer them by replying."),
+        text("Flowee runs a ticket flow for teams of AI agents on your GitHub or GitLab repositories. The tests, questions and decisions that need you arrive here as cards, and you answer them by replying."),
         text("A <b>workspace</b> is one project: its repositories, its agents and the chat where its tickets appear."),
         row(btn("🚀 Set up a workspace", "w:new")),
         row(...(has ? [b("📂 My workspaces", "list")] : []), b("📥 Import a configuration", "import")),
@@ -147,7 +147,7 @@ export class Manager {
         ["🤖 Bot", own ? `its own${d.chat?.username ? `, @${esc(d.chat.username)}` : ""}` : "this bot"],
         { cells: ["🔀 Way of working", wayOf(d.features)], buttons: [edit("flow")] },
         { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] },
-        { cells: ["🔑 GitHub token", "never shown"], buttons: [edit("credential")] },
+        { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
         { cells: ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"], buttons: [edit("roles")] },
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),

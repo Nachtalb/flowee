@@ -21,7 +21,7 @@
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
 import { GitLabHooks } from "./hooks-gitlab";
-import { RECENT_RELEASES } from "../ports/tracker";
+import { RECENT_RELEASES, type TokenHelp } from "../ports/tracker";
 import type {
   Branches,
   Change,
@@ -148,6 +148,19 @@ export function gitlabRepo(api?: string): RepoReference {
     const parts = path.split(/[?#]/)[0].split("/-/")[0].replace(/\/+$/, "").split("/");
     parts[parts.length - 1] = (parts.at(-1) ?? "").replace(/\.git$/i, "");
     return parts.length >= 2 && parts.every((p) => SEG.test(p) && !/^\.+$/.test(p)) ? parts.join("/") : undefined;
+  };
+}
+
+/** A token's scope and the project role the switched-on features need (docs/gitlab.md), and the token form filled in. */
+export function gitlabToken(api?: string): TokenHelp {
+  const web = api ? `https://${new URL(api).host}` : "https://gitlab.com";
+  return (_repos, name, features) => {
+    const on = new Set(features);
+    const role = on.has("pullRequests") ? "Developer (Maintainer to merge into a protected main branch)" : on.has("releases") ? "Planner (Developer to move a tested tag)" : "Planner";
+    return {
+      permissions: ["Scope: api", `Role in each project: ${role}`, "Webhooks: Maintainer, else Flowee checks the tracker every minute"],
+      url: `${web}/-/user_settings/personal_access_tokens?${new URLSearchParams({ name: name.slice(0, 40), scopes: "api" })}`,
+    };
   };
 }
 

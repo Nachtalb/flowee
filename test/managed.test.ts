@@ -108,13 +108,13 @@ const CANCEL = ROW(CB("✖ Cancel", "w:cancel"));
 
 const WELCOME = [
   "<p>👋 <b>Welcome to Flowee</b></p>",
-  "<p>Flowee runs a ticket flow for teams of AI agents on your GitHub repositories. The tests, questions and decisions that need you arrive here as cards, and you answer them by replying.</p>",
+  "<p>Flowee runs a ticket flow for teams of AI agents on your GitHub or GitLab repositories. The tests, questions and decisions that need you arrive here as cards, and you answer them by replying.</p>",
   "<p>A <b>workspace</b> is one project: its repositories, its agents and the chat where its tickets appear.</p>",
   ROW(CB("🚀 Set up a workspace", "w:new")),
   ROW(CB("📥 Import a configuration", "m:import")),
 ].join("");
 const REPOS = (step = "Step 1 of 6", extra = "") =>
-  `<p>🆕 <b>New workspace</b> · ${step}</p><p><b>Which GitHub repository is this workspace for?</b></p><p>Paste the repository's link, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>${extra}`;
+  `<p>🆕 <b>New workspace</b> · ${step}</p><p><b>Which repository is this workspace for?</b></p><p>Paste the repository's link from GitHub or GitLab, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>${extra}`;
 const BOT = [
   "<p>🆕 <b>New workspace</b> · Step 2 of 6</p>",
   "<p><b>Which bot should bring you the tickets?</b></p>",
@@ -252,7 +252,7 @@ describe("the setup wizard: one living message", () => {
     expect(tg.calls.at(-1)).toMatchObject({ method: "answerCallbackQuery", params: { callback_query_id: `q${uid}` } });
     await dm(100, "acme");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
-    edited(id, REPOS("Step 1 of 6", "<p>⚠️ &#39;acme&#39; is not a GitHub repository; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
+    edited(id, REPOS("Step 1 of 6", "<p>⚠️ &#39;acme&#39; is not a repository link of GitHub or GitLab; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
     await dm(100, "https://github.com/acme/app/");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     edited(id, BOT);
@@ -287,7 +287,7 @@ describe("the setup wizard: one living message", () => {
         "<p>🆕 <b>New workspace</b> · Last check</p>",
         "<p><b>Create the workspace <code>app</code>?</b></p>",
         TABLE(
-          FACT("📦 Repositories", "<code>acme/app</code>"),
+          FACT("📦 Repositories", "<code>acme/app</code> on GitHub"),
           FACT("🤖 Bot", "this bot"),
           FACT("🔀 Way of working", "Single branch"),
           FACT("💬 Tickets appear", "here, in this chat"),
@@ -530,6 +530,40 @@ describe("the setup wizard: one living message", () => {
     }
   });
 
+  it("GitLab: gitlab.com and a self-managed host are recognised; the token step names GitLab, its scope and role, and probes GitLab", async () => {
+    const GL = `glpat-${"b".repeat(20)}`;
+    await dm(100, "/setup");
+    await dm(100, "https://gitlab.com/acme/backend/api/-/issues/3");
+    expect(screen()).toContain("<p><b>Which bot should bring you the tickets?</b></p>");
+    await tap(100, "w:back");
+    expect(screen()).toContain("<p>Now: <code>acme/backend/api</code> on GitLab</p>");
+    await tap(100, "w:repos:keep");
+    await tap(100, "w:bot:shared");
+    await tap(100, "w:branch:feature");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:bind:here");
+    expect(screen()).toContain("<p><b>Send me a GitLab token for <code>acme/backend/api</code></b></p>");
+    expect(screen()).toContain("<p>Tap <b>🔑 Create a token</b>: GitLab opens the form with the permissions filled in. Create the token and paste it here.</p>");
+    expect(screen()).toContain(TABLE(FACT("Scope: api"), FACT("Role in each project: Developer (Maintainer to merge into a protected main branch)"), FACT("Webhooks: Maintainer, else Flowee checks the tracker every minute")));
+    expect(screen()).toContain(URL_("🔑 Create a token", "https://gitlab.com/-/user_settings/personal_access_tokens?name=Flowee+api&scopes=api"));
+    expect(screen()).not.toContain("GitHub");
+    await dm(100, GL);
+    await tap(100, "w:roles:done");
+    expect(screen()).toContain(FACT("📦 Repositories", "<code>acme/backend/api</code> on GitLab"));
+    expect(screen()).toContain(FACT("🔑 GitLab token", "checked"));
+    await tap(100, "w:confirm");
+    const doc = (await admin("GET", "/admin/workspaces/api")).body.workspace;
+    expect(doc.tracker).toMatchObject({ type: "gitlab", repos: ["acme/backend/api"], token: "W_API_TRACKER" });
+    expect(doc.tracker.api).toBeUndefined();
+    // a self-managed GitLab, by its host and GitLab's /-/ routes; mixing trackers in one paste is refused in one sentence
+    await dm(200, "/setup");
+    await dm(200, "https://github.com/acme/widget https://gitlab.com/acme/backend/hooks");
+    expect(screen(200)).toContain("<p>⚠️ Paste the repositories of one tracker here; a workspace on several trackers is written as a configuration and imported (📥 Import).</p>");
+    await dm(200, "https://gitlab.example.com/team/tools/lib/-/merge_requests/2");
+    await tap(200, "w:back");
+    expect(screen(200)).toContain("<p>Now: <code>team/tools/lib</code> on GitLab</p>");
+  });
+
   it("leaving the bot step by Back or Cancel takes the reply keyboard away", async () => {
     await dm(200, "/setup");
     await dm(200, "acme/widget");
@@ -637,7 +671,7 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(BOT);
     await tap(100, "w:back");
     expect(screen()).toBe(
-      REPOS("Step 1 of 6", "<p>Now: <code>acme/app</code></p>") + ROW(CB("✅ Keep acme/app", "w:repos:keep")) + CANCEL,
+      REPOS("Step 1 of 6", "<p>Now: <code>acme/app</code> on GitHub</p>") + ROW(CB("✅ Keep acme/app", "w:repos:keep")) + CANCEL,
     );
     await tap(100, "w:repos:keep");
     expect(screen()).toBe(BOT);
@@ -813,9 +847,9 @@ describe("the management menu: one living message", () => {
       id,
       [
         "<p>✏️ <b>Change <code>app</code></b></p>",
-        "<p><b>Which GitHub repository is this workspace for?</b></p>",
-        "<p>Paste the repository's link, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>",
-        "<p>Now: <code>acme/app</code></p>",
+        "<p><b>Which repository is this workspace for?</b></p>",
+        "<p>Paste the repository's link from GitHub or GitLab, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>",
+        "<p>Now: <code>acme/app</code> on GitHub</p>",
         ROW(CB("✅ Keep acme/app", "w:repos:keep")),
         CANCEL,
       ].join(""),

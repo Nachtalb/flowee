@@ -21,7 +21,8 @@ import { INSTANCE_UPDATES, Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
 import { envSecrets, WORKSPACE_HEADER } from "./workspace-host";
-import { GitHub, githubRepo, githubToken } from "./tracker-github";
+import { TRACKER_KINDS } from "../config/trackers";
+import { recognise, TRACKERS } from "./trackers";
 import { randomSecret, seal, unseal, vaultKey } from "./vault";
 
 export const PRIVATE_COMMANDS: Command[] = [
@@ -135,8 +136,9 @@ export class InstanceHost implements InstanceApi {
       botUsername: cfg.bot.username,
       publicUrl: cfg.publicUrl,
       flow: () => flow,
-      parseRepo: githubRepo(cfg.trackerApi),
-      tokenHelp: githubToken(cfg.trackerApi),
+      parseRepo: recognise(cfg.trackerApi),
+      tokenHelp: (t) => TRACKERS[t.kind].tokenHelp(t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined)),
+      trackerName: (kind = "github") => TRACKER_KINDS[kind].name,
       live: (user) => {
         const v = self.kv(`live:${user}`);
         return v === undefined ? undefined : Number(v);
@@ -159,12 +161,13 @@ export class InstanceHost implements InstanceApi {
         return id;
       },
       seal: async (v) => seal(await key(), v),
-      async checkRepos(sealed, repos) {
+      async checkRepos(sealed, repos, t) {
         const token = await unseal(await key(), sealed);
+        const api = t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined);
         const out: string[] = [];
         for (const repo of repos) {
-          const status = await new GitHub({ repo, api: cfg.trackerApi, token, tokenName: "the token" }).probe();
-          if (status !== 200) out.push(`GitHub answered ${status} for ${repo}: the repository does not exist or the token cannot reach it.`);
+          const status = await TRACKERS[t.kind].make({ repo, api, token, tokenName: "the token" }).probe();
+          if (status !== 200) out.push(`${TRACKER_KINDS[t.kind].name} answered ${status} for ${repo}: the repository does not exist or the token cannot reach it.`);
         }
         return out;
       },
@@ -551,7 +554,7 @@ export class InstanceHost implements InstanceApi {
     const name = p.name ?? "Flowee";
     const about =
       p.description ??
-      "Flowee runs a ticket flow for AI agent teams over GitHub repositories and brings the tests, questions and decisions waiting for a human here as cards, answered by replying. Set up a workspace with /setup.";
+      "Flowee runs a ticket flow for AI agent teams over GitHub or GitLab repositories and brings the tests, questions and decisions waiting for a human here as cards, answered by replying. Set up a workspace with /setup.";
     const short = p.shortDescription ?? "Ticket flow for AI agent teams, with your inbox as cards.";
     await step("name", name, () => tg.setName(name));
     await step("description", about, () => tg.setDescription(about));

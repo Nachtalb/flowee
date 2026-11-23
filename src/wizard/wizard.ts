@@ -2,9 +2,21 @@
 // the envoy's blocks (docs/chat-style.md) shown in one living message that each step edits; typed answers are
 // deleted after reading. It reaches the instance through `WizardHost`; docs/managed.md walks through it.
 import type { RepoDoc, WorkspaceDoc } from "../config/document";
+import type { TrackerKind } from "../config/trackers";
 import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
-import type { RepoReference, TokenHelp } from "../ports/tracker";
+import type { TokenHelp } from "../ports/tracker";
+
+/** A workspace's tracker: its kind and, when not the default one, its API (GitHub Enterprise, a self-managed GitLab). */
+export interface TrackerRef {
+  kind: TrackerKind;
+  api?: string;
+}
+
+/** A pasted repository link as the host recognised it. */
+export interface PastedRepo extends TrackerRef {
+  repo: string;
+}
 
 export const TTL = 24 * 3600e3;
 
@@ -25,6 +37,8 @@ export interface Draft {
   /** The name the user gave the own bot when creating it (its profile keeps it). */
   botName?: string;
   repos: string[];
+  /** The tracker the repositories are on (default GitHub). */
+  tracker?: TrackerRef;
   /** Single branch or feature branches (`features.pullRequests`); chosen in the flow step. */
   branching?: "single" | "feature";
   /** The other switches: versioning (`releases`) and the more options. */
@@ -82,16 +96,18 @@ export interface WizardHost {
   /** Why the user may not create another workspace, or null. */
   refusal(user: string, replacing?: string): string | null;
   freeId(base: string): string;
-  /** `owner/name` of a pasted repository link or name (the tracker adapter knows the shapes). */
-  parseRepo: RepoReference;
-  /** The token's permissions and a link to the filled-in token form. */
-  tokenHelp: TokenHelp;
+  /** The repository and its tracker of a pasted link or path (the tracker adapters know the shapes). */
+  parseRepo(ref: string): PastedRepo | undefined;
+  /** The token's permissions on this tracker and a link to the filled-in token form. */
+  tokenHelp(t: TrackerRef): TokenHelp;
+  /** The tracker's name for the screens (`GitHub`, `GitLab`). */
+  trackerName(kind?: TrackerKind): string;
   /** Does the shared bot / own bots exist in this chat (managed-bot support)? */
   ownBots: boolean;
   botUsername?: string;
   seal(value: string): Promise<string>;
-  /** Problems of the sealed token with the repositories, one sentence each (none: usable). */
-  checkRepos(sealed: string, repos: string[]): Promise<string[]>;
+  /** Problems of the sealed token with the repositories on that tracker, one sentence each (none: usable). */
+  checkRepos(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
   /** The workspace other than `except` that already has this repository. */
   repoTaken(repo: string, except?: string): string | undefined;
   /** The managed bot just created: its token stored for the draft, its webhook set. */
@@ -112,7 +128,7 @@ export interface WizardHost {
 }
 
 const b = (label: string, data: string) => btn(label, `w:${data}`);
-export const aliasOf = (repo: string) => repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
+export const aliasOf = (repo: string) => (repo.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
 const code = (s: string) => `<code>${esc(s)}</code>`;
 
 const BRANCHING: Record<"single" | "feature", [string, string, string]> = {
@@ -199,6 +215,7 @@ export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
     base: d,
     bot: d.chat?.managed ? "own" : "shared",
     repos: d.tracker.repos.map((r) => (typeof r === "string" ? r : r.repo)),
+    tracker: { kind: d.tracker.type ?? "github", ...(d.tracker.api ? { api: d.tracker.api } : {}) },
     branching: pullRequests ? "feature" : "single",
     features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false])),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
@@ -244,7 +261,14 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
         .filter(([, on]) => on)
         .map(([k, on]) => [k, typeof base.features?.[k as keyof typeof base.features] === "object" ? base.features?.[k as keyof typeof base.features] : on]),
     ),
-    tracker: { ...(base.tracker ?? {}), type: "github", repos, token: slot(id, "tracker"), ...(api && !base.tracker?.api ? { api } : {}) },
+    tracker: {
+      ...(base.tracker ?? {}),
+      type: d.tracker?.kind ?? "github",
+      repos,
+      token: slot(id, "tracker"),
+      // a self-managed or Enterprise tracker names its API; the instance's GitHub API applies to GitHub only
+      ...(d.tracker?.api ? { api: d.tracker.api } : api && (d.tracker?.kind ?? "github") === "github" && !base.tracker?.api ? { api } : {}),
+    },
     roles: instances(d.roles, preset).map((r) => ({ ...r, secret: slot(id, r.instance) })),
     owners,
   };
@@ -425,9 +449,9 @@ export class Wizard {
         return {
           body: [
             top,
-            question("Which GitHub repository is this workspace for?"),
-            text(`Paste the repository's link, for example ${code("https://github.com/octo/app")}. Several: one per line.`),
-            ...(d.repos.length ? [text(`Now: ${d.repos.map(code).join(", ")}`)] : []),
+            question("Which repository is this workspace for?"),
+            text(`Paste the repository's link from GitHub or GitLab, for example ${code("https://github.com/octo/app")}. Several: one per line.`),
+            ...(d.repos.length ? [text(`Now: ${d.repos.map(code).join(", ")} on ${this.host.trackerName(d.tracker?.kind)}`)] : []),
           ],
           rows: [...(d.repos.length ? [row(b(`✅ Keep ${d.repos.length > 1 ? "these" : esc(d.repos[0])}`, "repos:keep"))] : []), nav],
         };
@@ -524,13 +548,15 @@ export class Wizard {
       }
       case "credential": {
         const on = Object.entries(this.switches(d)).filter(([, v]) => v).map(([k]) => k);
-        const help = this.host.tokenHelp(d.repos, `Flowee ${d.id ?? ""}`.trim(), on);
+        const help = this.host.tokenHelp(d.tracker ?? { kind: "github" })(d.repos, `Flowee ${d.id ?? ""}`.trim(), on);
+        const name = this.host.trackerName(d.tracker?.kind);
+        const github = (d.tracker?.kind ?? "github") === "github";
         return {
           body: [
             top,
-            question(`Send me a GitHub token for ${d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "")}`),
+            question(`Send me a ${name} token for ${d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "")}`),
             text(
-              `${help.url ? "Tap <b>🔑 Create a token</b>: GitHub opens the form with the permissions filled in. " : ""}Under <b>Repository access</b> choose ${d.repos.map(code).join(", ")}, create the token and paste it here.`,
+              `${help.url ? `Tap <b>🔑 Create a token</b>: ${name} opens the form with the permissions filled in. ` : ""}${github ? `Under <b>Repository access</b> choose ${d.repos.map(code).join(", ")}, create the token and paste it here.` : "Create the token and paste it here."}`,
             ),
             text("🔒 I delete your message right away and keep the token encrypted; it is never shown again."),
             text("<b>Permissions it needs</b>"),
@@ -566,11 +592,11 @@ export class Wizard {
     const p = this.host.flow();
     const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => esc(r.instance));
     return [
-      ["📦 Repositories", d.repos.map(code).join(", ")],
+      ["📦 Repositories", `${d.repos.map(code).join(", ")} on ${this.host.trackerName(d.tracker?.kind)}`],
       ["🤖 Bot", d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"],
       ["🔀 Way of working", wayOf(this.switches(d))],
       ["💬 Tickets appear", this.where(s)],
-      ["🔑 GitHub token", d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"],
+      [`🔑 ${this.host.trackerName(d.tracker?.kind)} token`, d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"],
       ["👥 Agents", `${agents.join(", ") || "none"}${agents.length ? " (each gets a new secret)" : ""}`],
     ];
   }
@@ -691,11 +717,11 @@ export class Wizard {
     if (s.step === "credential") {
       const token = text.trim();
       if (!/^[\w-]{20,255}$/.test(token)) {
-        await this.show(s, { note: [kept, "That does not look like a GitHub token; paste just the token."].filter(Boolean).join(" ") });
+        await this.show(s, { note: [kept, `That does not look like a ${this.host.trackerName(d.tracker?.kind)} token; paste just the token.`].filter(Boolean).join(" ") });
         return true;
       }
       const sealed = await this.host.seal(token);
-      const problems = await this.host.checkRepos(sealed, d.repos);
+      const problems = await this.host.checkRepos(sealed, d.repos, d.tracker ?? { kind: "github" });
       if (problems.length) {
         await this.show(s, { note: [kept, ...problems].filter(Boolean).join(" ") });
         return true;
@@ -705,17 +731,22 @@ export class Wizard {
       return true;
     }
     const refs = text.split(/[\s,]+/).filter(Boolean);
-    const bad = refs.filter((r) => !this.host.parseRepo(r));
-    const repos = [...new Set(refs.flatMap((r) => this.host.parseRepo(r) ?? []))];
+    const found = refs.map((r) => this.host.parseRepo(r));
+    const bad = refs.filter((_, i) => !found[i]);
     const no = (why: string) => this.show(s, { note: why }).then(() => true);
-    if (!repos.length || bad.length)
-      return no(`${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not GitHub repositories" : "is not a GitHub repository"}; send its link, for example https://github.com/octo/app.`);
+    if (!refs.length || bad.length)
+      return no(`${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not repository links" : "is not a repository link"} of GitHub or GitLab; send its link, for example https://github.com/octo/app.`);
+    const ok = found as PastedRepo[];
+    if (new Set(ok.map((r) => `${r.kind} ${r.api ?? ""}`)).size > 1)
+      return no("Paste the repositories of one tracker here; a workspace on several trackers is written as a configuration and imported (📥 Import).");
+    const repos = [...new Set(ok.map((r) => r.repo))];
     const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));
     if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces)}'; a repository belongs to one workspace only.`);
     const aliases = repos.map(aliasOf);
     const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
     if (dup) return no(`Two repositories are both called '${dup}'; import a configuration that names them apart instead.`);
     d.repos = repos;
+    d.tracker = { kind: ok[0].kind, ...(ok[0].api ? { api: ok[0].api } : {}) };
     if (!d.id) d.id = this.host.freeId(aliasOf(repos[0]));
     if (!d.bindCode) d.bindCode = d.id;
     await this.advance(s);
