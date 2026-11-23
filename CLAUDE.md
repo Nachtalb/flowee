@@ -86,7 +86,7 @@ src/
               (the chat adapters by kind, chatOf), files-paste.ts, workspace-host.ts (one host per
               workspace on its runtime's room; wires a document to its adapters), instance.ts (mode, the instance's
               registry), instance-host.ts (managed mode: the stored registry, sealed secrets, wizard host, update
-              routing, /admin, pasted imports only after /import), vault.ts (AES-GCM), photo.ts (the default bot
+              routing, /admin, pasted imports only after 📥 Import), vault.ts (AES-GCM), photo.ts (the default bot
               photo: assets/logo-square.svg rendered at 256 px, base64)
   runtime/    the runtime boundary: platform.ts (Room, Platform: what a runtime gives the hosts), router.ts (every
               runtime's HTTP routes: resolves each request's workspace, forwards to its host; the minute's tick,

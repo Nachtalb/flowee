@@ -110,8 +110,8 @@ beforeAll(async () => {
     await m.press(label).catch(() => undefined);
     await m.press(back).catch(() => undefined);
   }
-  await m.sync({ text: { text: "/import" } });
-  await m.sync({ text: { text: "/export" } });
+  await m.sync({ text: { text: "/workspaces" } });
+  await m.press("📥 Import").catch(() => undefined);
   const seen = new Map<string, View>();
   for (const v of [...c.seen, ...m.seen]) seen.set(JSON.stringify(v), v);
   [...seen.values()].forEach((v, i) => walked.push([`walk ${String(i + 1).padStart(2, "0")}`, v]));

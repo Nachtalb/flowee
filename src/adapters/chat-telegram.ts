@@ -232,7 +232,8 @@ export class Telegram implements Chat {
           : scope === "groups"
             ? { type: "all_group_chats" }
             : { type: "chat", chat_id: scope.chat };
-    await this.call("setMyCommands", { commands, scope: s });
+    // no commands of its own: the scope falls back to the wider one's
+    await this.call(commands.length ? "setMyCommands" : "deleteMyCommands", commands.length ? { commands, scope: s } : { scope: s });
   }
   async setSettings(s: BotSettings) {
     await this.call("setMySettings", {

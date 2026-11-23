@@ -133,12 +133,12 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
   const bot = f.bot ? `@${f.bot}` : null;
   const create =
     f.mode === "managed"
-      ? `yes, for the instance owner${f.creators ? " and the users its operator listed as creators" : ""} (up to ${f.perUser} each): in a private chat with ${bot ?? "the instance bot"}, \`/setup\` starts the wizard, or send the workspace document as a \`.json\` file (or \`/import\`, then paste it). Anyone else is refused by the bot. With the operator's admin token: \`PUT ${u("/admin/workspaces/<id>")}\`.`
+      ? `yes, for the instance owner${f.creators ? " and the users its operator listed as creators" : ""} (up to ${f.perUser} each): in a private chat with ${bot ?? "the instance bot"}, \`/setup\` starts the wizard, or send the workspace document as a \`.json\` file (or tap 📥 Import under \`/workspaces\`, then paste it). Anyone else is refused by the bot. With the operator's admin token: \`PUT ${u("/admin/workspaces/<id>")}\`.`
       : `no: this instance serves only the workspaces its operator configured. A new workspace is added to the operator's document and the instance restarted or deployed again (${u("/INSTALL.md")}, variants 2 to 4).`;
   const submit =
     f.mode === "managed"
       ? [
-          `   - In the chat (the usual way): the user sends the \`.json\` file to ${bot ?? "the instance bot"} in a private chat (or \`/import\`, then pastes it). The bot lists what it will create, asks only for what is missing and then sends the project key ONCE as a file with a ready \`.flowee.toml\`.`,
+          `   - In the chat (the usual way): the user sends the \`.json\` file to ${bot ?? "the instance bot"} in a private chat (or taps 📥 Import under \`/workspaces\`, then pastes it). The bot lists what it will create, asks only for what is missing and then sends the project key ONCE as a file with a ready \`.flowee.toml\`.`,
           `   - Over HTTP, only when the user gave you the instance's admin token: \`PUT ${u("/admin/workspaces/<id>")}\` with the document, then \`PUT ${u("/admin/workspaces/<id>/secrets")}\` and \`POST ${u("/admin/workspaces/<id>/key")}\` (the project key, answered once; ${u("/docs/api.md")}, "Configuration API").`,
           "   - What only the user can do: create the tracker token (fine-grained, limited to the repositories, the permissions in " +
             `${u("/skills/flowee-install/references/project-setup.md")}) and paste it when the bot asks; press **🤖 Create the bot** when the workspace gets its own bot; add the bot to the group (and enable topics) when the tickets go to a group; answer the cards.`,

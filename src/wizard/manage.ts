@@ -121,7 +121,7 @@ export class Manager {
             })),
           },
         },
-        row(btn("🚀 New workspace", "w:new"), b("📥 Import", "import")),
+        row(btn("🚀 New workspace", "w:new"), b("📥 Import", "import"), b("📤 Export all", "exportall")),
       ],
       bottom,
     );
@@ -249,6 +249,10 @@ export class Manager {
     }
     if (k === "import") {
       await this.importPrompt(user, at);
+      return;
+    }
+    if (k === "exportall") {
+      await this.exportAll(user, at);
       return;
     }
     if (k === "noimport") {

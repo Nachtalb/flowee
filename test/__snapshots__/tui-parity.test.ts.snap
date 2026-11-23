@@ -910,7 +910,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃                                                                              ┃
 ┃ ⬜ Versioning · You get a test card only once a published                    ┃
 ┃ version has the ticket's code; the card says “In 1.4 or                      ┃
-┃ later”.                                                        [ Switch on ] ┃
+┃ later”.                                                     [ ⚙️ Configure ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
@@ -1042,12 +1042,12 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃                                                                              ┃
 ┃ ⬜ Versioning · You get a test card only once a published                    ┃
 ┃ version has the ticket's code; the card says “In 1.4 or                      ┃
-┃ later”.                                                        [ Switch on ] ┃
+┃ later”.                                                     [ ⚙️ Configure ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
 ┃                                                                              ┃
-┃ ⬜ UI review · A pass that changes the screens comes to you                  ┃
-┃ first; it needs the paths that count as UI.                    [ Switch on ] ┃
+┃ ⬜ UI review · A pass that changes the screens comes to                      ┃
+┃ you first; it needs the paths that count as UI.             [ ⚙️ Configure ] ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1149,7 +1149,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ app        acme/app      ▶ running  [ Open ]                                 ┃
 ┃ widget     acme/widget   ▶ running  [ Open ]                                 ┃
 ┃                                                                              ┃
-┃                      [ 🚀 New workspace ] [ 📥 Import ]                      ┃
+┃             [ 🚀 New workspace ] [ 📥 Import ] [ 📤 Export all ]             ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
@@ -2753,17 +2753,17 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: none;                  ┃
 │                                                │┃ Merge method: Merge; Who merges: On the pass                             [ ⚙️ Change ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version has                  ┃
-│                                                │┃ the ticket's code; the card says “In 1.4 or later”.                      [ Switch on ] ┃
+│                                                │┃ ⬜ Versioning · You get a test card only once a published version                      ┃
+│                                                │┃ has the ticket's code; the card says “In 1.4 or later”.               [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
-│                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
+│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first;                     ┃
+│                                                │┃ it needs the paths that count as UI.                                  [ ⚙️ Configure ] ┃
 │                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
-│                                                │┃ becomes a ticket the developers merge.                                   [ Switch on ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
-│                                                │┃ first.                                                                   [ Switch on ] ┃
+│                                                │┃ becomes a ticket the developers merge.                                [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a                      ┃
+│                                                │┃ human first.                                                          [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
 │                                                │┃                                                                                        ┃
@@ -2965,17 +2965,17 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ With Single branch. Each switch works on its own; one that needs details asks for them ┃
 │                                                │┃ next. You can change them later.                                                       ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version has                  ┃
-│                                                │┃ the ticket's code; the card says “In 1.4 or later”.                      [ Switch on ] ┃
+│                                                │┃ ⬜ Versioning · You get a test card only once a published version                      ┃
+│                                                │┃ has the ticket's code; the card says “In 1.4 or later”.               [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
-│                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
+│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first;                     ┃
+│                                                │┃ it needs the paths that count as UI.                                  [ ⚙️ Configure ] ┃
 │                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
-│                                                │┃ becomes a ticket the developers merge.                                   [ Switch on ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
-│                                                │┃ first.                                                                   [ Switch on ] ┃
+│                                                │┃ becomes a ticket the developers merge.                                [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a                      ┃
+│                                                │┃ human first.                                                          [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
 │                                                │┃                                                                                        ┃
@@ -3138,7 +3138,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ app        acme/app      ▶ running  [ Open ]                                           ┃
 │                                                │┃ widget     acme/widget   ▶ running  [ Open ]                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃                           [ 🚀 New workspace ] [ 📥 Import ]                           ┃
+│                                                │┃                  [ 🚀 New workspace ] [ 📥 Import ] [ 📤 Export all ]                  ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃

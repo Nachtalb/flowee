@@ -165,7 +165,7 @@ const TOGGLE = (f: string, on: Record<string, boolean>, lines: Record<string, st
   OPT(
     `${on[f] ? "✅" : "⬜"} ${OPTION_TEXT[f][0]}`,
     `${(!on[f] && OPTION_TEXT[f][2]) || OPTION_TEXT[f][1]}${on[f] && ASKS.has(f) ? ` ${lines[f] ?? LINES[f]}` : ""}`,
-    CB(on[f] ? "Switch off" : "Switch on", `w:feat:${f}`),
+    CB(on[f] ? "Switch off" : "⚙️ Configure", `w:feat:${f}`),
     ...(on[f] && ASKS.has(f) ? [CB("⚙️ Change", `w:in:open:${f}`)] : []),
   );
 /** The second screen of the flow step: versioning, then the more options, each a toggle row. */
@@ -496,9 +496,9 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:bot:shared");
     await tap(100, "w:branch:feature");
     expect(screen()).toBe(OPTIONS("Feature branches"));
-    // an option that needs details asks for them in the same message; ▶ Done with the defaults switches it on
+    // an option that needs details asks for them in the same message; ✅ Apply with the defaults switches it on
     await tap(100, "w:feat:releases");
-    const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ▶ Done keeps what is shown.</p>";
+    const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.</p>";
     expect(screen()).toBe(
       [
         "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
@@ -509,7 +509,7 @@ describe("the setup wizard: one living message", () => {
           OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:in:set:testedTag:tested"), CB("✏️ Type", "w:in:type:testedTag")),
           OPT("✅ Hold test cards", "Test cards wait until a published version has the ticket&#39;s code.".replace("&#39;", "'"), CB("Switch off", "w:in:flag:hold")),
         ),
-        ROW(CB("◀ Back", "w:in:back"), CB("▶ Done", "w:in:done"), CB("✖ Cancel", "w:cancel")),
+        ROW(CB("◀ Back", "w:in:back"), CB("✅ Apply", "w:in:done"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
     );
     // a tag as the source asks for that tag, which is required
@@ -959,7 +959,7 @@ describe("the management menu: one living message", () => {
       [
         "<p>📂 <b>Your workspaces</b></p>",
         '<table bordered striped compact><tr><th>Workspace</th><th>Repositories</th><th>State</th><th></th></tr><tr><td>app</td><td>acme/app</td><td>▶ running</td><td><tg-button type="callback_data" style="primary" data="m:ws:app">Open</tg-button></td></tr></table>',
-        ROW(CB("🚀 New workspace", "w:new"), CB("📥 Import", "m:import")),
+        ROW(CB("🚀 New workspace", "w:new"), CB("📥 Import", "m:import"), CB("📤 Export all", "m:exportall")),
       ].join(""),
     );
     await tap(100, "m:ws:app");
@@ -1231,9 +1231,9 @@ describe("export and import", () => {
 
   it("managers the creator names in the document manage the workspace too; the creator stays its creator", async () => {
     await sharedSetup(100);
-    await dm(100, "/export");
+    await tap(100, "m:exportall");
     const out = JSON.parse(await (tg.of("sendDocument").at(-1)?.document as File).text());
-    await dm(100, "/import");
+    await tap(100, "m:import");
     await dm(100, JSON.stringify({ ...out.workspaces[0], managers: ["300"] }));
     await tap(100, "w:confirm");
     expect((await admin("GET", "/admin/workspaces/app")).body.workspace.managers).toEqual(["300"]);
@@ -1253,7 +1253,7 @@ describe("export and import", () => {
 
   it("export -> edit -> import through the chat: only the missing secrets are asked", async () => {
     await sharedSetup(100);
-    await dm(100, "/export");
+    await tap(100, "m:exportall");
     expect(tg.of("sendDocument").at(-1)?.caption).toBe("📤 Your workspaces, without secrets.");
     const out = JSON.parse(await (tg.of("sendDocument").at(-1)?.document as File).text());
     expect(out).toMatchObject({ flowee: 1, workspaces: [{ id: "app" }] });
@@ -1293,7 +1293,8 @@ describe("export and import", () => {
   });
 
   it("a pasted document with problems: one sentence each with its JSON path, in the living message; nothing created", async () => {
-    await dm(100, "/import");
+    await dm(100, "/start");
+    await tap(100, "m:import");
     expect(screen()).toBe(PROMPT);
     await dm(100, JSON.stringify({ flowee: 1, id: "Bad Id", flow: { preset: "kanban" }, tracker: { type: "github", repos: [], token: "x" }, roles: [], owners: [] }));
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
@@ -1332,7 +1333,7 @@ describe("export and import", () => {
     expect(r.body.message).toBe("$.workspaces[1].tracker.repos[0]: 'acme/app' is already in workspace 'app'; a repository belongs to one workspace only.");
   });
 
-  it("pasted JSON is imported only as the answer to /import or 📥 Import", async () => {
+  it("pasted JSON is imported only as the answer to 📥 Import", async () => {
     const doc = JSON.stringify({ flowee: 1, id: "pasted", flow: { preset: "trunk" }, tracker: { type: "github", repos: ["acme/app"], token: "X" }, roles: [{ instance: "owner", role: "owner", secret: "Y" }], owners: [{ name: "A" }] });
     await dm(100, doc);
     expect(screen()).toBe(WELCOME);
@@ -1387,6 +1388,16 @@ describe("export and import", () => {
 });
 
 describe("the instance bot's profile", () => {
+  it("/workspaces is in the menu only of someone who manages a workspace", async () => {
+    const menus = (chat: string) => tg.of("setMyCommands").filter((c) => c.scope?.chat_id === chat).map((c) => c.commands.map((x: { command: string }) => x.command));
+    await dm(200, "/start");
+    expect(menus("200")).toEqual([]);
+    await sharedSetup(100);
+    await dm(100, "/workspaces");
+    expect(menus("100").at(-1)).toEqual(["start", "todo", "postponed", "new", "setup", "workspaces"]);
+    expect(menus("100").flat()).not.toContain("import");
+  });
+
   it("is set on /setup once per change, with the settings Flowee needs", async () => {
     const first = (await (await worker.fetch(new Request("https://flowee.test/setup"), menv())).json()) as Record<string, Record<string, string>>;
     expect(first.instance).toEqual({ name: "set", description: "set", short_description: "set", commands: "set", settings: "set", photo: "set", webhook: "set" });
@@ -1402,6 +1413,7 @@ describe("the instance bot's profile", () => {
       },
     ]);
     expect(tg.of("setMyCommands")[0].scope).toEqual({ type: "all_private_chats" });
+    expect(tg.of("setMyCommands")[0].commands.map((c: { command: string }) => c.command)).toEqual(["start", "setup"]);
     expect(tg.of("setWebhook")[0]).toMatchObject({ url: "https://flowee.test/telegram", allowed_updates: ["message", "callback_query", "managed_bot"] });
     expect(tg.of("setMyDescription")[0].description).not.toMatch(/Ann|owner's name/);
     tg.calls = [];

@@ -18,7 +18,7 @@ Telegram chat, in a terminal (`flowee-tui`), or both.
 | Public address | no | no (polling); optional behind a reverse proxy for webhooks | no (polling); optional, as 2 | yes, the Worker's `*.workers.dev` URL |
 | Who it suits | Trying Flowee, or one project without running anything | Anyone with a machine that stays on (a server, a NAS, a desktop) | A machine without containers, or development | Several people or projects, nothing to keep running yourself |
 | Chat side | Telegram (the instance's bot or a bot it creates for you) | Telegram, terminal, both, or none (API only) | Telegram, terminal, both, or none | Telegram, terminal, both, or none |
-| You control | your workspace (its document, export with `/export`) | everything: data, keys, upgrades | everything | everything, on Cloudflare's platform |
+| You control | your workspace (its document, export from `/workspaces`) | everything: data, keys, upgrades | everything | everything, on Cloudflare's platform |
 | You do not control | where the data lives, the instance's key that seals your tracker token, its uptime, version and limits; its operator can read the workspace's data | | | |
 
 There is no download of a finished executable: variant 3 builds it from a clone. The terminal client `flowee-tui` is

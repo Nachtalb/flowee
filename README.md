@@ -261,8 +261,8 @@ another client: [docs/tui-protocol.md](docs/tui-protocol.md).
 
 ## Export and import
 
-- Managed mode, in the chat: `/export` sends your workspaces as a file; send a `.json` file to the bot (or `/import`
-  and paste it) to create or replace one. Only what is missing is asked afterwards.
+- Managed mode, in the chat: `/workspaces` has 📤 Export all, which sends your workspaces as a file; send a `.json` file to the bot (or tap
+  📥 Import and paste it) to create or replace one. Only what is missing is asked afterwards.
 - Managed mode, over HTTP: `PUT /admin/workspaces/<id>` with the document, `PUT …/secrets` with the values
   ([docs/api.md](docs/api.md#configuration-api-managed-mode)).
 - Standalone: edit `flowee.config.local.json` and `bun run deploy` again.

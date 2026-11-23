@@ -31,7 +31,7 @@ follow them. The building blocks are written once, in `src/envoy/render.ts`; no 
   come only after the screen's last table. Telegram's rich-message table cells take inline formatting only
   (Bot API 10.5, "Rich HTML style"), and a `tg-button` is inline, so the button sits in the row's last cell; the
   reference states no limit of rows or buttons per message, and a screen keeps to a handful of rows.
-- **A toggle is a row too**: state (✅/⬜), name, description, and its `Switch on` / `Switch off` button.
+- **A toggle is a row too**: state (✅/⬜), name, description, and its `Switch on` / `Switch off` button; an option that asks for values first has `⚙️ Configure` in place of `Switch on`, and its screen ends with `✅ Apply`.
 - **The current choice** is marked on its own row's button: `● Chosen`.
 - **Navigation stays in the bottom button row**: `◀ Back`, `▶ Next` (where a screen has toggles or counters),
   `✖ Cancel` in one row; `« Back` / `« All workspaces` in the menu. A screen's main action (`✅ Create the
@@ -64,7 +64,7 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
 - Errors: one sentence that says what to do, with an example where it helps.
 - **A switch is never a dead end; an option asks for what it needs.** Switching on an option that needs values opens
   its follow-up screen in the same living message (one screen per option, one row per value: the default marked,
-  suggestions as buttons, ✏️ Type, a sent file); the option is on only when its values are usable, ▶ Done works
+  suggestions as buttons, ✏️ Type, a sent file); the option is on only when its values are usable, ✅ Apply works
   without typing wherever a default exists, and switching it off keeps the values. No screen tells the user to
   export, edit and import to finish a choice the bot could ask for.
 
@@ -73,7 +73,7 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
 - **One living message per conversation.** A screen replaces the previous one by editing the same message
   (`live()` in `src/ports/chat.ts`, `Living` in `src/wizard/wizard.ts`). The wizard is one message from the first
   step to `✅ Workspace ready`; Back, Cancel, Next and every menu button edit it.
-- **A typed command** (`/setup`, `/workspaces`, `/import`, `/start`) shows its screen as a new message at the
+- **A typed command** (`/setup`, `/workspaces`, `/start`) shows its screen as a new message at the
   bottom and deletes the previous living message, like the envoy's bar.
 - **A pressed button** edits the message it was pressed on; an older living message is deleted.
 - **Typed answers are deleted** after reading (the token always; in private chats everything the bot asked for:

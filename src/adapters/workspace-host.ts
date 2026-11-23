@@ -18,6 +18,7 @@ import { TRACKERS } from "./trackers";
 import { chatOf } from "./chats";
 import { MAX_FILE, type Terminal, type TuiFrame, type TuiPerson } from "./chat-tui";
 import { registry, type Env } from "./instance";
+import { MANAGER_COMMANDS, PRIVATE_COMMANDS } from "./instance-host";
 import { PHOTO } from "./photo";
 import { seal, unseal, vaultKey } from "./vault";
 
@@ -278,6 +279,9 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
     envoy = new Envoy(flow, chat, files, async () =>
       photo ? (await fetch(photo)).arrayBuffer() : own?.(),
     );
+    // the instance's bot in its creator's private chat also sets up and manages workspaces there: the chat's menu keeps those commands
+    const managed = store.rows("SELECT 1 FROM meta WHERE k = 'doc'").length > 0;
+    if (managed && !doc.chat?.managed && !String(flow.s.chat?.chat).startsWith("-")) envoy.shared = [...PRIVATE_COMMANDS, ...MANAGER_COMMANDS].filter((c) => c.command !== "start");
     envoy.version = env.VERSION?.id ?? "dev";
     flow.envoy = envoy;
   }

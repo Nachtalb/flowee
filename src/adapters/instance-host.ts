@@ -22,6 +22,7 @@ import { Terminal, type TuiFrame, tuiTables } from "./chat-tui";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
 import { envSecrets, PERSON_HEADER, WORKSPACE_HEADER } from "./workspace-host";
+import { COMMANDS as INBOX_COMMANDS } from "../envoy/envoy";
 import { json } from "../api/http";
 import { TRACKER_KINDS } from "../config/trackers";
 import { recognise, TRACKERS } from "./trackers";
@@ -30,10 +31,9 @@ import { randomSecret, seal, unseal, vaultKey } from "./vault";
 export const PRIVATE_COMMANDS: Command[] = [
   { command: "start", description: "what Flowee does" },
   { command: "setup", description: "set up a workspace" },
-  { command: "workspaces", description: "your workspaces" },
-  { command: "import", description: "import a configuration" },
-  { command: "export", description: "export your configurations" },
 ];
+/** What someone who manages a workspace has besides: shown in that person's chat only. */
+export const MANAGER_COMMANDS: Command[] = [{ command: "workspaces", description: "your workspaces" }];
 
 export class InstanceHost implements InstanceApi {
   readonly store: Store;
@@ -461,6 +461,8 @@ export class InstanceHost implements InstanceApi {
     } catch (err) {
       await this.failed(tg, e, err);
       return {};
+    } finally {
+      if (e.kind === "press" || (e.kind === "message" && e.chatKind === "private")) await this.menuOf(tg, e.from).catch((err) => console.warn("menu", err));
     }
   }
 
@@ -472,6 +474,19 @@ export class InstanceHost implements InstanceApi {
     if (e.kind === "message" && e.chatKind !== "private") return void (await tg.view(at, failedView(why, false).slice(0, 2)).catch(() => {}));
     const { wizard, host } = this.tools(tg, person);
     await wizard.living.show(e.from, { chat: e.from }, failedView(why, !!host.load(e.from))).catch(() => {});
+  }
+
+  /** A person's command menu in the private chat: /workspaces only for someone who manages a workspace. */
+  private async menuOf(tg: Chat, user: string) {
+    const manages = this.tools(tg).host.owned(user).length > 0;
+    // a workspace bound to this private chat on the instance's bot has its inbox there: its commands come first, and
+    // the workspace keeps the menu's counts current afterwards (its own list ends with these too)
+    const inbox = this.registry.list().some((d) => d.chat && !d.chat.managed && d.chat.chatId === user && !d.chat.topicId);
+    const want = inbox ? "inbox" : manages ? "manager" : "none";
+    if ((this.kv(`menu:${user}`) ?? "none") === want) return;
+    const own = [...PRIVATE_COMMANDS, ...MANAGER_COMMANDS];
+    await tg.setScopedCommands?.(want === "inbox" ? [...INBOX_COMMANDS, ...own.filter((c) => c.command !== "start")] : want === "manager" ? own : [], { chat: user });
+    this.setKv(`menu:${user}`, want);
   }
 
   private async onMain(tg: Chat, e: ChatEvent, person?: { digest: string; name: string }): Promise<Routed> {
@@ -515,14 +530,6 @@ export class InstanceHost implements InstanceApi {
       await manager.list(e.from, e.at, true);
       return {};
     }
-    if (cmd === "export") {
-      await manager.exportAll(e.from, e.at);
-      return {};
-    }
-    if (cmd === "import") {
-      await manager.importPrompt(e.from, e.at, true);
-      return {};
-    }
     const c = e.content;
     // a file while an option asks for its values is those values (a .json or a text file)
     if (typeof c === "object" && "files" in c && /\.(json|txt)$/i.test(c.files[0]?.name ?? "") && host.load(e.from)) {
@@ -542,7 +549,7 @@ export class InstanceHost implements InstanceApi {
     }
     // a reply to one of the bot's messages (a card) is never wizard input
     if (typeof e.text === "string" && !e.replyTo && (await wizard.input(e.from, e.at, { kind: "text", text: e.text, message: e.id }))) return {};
-    // pasted JSON counts only as the answer to /import; a file always does
+    // pasted JSON counts only as the answer to 📥 Import; a file always does
     const asked = Number(this.kv(`import:${e.from}`) ?? 0) > Date.now() - 24 * 3600e3;
     if (typeof e.text === "string" && asked) {
       await tg.remove(e.at, e.id).catch(() => {});

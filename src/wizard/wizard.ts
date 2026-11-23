@@ -539,7 +539,7 @@ export class Wizard {
           option(
             `${d.features[f] ? "✅" : "⬜"} ${OPTIONS[f][0]}`,
             `${(!d.features[f] && OPTIONS[f][2]) || OPTIONS[f][1]}${d.features[f] && INPUTS[f as keyof typeof INPUTS] ? ` ${this.inputLine(d, f)}` : ""}`,
-            b(d.features[f] ? "Switch off" : "Switch on", `feat:${f}`),
+            b(d.features[f] ? "Switch off" : INPUTS[f as keyof typeof INPUTS] ? "⚙️ Configure" : "Switch on", `feat:${f}`),
             ...(d.features[f] && INPUTS[f as keyof typeof INPUTS] ? [b("⚙️ Change", `in:open:${f}`)] : []),
           );
         const more = offered.filter((f) => f !== "releases");
@@ -739,10 +739,10 @@ export class Wizard {
         text(
           typing
             ? `Type ${esc(typing.name.toLowerCase())} as your next message${typing.type === "list" ? ", one per line" : ""}.`
-            : "Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ▶ Done keeps what is shown.",
+            : "Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.",
         ),
       ],
-      rows: [options(...rows), row(b("◀ Back", "in:back"), b("▶ Done", "in:done"), b("✖ Cancel", "cancel"))],
+      rows: [options(...rows), row(b("◀ Back", "in:back"), b("✅ Apply", "in:done"), b("✖ Cancel", "cancel"))],
     };
   }
 

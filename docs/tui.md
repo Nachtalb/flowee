@@ -101,8 +101,8 @@ the same cards under the same ids, an answer given in Telegram shows in the term
 
 People listed in the instance's `instance.tui.people`, and every manager of a workspace's `tui.people`, see a
 seat **Setup and management** (`w`). It is the instance bot's private chat in the terminal: the welcome, the
-setup wizard (`/setup`), your workspaces (`/workspaces`), export (`/export`: the file is saved) and import (`Ctrl+O`
-a `.json` file, or `/import` and paste it). A workspace set up here gets the terminal as its inbox and you as its
+setup wizard (`/setup`), your workspaces (`/workspaces`), export (📤 Export all there: the file is saved) and import (`Ctrl+O`
+a `.json` file, or 📥 Import and paste it). A workspace set up here gets the terminal as its inbox and you as its
 first manager; the project key is saved as a file (mode 600). Its menu has **👥 People**: *Add a member* or
 *Add a manager* makes a key and hands it over once as a `.key` file for you to pass on; *Remove* stops a key at
 once. The admin API does the same (docs/api.md, "Configuration API").

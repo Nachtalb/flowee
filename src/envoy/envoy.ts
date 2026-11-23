@@ -161,6 +161,9 @@ export class Envoy implements Inbox {
     this.at = c.topic ? { chat: c.chat, topic: c.topic } : { chat: c.chat };
   }
 
+  /** Commands the bot has besides the inbox in this chat: a chat's own menu hides the bot's general one, so they are listed again. */
+  shared: Command[] = [];
+
   // ---- storage ----
 
   private rows<R>(q: string, ...a: (string | number | null)[]) {
@@ -465,9 +468,10 @@ export class Envoy implements Inbox {
   async refreshMenu() {
     const n = this.openCount();
     const p = this.postponedItems().length;
-    const cmds = COMMANDS.map((c) =>
-      c.command === "todo" ? { ...c, description: `${n} open items` } : c.command === "postponed" ? { ...c, description: `${p} postponed tickets` } : c,
-    );
+    const cmds = [
+      ...COMMANDS.map((c) => (c.command === "todo" ? { ...c, description: `${n} open items` } : c.command === "postponed" ? { ...c, description: `${p} postponed tickets` } : c)),
+      ...this.shared,
+    ];
     // a backend with a side view keeps the open items there (it skips one that did not change)
     if (this.chat.panel) await this.chat.panel(this.at, panel(this.openItems(), p, this.answeredToday(), this.now())).catch((e) => console.warn("panel", e));
     const mark = cmds.map((c) => `${c.command}=${c.description};`).join("");
