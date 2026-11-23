@@ -6,10 +6,13 @@ tracker API is that stand-in, then walks a ticket from filing to closed with eac
 
   python3 test/e2e/wire.py [--flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]]
 
-`client/flowee.py` always runs (workspace w2, URL /w/w2). `--flow-py` adds an external client written against the
-same wire contract, run unchanged (workspace w1, plain /v1 paths resolved by its token): the proof that the API stays
-wire-compatible with it. It reads `<PREFIX>_URL`, `<PREFIX>_AS` and `<PREFIX>_TOKEN`, and writes owner cards under
-`### <TEXT>`.
+`client/flowee.py` always runs (workspace w2, URL /w/w2) the way a new workspace works: one project key; the agents
+read the roles and create themselves (`flowee.py roles`, `agents add`, idempotent) before the walk, then act with the
+key and their name; an agent is paused, renamed and removed at the end. Every workspace but w1 works that way. w1 keeps
+the former way, a secret per agent named in the document: `--flow-py` runs an external client written against the same
+wire contract there, unchanged (plain /v1 paths resolved by its token), the proof that the API stays wire-compatible
+with it; without it, flowee.py walks w1 with per-agent secrets. It reads `<PREFIX>_URL`, `<PREFIX>_AS` and
+`<PREFIX>_TOKEN`, and writes owner cards under `### <TEXT>`.
 Then flowee.py walks a `pr-release` ticket (workspace w3: pull requests with a required check, releases with a held
 card and the tested tag) through a branch pushed to a scratch bare repository the stand-in GitHub reads, and the same
 two walks run on GitLab (workspaces g2 and g3, a nested `acme/team/<id>` project): issues, notes, a merge request,
@@ -376,12 +379,13 @@ class Telegram:
         return [b for m, b in self.calls if m == method]
 
 
-def workspace(id, heading, gh, preset="trunk", features=None, gitlab=False):
+def workspace(id, heading, gh, preset="trunk", features=None, gitlab=False, keyed=True):
     tracker = ({"type": "gitlab", "repos": [f"acme/team/{id}"], "api": f"{gh.url}/api/v4", "token": "GITLAB_TOKEN"} if gitlab
                else {"type": "github", "repos": [f"acme/{id}"], "api": gh.url, "token": "GITHUB_TOKEN"})
     return {"flowee": 1, "id": id, "flow": {"preset": preset}, **({"features": features} if features else {}),
             "tracker": tracker,
-            "roles": [{"instance": w, "role": ROLE[w], "secret": f"{id.upper()}_{w.upper()}"} for w in WHO],
+            **({"agents": {"key": f"{id.upper()}_KEY"}} if keyed else
+               {"roles": [{"instance": w, "role": ROLE[w], "secret": f"{id.upper()}_{w.upper()}"} for w in WHO]}),
             "owners": [{"name": "Owner", "tracker": "owner"}], "texts": {"cardHeading": heading}}
 
 
@@ -400,7 +404,7 @@ def config_for(gh, gl, heading1, polling):
     w3 = workspace("w3", "For the owner", gh, "pr-release", rel)
     g3 = workspace("g3", "For the owner", gl, "pr-release", rel, gitlab=True)
     w4 = {**workspace("w4", "For the owner", gh), "sync": {"webhooks": "auto"}}
-    ws = [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3, w4]
+    ws = [workspace("w1", heading1, gh, keyed=False), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3, w4]
     if polling:
         # a chat without a public URL: Telegram by getUpdates, the tracker polled on the tick
         w5 = workspace("w5", "For the owner", gh)
@@ -410,11 +414,16 @@ def config_for(gh, gl, heading1, polling):
     return {"flowee": 1, "workspaces": ws}
 
 
+KEYED = ("w2", "w3", "g2", "g3", "w4", "w5")
+
+
 def secrets():
+    """The project keys' digests (w1: each agent's secret's), as the instance stores them."""
     out = {"GITHUB_TOKEN": "gh-test", "GITLAB_TOKEN": "gl-test", "FLOWEE_KEY": "wire-key", "W5_BOT": BOT_TOKEN}
-    for ws in ("w1", "w2", "w3", "g2", "g3", "w4", "w5"):
-        for w in WHO:
-            out[f"{ws.upper()}_{w.upper()}"] = hashlib.sha256(f"{ws}-{w}".encode()).hexdigest()
+    for w in WHO:
+        out[f"W1_{w.upper()}"] = hashlib.sha256(f"w1-{w}".encode()).hexdigest()
+    for ws in KEYED:
+        out[f"{ws.upper()}_KEY"] = hashlib.sha256(f"{ws}-key".encode()).hexdigest()
     return out
 
 
@@ -481,9 +490,9 @@ def start_worker(scratch, gh, gl, heading1):
     args = ["npx", "wrangler", "dev", "--ip", "127.0.0.1", "--port", str(port), "--persist-to", str(scratch / "state"),
             "--show-interactive-dev-session=false", "--test-scheduled", "--var", f"FLOWEE_CONFIG:{json.dumps(config)}", "--var", "GITHUB_TOKEN:gh-test",
             "--var", "GITLAB_TOKEN:gl-test", "--var", "FLOWEE_KEY:wire-key"]
-    for ws in ("w1", "w2", "w3", "g2", "g3", "w4"):
-        for w in WHO:
-            args += ["--var", f"{ws.upper()}_{w.upper()}:{hashlib.sha256(f'{ws}-{w}'.encode()).hexdigest()}"]
+    for k, v in secrets().items():
+        if k.startswith(("W1_",)) or k.endswith("_KEY") and k != "FLOWEE_KEY":
+            args += ["--var", f"{k}:{v}"]
     p = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, NO_COLOR="1"))
     for line in p.stdout:
         if "Ready on" in line:
@@ -495,8 +504,8 @@ def start_worker(scratch, gh, gl, heading1):
 
 
 class Client:
-    def __init__(self, name, argv, env, gates_name, repo):
-        self.name, self.argv, self.env, self.gates_name, self.repo = name, argv, env, gates_name, repo
+    def __init__(self, name, argv, env, gates_name, repo, keyed=True):
+        self.name, self.argv, self.env, self.gates_name, self.repo, self.keyed = name, argv, env, gates_name, repo, keyed
 
     def __call__(self, who, *args, stdin=""):
         env = dict(os.environ, **self.env(who))
@@ -511,6 +520,63 @@ class Client:
     def green(self):
         g = lambda *a: subprocess.run(["git", *a], cwd=self.repo, capture_output=True, text=True, check=True).stdout.strip()
         (Path(self.repo) / g("rev-parse", "--git-path", self.gates_name)).write_text(json.dumps({"sha": g("rev-parse", "HEAD"), "ok": True, "clean": True, "tree": ""}))
+
+
+def enroll(c):
+    """What an agent (or its scheduler) does on its first run: the roles, then itself, idempotently."""
+    ok = True
+
+    def check(what, good):
+        nonlocal ok
+        ok = ok and bool(good)
+        print(f"  {'ok  ' if good else 'FAIL'} {what}")
+
+    rc, out, err = c("board", "roles")
+    check(f"roles: {', '.join(l.split(' ')[0] for l in out.splitlines() if not l.startswith(' '))}", rc == 0 and out.startswith("board (one): "))
+    rc, _, err = c("dev1", "next")
+    check(f"an agent that does not exist yet is refused: {err}", rc == 2 and "flowee.py agents add" in err)
+    for w in WHO:
+        rc, out, err = c(w, "agents", "add", ROLE[w], w)
+        check(f"agents add {ROLE[w]} {w}", rc == 0 and out["agent"]["name"] == w)
+    rc, out, err = c("dev1", "agents", "add", "developer", "dev1")
+    check("agents add again (the next run): exit 0, existed", rc == 0 and out.get("existed") is True)
+    rc, out, err = c("board", "agents")
+    check(f"agents lists {len(out.splitlines()) if isinstance(out, str) else out}", rc == 0 and [l.split()[0] for l in out.splitlines()] == WHO)
+    return ok
+
+
+def retire(c, gh, url, repo_name):
+    """Pause, rename and remove agents: a removed agent's ticket goes back to its queue for another one."""
+    ok = True
+
+    def check(what, good):
+        nonlocal ok
+        ok = ok and bool(good)
+        print(f"  {'ok  ' if good else 'FAIL'} {what}")
+
+    rc, out, _ = c("board", "file", "Second", stdin="## What\nx\n\n## Acceptance\n- y")
+    n = out["n"]
+    c("board", "next")
+    c("board", "triage", str(n), stdin="specified")
+    check("dev1 takes the next ticket", c("dev1", "next")[1]["ticket"]["n"] == n)
+    check("pause dev2", c("board", "agents", "pause", "dev2")[0] == 0)
+    rc, _, err = c("dev2", "next")
+    check(f"a paused agent is refused: {err}", rc == 2 and "agent_paused" in err)
+    c("board", "agents", "resume", "dev2")
+    check("rename dev2 to ada", c("board", "agents", "rename", "dev2", "ada")[1]["agent"]["name"] == "ada")
+    rc, out, _ = c("board", "agents", "remove", "dev1")
+    check(f"remove dev1 releases {out.get('released')}", rc == 0 and out["released"] == [n])
+    labels = lambda: [l["name"] for l in gh.repo(repo_name)["issues"][n]["labels"]]
+    for _ in range(100):  # the removal expired its claim: the workspace's alarm (or the tick) runs the reaper
+        if "ready" in labels():
+            break
+        if not SELF_TICKING:
+            urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
+        time.sleep(0.2)
+    check(f"the ticket is back in its queue ({', '.join(labels())})", "ready" in labels())
+    rc, out, _ = c("ada", "next")
+    check("ada (the former dev2) gets it", rc == 0 and out["ticket"]["n"] == n)
+    return ok
 
 
 def walk(c, gh, repo_name, heading):
@@ -550,7 +616,8 @@ def walk(c, gh, repo_name, heading):
     step(2, "board", "answer", "1", stdin="OK", want=lambda o, e: "wrong_role" in e)
     step(0, "owner", "answer", "1", stdin="OK", want=lambda o, e: o["state"] == "needs triage")
     step(0, "board", "approve", "1", want=lambda o, e: o["state"] == "closed")
-    step(1, "nobody", "whoami")
+    # an unknown secret is a failure (exit 1); with the project key an unknown agent is a refusal naming agents add
+    step(2 if c.keyed else 1, "nobody", "whoami")
     i = gh.repo(repo_name)["issues"][1]
     ok = i["state"] == "closed" and i["comments"][-1]["body"] == "Owner: OK" and i["comments"][2]["body"].startswith("Tester: Looks right.")
     print(f"  {'ok  ' if ok else 'FAIL'} the issue: closed, comments signed by role ({len(i['comments'])} comments)")
@@ -690,7 +757,7 @@ def walk_poll(c, gh, tg, rt, repo_name):
     check("the bot's webhook was deleted before polling", until(lambda: bool(tg.of("deleteWebhook"))))
     check("getUpdates asks for the webhook's update types", until(lambda: any(b.get("allowed_updates") == ["message", "callback_query"] for b in tg.of("getUpdates"))))
     check("the profile was set at start, no webhook", bool(tg.of("setMyCommands")) and not tg.of("setWebhook"))
-    tok = "w5-board"
+    tok = "w5-key"  # the project key reads the sync status without naming an agent
     req = urllib.request.Request(f"{rt.url}/w/w5/v1/sync", headers={"User-Agent": "wire", "authorization": f"Bearer {tok}"})
     sync = (json.loads(urllib.request.urlopen(req, timeout=10).read()).get("sync", {}).get("repos") or [{}])[0]
     check(f"sync: polled, '{sync.get('reason')}'", sync.get("mode") == "poll" and "no public URL" in (sync.get("reason") or ""))
@@ -770,15 +837,24 @@ def main():
             r1 = repo("external-client")
             e = a.flow_env
             c = Client("external flow.py", [sys.executable, a.flow_py],
-                       lambda who: {f"{e}_URL": url, f"{e}_AS": who, f"{e}_TOKEN": f"w1-{who}"}, "flow-gates.json", r1)
+                       lambda who: {f"{e}_URL": url, f"{e}_AS": who, f"{e}_TOKEN": f"w1-{who}"}, "flow-gates.json", r1, keyed=False)
             print(f"{c.name} -> {url}/v1 (workspace w1 by token)")
+            results[c.name] = walk(c, gh, "acme/w1", a.flow_heading)
+        else:
+            r1 = repo("per-agent-client")
+            c = Client("flowee.py per-agent secrets", [sys.executable, str(ROOT / "client/flowee.py")],
+                       lambda who: {"FLOWEE_URL": url, "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w1-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                       "flowee-gates.json", r1, keyed=False)
+            print(f"{c.name} -> {url}/v1 (workspace w1 by each agent's own secret)")
             results[c.name] = walk(c, gh, "acme/w1", a.flow_heading)
         r2 = repo("flowee-client")
         c = Client("flowee.py", [sys.executable, str(ROOT / "client/flowee.py")],
-                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w2", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w2-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w2", "FLOWEE_AS": who, "FLOWEE_TOKEN": "w2-key", "FLOWEE_CONFIG": str(scratch / "none.toml")},
                    "flowee-gates.json", r2)
-        print(f"{c.name} -> {url}/w/w2/v1")
+        print(f"{c.name} -> {url}/w/w2/v1 (the project key; the agents create themselves)")
+        results["agents add"] = enroll(c)
         results[c.name] = walk(c, gh, "acme/w2", "For the owner")
+        results["agents pause, rename, remove"] = retire(c, gh, url, "acme/w2")
         # pr-release: a signing key, a bare origin the stand-in tracker reads branches from, a clone pushing to it
         gnupg = scratch / "gnupg"
         gnupg.mkdir(mode=0o700)
@@ -793,28 +869,32 @@ def main():
             subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=d, check=True)
             tracker.repo(project)["bare"] = bare
             return Client(f"flowee.py pr-release ({ws})", [sys.executable, str(ROOT / "client/flowee.py")],
-                          lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": ws, "FLOWEE_AS": who, "FLOWEE_TOKEN": f"{ws}-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml"), "GNUPGHOME": str(gnupg)},
+                          lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": ws, "FLOWEE_AS": who, "FLOWEE_TOKEN": f"{ws}-key", "FLOWEE_CONFIG": str(scratch / "none.toml"), "GNUPGHOME": str(gnupg)},
                           "flowee-gates.json", d)
 
         c = pr_client("w3", gh, "acme/w3")
         print(f"{c.name} -> {url}/w/w3/v1")
+        results[f"agents of w3"] = enroll(c)
         results[c.name] = walk_pr(c, gh, url, "acme/w3")
         # GitLab: the same walks through the GitLab adapter, a nested project
         rg = repo("g2-client")
         c = Client("flowee.py on GitLab", [sys.executable, str(ROOT / "client/flowee.py")],
-                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "g2", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"g2-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "g2", "FLOWEE_AS": who, "FLOWEE_TOKEN": "g2-key", "FLOWEE_CONFIG": str(scratch / "none.toml")},
                    "flowee-gates.json", rg)
         print(f"{c.name} -> {url}/w/g2/v1")
+        results[f"agents of g2"] = enroll(c)
         results[c.name] = walk(c, gl, "acme/team/g2", "For the owner")
         c = pr_client("g3", gl, "acme/team/g3")
         print(f"{c.name} -> {url}/w/g3/v1")
+        results[f"agents of g3"] = enroll(c)
         results[c.name] = walk_pr(c, gl, url, "acme/team/g3")
         if rt:
             rp = repo("w5-client")
             c = Client("flowee.py polling", [sys.executable, str(ROOT / "client/flowee.py")],
-                       lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w5", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w5-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                       lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w5", "FLOWEE_AS": who, "FLOWEE_TOKEN": "w5-key", "FLOWEE_CONFIG": str(scratch / "none.toml")},
                        "flowee-gates.json", rp)
             print(f"{c.name} -> Telegram by getUpdates, the tracker polled (no public URL)")
+            results[f"agents of w5"] = enroll(c)
             results[c.name], n = walk_poll(c, gh, tg, rt, "acme/w5")
             print(f"restart with FLOWEE_PUBLIC_URL={url}")
             rt.stop()
@@ -822,9 +902,10 @@ def main():
             results["restart"] = survived(rt, gh, tg, "acme/w5", n)
         rw = repo("w4-client")
         c = Client("flowee.py webhooks", [sys.executable, str(ROOT / "client/flowee.py")],
-                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w4", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w4-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w4", "FLOWEE_AS": who, "FLOWEE_TOKEN": "w4-key", "FLOWEE_CONFIG": str(scratch / "none.toml")},
                    "flowee-gates.json", rw)
         print(f"{c.name} -> {url}/hooks/w4/w4")
+        results[f"agents of w4"] = enroll(c)
         results[c.name] = walk_hooks(c, gh, url, "acme/w4")
     finally:
         if worker:
