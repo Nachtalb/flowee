@@ -357,7 +357,9 @@ function table(o: Out, t: NonNullable<Extract<Block, { table: unknown }>["table"
     });
     const bw = r.buttons.reduce((a, b, i) => a + width(buttonText(b)) + (i ? 1 : 0), 0);
     const before = o.lines.length;
-    if (rs.length) wrap(o, rs, w);
+    // the text keeps clear of the button column, so every row's buttons end its last line, right-aligned
+    const tw = r.buttons.length && bw + 2 <= w / 2 ? w - bw - 2 : w;
+    if (rs.length) wrap(o, rs, tw);
     if (!r.buttons.length) continue;
     const last = o.lines[o.lines.length - 1];
     if (o.lines.length > before && lineWidth(last) + 2 + bw <= w) {

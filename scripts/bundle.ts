@@ -17,7 +17,7 @@ export const SOURCES = ["skills/**/*", "docs/**/*", "client/flowee.py", "schema/
 export const IN_BUNDLE = (p: string) => !p.startsWith("assets/");
 export const OUT = "served";
 /** Paths the Worker answers itself; a served file must never shadow them. */
-const RESERVED = /^(v1|w|admin|hooks|telegram|setup|validate|version|llms\.txt|index\.md|bundle\.tar\.gz|manifest\.json)(\/|$)/;
+const RESERVED = /^(v1|w|admin|hooks|telegram|tui|setup|validate|version|llms\.txt|index\.md|bundle\.tar\.gz|manifest\.json)(\/|$)/;
 
 /** Secret-looking values; a served file matching one stops the build. */
 export const SECRET_PATTERNS = [

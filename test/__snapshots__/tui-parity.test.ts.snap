@@ -255,10 +255,10 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ 🆕 New workspace · Step 2 of 4                                               ┃
 ┃ How should the agents work?                                                  ┃
 ┃                                                                              ┃
-┃ 🌿 Single branch · The agents commit straight to the main branch.            ┃
-┃ [ ● Chosen ]                                                                 ┃
-┃ 🔀 Feature branches · One branch and one pull request per ticket.            ┃
-┃ [ Choose ]                                                                   ┃
+┃ 🌿 Single branch · The agents commit straight to the main                    ┃
+┃ branch.                                                         [ ● Chosen ] ┃
+┃ 🔀 Feature branches · One branch and one pull request per                    ┃
+┃ ticket.                                                           [ Choose ] ┃
 ┃                                                                              ┃
 ┃ ▸ What is the difference?                                                    ┃
 ┃ ⚠️ That is not a repository link.                                            ┃
@@ -878,13 +878,13 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ Choose one. Versioning and the other options come next; each works with      ┃
 ┃ either.                                                                      ┃
 ┃                                                                              ┃
-┃ 🌿 Single branch · The agents commit straight to the main branch; the tester ┃
-┃ tests the main branch.                                         [ 🌿 Choose ] ┃
-┃ 🔀 Feature branches · One branch and one pull request per ticket; its checks ┃
-┃ must be green, and it is merged when the tester passes it.     [ 🔀 Choose ] ┃
+┃ 🌿 Single branch · The agents commit straight to the main                    ┃
+┃ branch; the tester tests the main branch.                      [ 🌿 Choose ] ┃
+┃ 🔀 Feature branches · One branch and one pull request per                    ┃
+┃ ticket; its checks must be green, and it is merged when the                  ┃
+┃ tester passes it.                                              [ 🔀 Choose ] ┃
 ┃                                                                              ┃
 ┃                           [ ◀ Back ] [ ✖ Cancel ]                            ┃
-┃                                                                              ┃
 ┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -905,14 +905,14 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ With Feature branches. Each switch works on its own; one that needs details  ┃
 ┃ asks for them next. You can change them later.                               ┃
 ┃                                                                              ┃
-┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: none; Merge  ┃
-┃ method: Merge; Who merges: On the pass                         [ ⚙️ Change ] ┃
+┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required                      ┃
+┃ checks: none; Merge method: Merge; Who merges: On the pass     [ ⚙️ Change ] ┃
 ┃                                                                              ┃
-┃ ⬜ Versioning · You get a test card only once a published version has the    ┃
-┃ ticket's code; the card says “In 1.4 or later”.                [ Switch on ] ┃
+┃ ⬜ Versioning · You get a test card only once a published                    ┃
+┃ version has the ticket's code; the card says “In 1.4 or                      ┃
+┃ later”.                                                        [ Switch on ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
-┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1067,14 +1067,14 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ With Single branch. Each switch works on its own; one that needs details     ┃
 ┃ asks for them next. You can change them later.                               ┃
 ┃                                                                              ┃
-┃ ⬜ Versioning · You get a test card only once a published version has the    ┃
-┃ ticket's code; the card says “In 1.4 or later”.                [ Switch on ] ┃
+┃ ⬜ Versioning · You get a test card only once a published                    ┃
+┃ version has the ticket's code; the card says “In 1.4 or                      ┃
+┃ later”.                                                        [ Switch on ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
 ┃                                                                              ┃
-┃ ⬜ Samples · A sampler finds a real sample file before development starts.   ┃
-┃ [ Switch on ]                                                                ┃
-┃ ⬜ UI review · A pass that changes the screens comes to you first; it needs  ┃
+┃ ⬜ Samples · A sampler finds a real sample file before                       ┃
+┃ development starts.                                            [ Switch on ] ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1207,9 +1207,9 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ 👥 Agents           board, dev1, tester                                      ┃
 ┃ ⚡ Instant updates  off for app (not set up yet); the track…  [ ⚡ Turn on ] ┃
 ┃                                                                              ┃
-┃ ➕ Add an agent · A new identity with its own secret; the other agents keep  ┃
-┃ theirs.                                                           [ ➕ Add ] ┃
-┃ ➖ Remove an agent · Its secret stops working, and the tickets it holds go   ┃
+┃ ➕ Add an agent · A new identity with its own secret; the other              ┃
+┃ agents keep theirs.                                               [ ➕ Add ] ┃
+┃ ➖ Remove an agent · Its secret stops working, and the                       ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1229,8 +1229,8 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ managers also manage the workspace here.                                     ┃
 ┃                                                                              ┃
 ┃ Mia · manager                                                                ┃
-┃ ➕ Add a member · Answers the inbox: a new key, handed over as a file.       ┃
-┃ [ ➕ Member ]                                                                ┃
+┃ ➕ Add a member · Answers the inbox: a new key, handed over                  ┃
+┃ as a file.                                                     [ ➕ Member ] ┃
 ┃ ➕ Add a manager · Answers and manages the workspace.         [ ➕ Manager ] ┃
 ┃                                                                              ┃
 ┃                                  [ « Back ]                                  ┃
@@ -2760,10 +2760,10 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ How should the agents bring in their code?                                             ┃
 │                                                │┃ Choose one. Versioning and the other options come next; each works with either.        ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ 🌿 Single branch · The agents commit straight to the main branch; the tester tests the ┃
-│                                                │┃ main branch.                                                             [ 🌿 Choose ] ┃
-│                                                │┃ 🔀 Feature branches · One branch and one pull request per ticket; its checks must be   ┃
-│                                                │┃ green, and it is merged when the tester passes it.                       [ 🔀 Choose ] ┃
+│                                                │┃ 🌿 Single branch · The agents commit straight to the main branch; the                  ┃
+│                                                │┃ tester tests the main branch.                                            [ 🌿 Choose ] ┃
+│                                                │┃ 🔀 Feature branches · One branch and one pull request per ticket; its                  ┃
+│                                                │┃ checks must be green, and it is merged when the tester passes it.        [ 🔀 Choose ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                [ ◀ Back ] [ ✖ Cancel ]                                 ┃
 │                                                │┃                                                                                        ┃
@@ -2804,22 +2804,22 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ With Feature branches. Each switch works on its own; one that needs details asks for   ┃
 │                                                │┃ them next. You can change them later.                                                  ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: none; Merge method:    ┃
-│                                                │┃ Merge; Who merges: On the pass                                           [ ⚙️ Change ] ┃
+│                                                │┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: none;                  ┃
+│                                                │┃ Merge method: Merge; Who merges: On the pass                             [ ⚙️ Change ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version has the ticket's     ┃
-│                                                │┃ code; the card says “In 1.4 or later”.                                   [ Switch on ] ┃
+│                                                │┃ ⬜ Versioning · You get a test card only once a published version has                  ┃
+│                                                │┃ the ticket's code; the card says “In 1.4 or later”.                      [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development starts.             ┃
-│                                                │┃ [ Switch on ]                                                                          ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it needs the paths  ┃
-│                                                │┃ that count as UI.                                                        [ Switch on ] ┃
-│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot) becomes a ticket    ┃
-│                                                │┃ the developers merge.                                                    [ Switch on ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human first.         ┃
-│                                                │┃ [ Switch on ]                                                                          ┃
+│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development                     ┃
+│                                                │┃ starts.                                                                  [ Switch on ] ┃
+│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
+│                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
+│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
+│                                                │┃ becomes a ticket the developers merge.                                   [ Switch on ] ┃
+│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
+│                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
 │                                                │┃                                                                                        ┃
@@ -3062,19 +3062,19 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ With Single branch. Each switch works on its own; one that needs details asks for them ┃
 │                                                │┃ next. You can change them later.                                                       ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version has the ticket's     ┃
-│                                                │┃ code; the card says “In 1.4 or later”.                                   [ Switch on ] ┃
+│                                                │┃ ⬜ Versioning · You get a test card only once a published version has                  ┃
+│                                                │┃ the ticket's code; the card says “In 1.4 or later”.                      [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development starts.             ┃
-│                                                │┃ [ Switch on ]                                                                          ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it needs the paths  ┃
-│                                                │┃ that count as UI.                                                        [ Switch on ] ┃
-│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot) becomes a ticket    ┃
-│                                                │┃ the developers merge.                                                    [ Switch on ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human first.         ┃
-│                                                │┃ [ Switch on ]                                                                          ┃
+│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development                     ┃
+│                                                │┃ starts.                                                                  [ Switch on ] ┃
+│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
+│                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
+│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
+│                                                │┃ becomes a ticket the developers merge.                                   [ Switch on ] ┃
+│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a human                ┃
+│                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
 │                                                │┃                                                                                        ┃
@@ -3282,18 +3282,18 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ 👥 Agents           board, dev1, tester                                                ┃
 │                                                │┃ ⚡ Instant updates  off for app (not set up yet); the tracker is chec…  [ ⚡ Turn on ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ➕ Add an agent · A new identity with its own secret; the other agents keep theirs.    ┃
-│                                                │┃ [ ➕ Add ]                                                                             ┃
-│                                                │┃ ➖ Remove an agent · Its secret stops working, and the tickets it holds go back to the ┃
-│                                                │┃ queue.                                                                   [ ➖ Remove ] ┃
-│                                                │┃ 🔑 New agent secret · One agent gets a new secret; its old one stops working.          ┃
-│                                                │┃ [ 🔑 New secret ]                                                                      ┃
-│                                                │┃ 📤 Export · The configuration without secrets, as a file to edit and import again.     ┃
-│                                                │┃ [ 📤 Export ]                                                                          ┃
-│                                                │┃ ⏸ Pause · The agents' API answers that it is paused, and the chat stays quiet.         ┃
-│                                                │┃ [ ⏸ Pause ]                                                                            ┃
-│                                                │┃ 🗑 Delete · Its configuration, secrets and state go; the repositories stay.            ┃
-│                                                │┃ [ 🗑 Delete ]                                                                          ┃
+│                                                │┃ ➕ Add an agent · A new identity with its own secret; the other agents                 ┃
+│                                                │┃ keep theirs.                                                                [ ➕ Add ] ┃
+│                                                │┃ ➖ Remove an agent · Its secret stops working, and the tickets it holds                ┃
+│                                                │┃ go back to the queue.                                                    [ ➖ Remove ] ┃
+│                                                │┃ 🔑 New agent secret · One agent gets a new secret; its old one                         ┃
+│                                                │┃ stops working.                                                       [ 🔑 New secret ] ┃
+│                                                │┃ 📤 Export · The configuration without secrets, as a file to edit and                   ┃
+│                                                │┃ import again.                                                            [ 📤 Export ] ┃
+│                                                │┃ ⏸ Pause · The agents' API answers that it is paused, and the chat stays                ┃
+│                                                │┃ quiet.                                                                     [ ⏸ Pause ] ┃
+│                                                │┃ 🗑 Delete · Its configuration, secrets and state go; the repositories                  ┃
+│                                                │┃ stay.                                                                    [ 🗑 Delete ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                  [ « All workspaces ]                                  ┃
 │                                                │┃                                                                                        ┃

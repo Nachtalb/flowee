@@ -172,7 +172,7 @@ describe("the root document", () => {
     const bun = typeof (globalThis as { Bun?: unknown }).Bun === "object";
     expect(md).toContain(bun ? "- Runs on: a self-hosted Flowee process; chat updates by webhook; no public URL, so tracker changes are polled\n" : "- Runs on: Cloudflare Workers; chat updates by webhook\n");
     expect(md).toContain("- Trackers: GitHub, GitLab\n");
-    expect(md).toContain("- Chat backends: Telegram\n");
+    expect(md).toContain("- Chat backends: Telegram, Terminal\n");
     expect(md).toContain("- New workspaces by the user: no:");
     expect(md).toContain("1. Get the material: `curl -fsSL https://flowee.test/bundle.tar.gz | tar -xz`");
     expect(md).toContain("ALL IN ONE MESSAGE");

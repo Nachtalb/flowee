@@ -8,18 +8,23 @@ import type { Env } from "../../src/adapters/instance";
 import { App } from "../../src/runtime/bun/app";
 import { bindings } from "../bindings";
 import { install } from "../fake";
+import workspaces from "../workspaces.json";
 
 const local = globalThis.fetch;
 const dir = mkdtempSync(join(tmpdir(), "flowee-tui-test-"));
-const app = new App({ ...bindings } as Env & Record<string, unknown>, { data: dir, port: 0, host: "127.0.0.1", debug: false }, () => {});
+// Flowee without a messenger: one terminal-only workspace, no bot token anywhere
+const { TELEGRAM_BOT_TOKEN: _t, TG_WEBHOOK_SECRET: _s, ...noBot } = bindings;
+const desk = workspaces.workspaces.find((w) => w.id === "desk");
+const app = new App({ ...noBot, FLOWEE_CONFIG: JSON.stringify({ flowee: 1, workspaces: [desk] }) } as Env & Record<string, unknown>, { data: dir, port: 0, host: "127.0.0.1", debug: false }, () => {});
 afterAll(async () => {
   await app.stop();
   rmSync(dir, { recursive: true, force: true });
 });
 
-it("a socket of the terminal protocol is upgraded by Bun.serve and rung on every change", async () => {
+it("without any messenger: a socket of the terminal protocol is upgraded by Bun.serve and rung on every change", async () => {
   const { desk } = install();
   await app.start();
+  expect(app.pollers.size).toBe(0);
   const base = `127.0.0.1:${app.port}`;
   // without the key: refused before any upgrade
   expect((await local(`http://${base}/tui/v1/w/desk/socket`, { headers: { upgrade: "websocket" } })).status).toBe(401);

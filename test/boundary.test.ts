@@ -66,6 +66,12 @@ describe("architecture boundaries", () => {
     }
   });
 
+  it("the terminal client imports of src only the ports (the protocol's and the views' types)", () => {
+    const tui = import.meta.glob("../tui/**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    expect(Object.keys(tui).length).toBeGreaterThan(4);
+    for (const [path, src] of Object.entries(tui)) for (const i of imports(src)) if (i.startsWith("../")) expect(i.startsWith("../src/ports/"), `${path} imports ${i}`).toBe(true);
+  });
+
   it("nothing in src names a project, a person, a repository or a chat id", () => {
     // the test workspaces stand for real ones: none of their repositories, people or chats may leak into the code
     const named = (fixtures.workspaces as any[]).flatMap((w) => [

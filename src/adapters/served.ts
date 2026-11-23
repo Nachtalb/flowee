@@ -3,9 +3,10 @@
 // agent told "use this URL to set Flowee up" (markdown, or HTML for a browser), and POST /validate.
 import committed from "../../flowee.config.json";
 import pkg from "../../package.json";
-import { problems, SCHEMA } from "../config/schema";
+import { problems } from "../config/schema";
 import { PRESETS } from "../config/presets";
 import { TRACKER_KINDS } from "../config/trackers";
+import { CHAT_KINDS } from "../config/chats";
 import { hex, sha256 } from "../core/text";
 
 export interface ServedEnv {
@@ -118,7 +119,7 @@ export async function facts(env: ServedEnv, base: string) {
     commit: m?.commit ?? "unknown",
     bot: bot?.replace(/^@/, "") ?? null,
     trackers: Object.values(TRACKER_KINDS).map((k) => k.name),
-    chats: ((SCHEMA as any).properties.chat.properties.type.enum as string[]).map((c) => c[0].toUpperCase() + c.slice(1)),
+    chats: Object.values(CHAT_KINDS).map((k) => k.name),
     presets: Object.keys(PRESETS),
     flows: (m?.files ?? []).filter((p) => p.startsWith("flows/")),
     creators: mode === "managed" ? (doc.instance?.creators?.length ?? 0) : 0,
@@ -181,7 +182,8 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     "   - Commits straight to the main branch, or a feature branch and pull request per ticket? Why: it picks the flow preset (`trunk` or `pr-release`). Default: main branch (`trunk`).",
     "   - Versioning: are releases made, and how (tags, a version file, a tested tag)? Why: the `releases` feature. Default: no releases.",
     `   - Which optional parts: pull request checks, releases, sample files, UI review, dependency tickets, user feedback (triaged automatically or by a human first) (${u("/skills/flowee-configure/references/features.md")})? Why: each adds states and a token permission. Default: none; webhooks on.`,
-    "   - Where should the tickets appear: a private chat with the bot, a group, or a topic in a group? Why: `chat` and who sees the cards. Default: a private chat with the owner.",
+    "   - Telegram, terminal, or both? Why: the owner's inbox is a Telegram chat (`chat`), the terminal interface `flowee-tui` (`tui`: no messenger needed, people sign in with a personal key), or both showing the same cards. Default: Telegram.",
+    "   - With Telegram: where should the tickets appear: a private chat with the bot, a group, or a topic in a group? Why: `chat` and who sees the cards. Default: a private chat with the owner. With the terminal: who signs in (each person runs `flowee-tui --new-key` and gives you the digest it prints)? Default: the owner alone.",
     `   - The instance's bot (${bot ?? "none here"}) or the workspace's own bot? Why: an own bot carries the project's name and photo. Default: the instance's bot.`,
     "   - Who is the owner (tracker login, chat user id)? Why: only the owner's answers count. Default: the user you are talking to.",
     "   - How many agents per role: board, developers, testers (and a sampler with sample files)? Why: one role instance, one secret and one clone per agent. Default: 1 board, 1 developer, 1 tester.",

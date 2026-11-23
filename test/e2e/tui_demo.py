@@ -338,7 +338,8 @@ def api(url, token, path, body=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runtime", choices=["bun", "worker"], default="bun")
+    ap.add_argument("--runtime", choices=["bun", "worker", "docker"], default="bun")
+    ap.add_argument("--image", default="flowee-test-tui", help="the image for --runtime docker (docker build -t NAME .)")
     ap.add_argument("--out", default=os.path.expanduser("~/.hermes/cache/scratch/flowee/t/shots"))
     ap.add_argument("--size", default="110x32")
     a = ap.parse_args()
@@ -366,11 +367,15 @@ def main():
         for i in who:
             secrets[f"{wid.upper()}_{i.upper()}"] = dig(f"{wid}-{i}")
     proc = rt = None
-    if a.runtime == "bun":
+    if a.runtime in ("bun", "docker"):
         class NoTelegram:
             url = "http://127.0.0.1:9"
-        rt = SelfHosted("bun", scratch, config, NoTelegram(), None)
-        os.environ.update(secrets)
+
+        class Host(SelfHosted):
+            # no bot token anywhere: Flowee without a messenger
+            def env(self, public_url=None):
+                return {**{k: v for k, v in super().env(public_url).items() if k != "W5_BOT"}, **secrets}
+        rt = Host(a.runtime, scratch, config, NoTelegram(), a.image)
         rt.start()
         url = rt.url
         # SelfHosted passes its own secrets; ours are in the config's names
@@ -447,7 +452,7 @@ def main():
         answered = [x for x in comments if x.startswith("Ann: ")]
         print("  tracker:", json.dumps(answered))
         ok = any("CSV, please" in x for x in answered) and any("answer.png" in x for x in answered)
-        if rt:
+        if rt and a.runtime == "bun":
             ok = managed_walk(scratch, gh, out, w, h) and ok
         # the sign-in screen: a person with no key yet
         c = Client(url, scratch / "nobody.key", cfg, w, h, out)
@@ -461,7 +466,7 @@ def main():
         if c:
             c.close()
         if rt:
-            rt.stop()
+            rt.remove()
         if proc:
             proc.terminate()
             proc.wait(timeout=20)
@@ -502,6 +507,7 @@ def managed_walk(scratch, gh, out, w, h):
         c.click("🔀 Choose")
         c.until(r"Versioning")
         c.shot("23-wizard-options")
+        c.keys("G")
         c.click("Next")
         c.until(r"token")
         c.shot("24-wizard-token")
@@ -511,7 +517,8 @@ def managed_walk(scratch, gh, out, w, h):
         c.until(r"Agents|agents|Last check")
         if "Last check" not in c.term.text():
             c.shot("25-wizard-agents")
-            c.click("Next")
+            c.keys("G")
+        c.click("Next")
         c.until(r"Last check")
         c.shot("26-wizard-summary")
         c.click("Create")
