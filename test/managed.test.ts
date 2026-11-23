@@ -128,7 +128,7 @@ describe("the setup wizard", () => {
     await dm(100, TOKEN);
     const tokenMsg = uid;
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: tokenMsg });
-    expect(tg.of("sendMessage").at(-2)?.text).toBe("🔒 Token checked and stored; your message was deleted.");
+    expect(tg.of("sendMessage").at(-2)?.text).toBe("🔒 Token checked and stored. Your message was deleted.");
     expect(app.auth.at(-1)).toBe(`Bearer ${TOKEN}`);
     expect(said()).toContain("6 Agents");
     await tap(100, "w:roles:done");
@@ -256,6 +256,20 @@ describe("the setup wizard", () => {
     tg.refuse = { sendMessage: "Forbidden: bot was blocked by the user" };
     await tap(200, "w:back");
     expect(tg.calls.at(-1)?.method).toBe("sendMessage"); // nothing else to try: the notice itself was refused, quietly
+  });
+
+  it("a token message the bot cannot delete: the user is told to delete it", async () => {
+    await dm(100, "/setup");
+    await tap(100, "w:bot:shared");
+    await dm(100, "acme/app");
+    await tap(100, "w:flow:trunk");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:bind:here");
+    tg.refuse = { deleteMessage: "Bad Request: message can't be deleted" };
+    await dm(100, TOKEN);
+    expect(tg.of("sendMessage").at(-2)?.text).toBe(
+      "🔒 Token checked and stored. I could not delete your message (Telegram refused deleteMessage: Bad Request: message can't be deleted.); delete it yourself.",
+    );
   });
 
   it("agents' secrets the chat refuses as a file come as a message: they are shown once", async () => {

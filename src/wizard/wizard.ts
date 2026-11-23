@@ -450,20 +450,23 @@ export class Wizard {
     const d = s.draft;
     if (s.step === "credential") {
       // the token never stays in the chat: deleted before anything else happens
-      await this.chat.remove(s.at, message).catch(() => {});
+      const gone = await this.chat.remove(s.at, message).then(
+        () => "Your message was deleted.",
+        (e) => `I could not delete your message (${e instanceof Error ? e.message : e}); delete it yourself.`,
+      );
       const token = text.trim();
       if (!/^[\w-]{20,255}$/.test(token)) {
-        await this.show(s, "Your message was deleted. That does not look like a GitHub token; send just the token.");
+        await this.show(s, `${gone} That does not look like a GitHub token; send just the token.`);
         return true;
       }
       const sealed = await this.host.seal(token);
       const problems = await this.host.checkRepos(sealed, d.repos);
       if (problems.length) {
-        await this.show(s, `Your message was deleted. ${problems.join(" ")}`);
+        await this.show(s, `${gone} ${problems.join(" ")}`);
         return true;
       }
       d.token = sealed;
-      await this.say(s.at, "🔒 Token checked and stored; your message was deleted.");
+      await this.say(s.at, `🔒 Token checked and stored. ${esc(gone)}`);
       await this.advance(s);
       return true;
     }
