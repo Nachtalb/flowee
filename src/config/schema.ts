@@ -23,6 +23,7 @@ const TEXTS = {
   shortAbout: str("The bot short description."),
   filedBody: str("First line of a ticket the owner files from the chat."),
   untitled: str("Title of a ticket filed with an empty first line."),
+  memberSign: str("The signature of an answer given in a group or topic: {who} is the name with (@username), {name} and {username} alone.", { default: "{who}" }),
 };
 
 const REPO = str("The repository's path: owner/name (GitLab: group/subgroup/project).", { pattern: "^[\\w.-]+(?:/[\\w.-]+)+$" });
@@ -129,6 +130,7 @@ export const SCHEMA: S = {
             enum: ["webhook", "polling"],
             description: "How the bot's updates arrive: webhook (needs publicUrl; the only one on Cloudflare) or polling (getUpdates; the self-hosted runtime's default without a public URL).",
           },
+          members: { type: "array", items: str("Chat user id.", { pattern: "^\\d+$" }), description: "In a group or topic: only these users work the tickets (default: every member)." },
         },
         ["type", "token", "webhookSecret", "chatId"],
         "The owner's chat (the envoy).",
@@ -138,6 +140,7 @@ export const SCHEMA: S = {
         ["url", "token"],
         "Where files the owner sends are stored.",
       ),
+      managers: { type: "array", items: str("Chat user id.", { pattern: "^\\d+$" }), description: "Who manages the workspace besides the one who set it up (managed mode): configuration, secrets, pause, delete, export." },
       texts: obj(TEXTS, [], "Texts the envoy and the flow show."),
       schedule: obj(
         {
@@ -292,6 +295,7 @@ export function validate(doc: unknown): string[] {
   if (!d.roles.some((r) => r.role === flow.options.ownerRole))
     errs.push(`$.roles: no instance has the owner role '${flow.options.ownerRole}', so the owner cannot answer through the API.`);
   if (d.chat && !d.owners.some((o) => o.chat)) errs.push("$.owners: with a chat, at least one owner needs a chat user id.");
+  if (d.chat?.members && !d.chat.chatId.startsWith("-")) errs.push("$.chat.members: only a group or a topic has members; a private chat is the owner's alone.");
   if (d.files && !d.chat) errs.push("$.files: files come from the chat, so they need $.chat.");
   if (d.profile && !d.chat?.publicUrl && d.chat?.transport !== "polling") errs.push("$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.");
   const sc = d.schedule;

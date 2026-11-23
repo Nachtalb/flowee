@@ -3,8 +3,8 @@
 import type { Flowee, Inbox } from "../core/service";
 import { Fail } from "../core/errors";
 import { parseCard } from "../core/card";
-import { hex, sha256 } from "../core/text";
-import type { Chat, ChatMessage, ChatPress, ChatRef, Command, FileRef, View } from "../ports/chat";
+import { fill, hex, sha256 } from "../core/text";
+import type { Chat, ChatMessage, ChatPress, ChatRef, Command, FileRef, Sender, View } from "../ports/chat";
 import type { Files } from "../ports/files";
 import {
   back,
@@ -180,10 +180,34 @@ export class Envoy implements Inbox {
   private postponedItem = (n: number) => this.postponedItems().find((i) => i.n === n);
   private answeredAt = (n: number) => this.rows<{ a: number | null }>("SELECT answered_at AS a FROM inbox WHERE n = ?", n)[0]?.a ?? null;
 
-  markAnswered(n: number) {
-    return this.exec(`UPDATE inbox SET status = 'answered', answered_at = ? WHERE n = ? AND ${OPEN}`, this.now(), n).rowsWritten > 0;
+  markAnswered(n: number, by?: string) {
+    return this.exec(`UPDATE inbox SET status = 'answered', answered_at = ?, answered_by = ? WHERE n = ? AND ${OPEN}`, this.now(), by ?? null, n).rowsWritten > 0;
   }
-  private reopen = (n: number) => void this.exec("UPDATE inbox SET status = 'sent', answered_at = NULL WHERE n = ? AND status = 'answered'", n);
+  private reopen = (n: number) => void this.exec("UPDATE inbox SET status = 'sent', answered_at = NULL, answered_by = NULL WHERE n = ? AND status = 'answered'", n);
+
+  /** The tickets appear in a group or topic: its members work them as a team, each answer signed by who gave it. */
+  private get team() {
+    return this.at.chat.startsWith("-");
+  }
+
+  /** A team member's signature (docs/envoy.md, "Teams"); undefined in a private chat, where the owner's stays. */
+  private signature(u: Sender & { from: string }): string | undefined {
+    if (!this.team) return undefined;
+    const name = u.name ?? `User ${u.from}`;
+    const at = u.username ? `@${u.username}` : "";
+    return fill(this.f.s.texts.memberSign, { who: at ? `${name} (${at})` : name, name, username: at }).trim() || name;
+  }
+
+  /**
+   * The first answer to an item in a group wins: marks it answered by `by`, or returns who answered it before.
+   * Synchronous between the check and the write, so two people answering at once cannot both win.
+   */
+  private claimAnswer(n: number, by: string): string | undefined {
+    const r = this.rows<{ status: string; answered_by: string | null }>("SELECT status, answered_by FROM inbox WHERE n = ?", n)[0];
+    if (r?.status === "answered" && r.answered_by && r.answered_by !== by) return r.answered_by;
+    this.markAnswered(n, by);
+    return undefined;
+  }
   private map = (id: number, n: number, kind = "card") => void this.exec("INSERT OR REPLACE INTO messages VALUES (?, ?, ?, NULL, 0)", id, n, kind);
   private route = (id: number) => this.rows<{ n: number }>("SELECT n FROM messages WHERE message_id = ? AND kind NOT IN ('filed', 'note')", id)[0]?.n;
 
@@ -336,12 +360,12 @@ export class Envoy implements Inbox {
     if (id !== undefined && it && this.route(id) === n) await this.chat.editView(this.at, id, html(this.cardHtml(it, true))).catch(() => {});
   }
 
-  /** Records an answer after the update is handled; `answer` is his message when it is the whole answer. */
-  private record(n: number, text: string, wasOpen: boolean, answer?: number) {
+  /** Records an answer after the update is handled; `answer` is his message when it is the whole answer, `by` who gave it in a group. */
+  private record(n: number, text: string, wasOpen: boolean, answer?: number, by?: string) {
     this.deferred.push(async () => {
       let failed: string | undefined;
       try {
-        await this.f.answer(n, text, "chat");
+        await this.f.answer(n, text, "chat", by);
       } catch (e) {
         if (!(e instanceof Fail)) console.error("answer", n, e);
         const why = (e instanceof Error ? e.message : String(e)).replace(/\.$/, "");
@@ -395,21 +419,26 @@ export class Envoy implements Inbox {
     return `⏭ ${this.f.label(k)} moved to the end`;
   }
 
-  private async ok(pressed?: number): Promise<Toast> {
+  private async ok(pressed?: number, q?: ChatPress): Promise<Toast> {
     const key = pressed === undefined ? undefined : this.route(pressed);
     if (key === undefined) return "Nothing to OK here";
-    if (this.item(key)?.status !== "open") return `${this.f.label(key)} isn't open`;
+    const by = q && this.signature(q);
+    const before = by && this.rows<{ b: string | null }>("SELECT answered_by AS b FROM inbox WHERE n = ?", key)[0]?.b;
+    if (this.item(key)?.status !== "open") return before && before !== by ? `${this.f.label(key)} was already answered by ${before}` : `${this.f.label(key)} isn't open`;
     const d = this.get(draftKey(key));
     this.del(draftKey(key));
     const text = d === undefined ? "OK" : `${d}\n\nOK`;
-    this.markAnswered(key);
+    if (by) {
+      const prior = this.claimAnswer(key, by);
+      if (prior) return `${this.f.label(key)} was already answered by ${prior}`;
+    } else this.markAnswered(key);
     const inCycle = this.current() === key;
     const cardId = inCycle ? num(this.get(KV.card)) : pressed !== num(this.get(KV.nav)) ? pressed : undefined;
     const it = this.item(key);
     // the card says it is answered, and a note's OK button goes
     if (cardId !== undefined && it && this.route(cardId) === key) await this.chat.editView(this.at, cardId, html(this.cardHtml(it, inCycle))).catch(() => {});
     if (inCycle) await this.goNext();
-    this.record(key, text, true);
+    this.record(key, text, true, undefined, by);
     return `✅ ${this.f.label(key)} OK`;
   }
 
@@ -539,7 +568,7 @@ export class Envoy implements Inbox {
       case "s":
         return this.skip();
       case "k":
-        return this.ok(pressed);
+        return this.ok(pressed, q);
       case "o":
         return void (await this.showItem(button.n, true));
       case "t":
@@ -657,7 +686,7 @@ export class Envoy implements Inbox {
       const text = await this.collect(msgs, first);
       if (text === undefined) return;
       await this.react(first.id, "👀");
-      this.record(fn, text, false, first.id);
+      this.record(fn, text, false, first.id, this.signature(first));
       return;
     }
     // while a new ticket is being written, every message that answers no card is part of it
@@ -687,7 +716,8 @@ export class Envoy implements Inbox {
       return;
     }
     const open = this.item(key)?.status === "open";
-    if (open && this.current() === key) {
+    const by = this.signature(first);
+    if (open && this.current() === key && !by) {
       // an answer can take several messages: nothing is recorded until a button leaves the card
       const d = this.get(draftKey(key));
       this.set(draftKey(key), d !== undefined ? `${d}\n\n${text}` : text);
@@ -695,11 +725,15 @@ export class Envoy implements Inbox {
       await this.postNav(this.navView());
       return;
     }
-    // a reply to any other card or note is the whole answer
+    // a reply to any other card or note is the whole answer; in a group the first one wins
+    if (by) {
+      const prior = this.claimAnswer(key, by);
+      if (prior) return void (await this.reply(first, `⚠️ ${this.f.label(key)} was already answered by ${esc(prior)}; yours was not recorded.`));
+    }
     await this.react(first.id, "👀");
     await this.showAnswered(key);
     await this.postNav(this.navView());
-    this.record(key, text, open, first.id);
+    this.record(key, text, open, first.id, by);
   }
 
   private async askNew(): Promise<Toast> {
@@ -757,12 +791,19 @@ export class Envoy implements Inbox {
 
   private here = (at?: ChatRef) => !!at && at.chat === this.at.chat && (this.at.topic === undefined || at.topic === this.at.topic);
 
-  /** One chat update; each update id is handled once, whatever the chat retries. Only owners in the bound chat count. */
+  /** Who works the inbox: the owners; in a group or topic every member there, or the document's `chat.members`. */
+  private allowed(u: { from: string; at?: ChatRef }) {
+    if (this.f.s.owners.includes(u.from)) return true;
+    const members = this.f.s.chat?.members;
+    return this.team && this.here(u.at) && (!members || members.includes(u.from));
+  }
+
+  /** One chat update; each update id is handled once, whatever the chat retries. Only those `allowed()` in the bound chat count. */
   async onUpdate(raw: unknown) {
     const u = this.chat.parse(raw);
     if (!u || this.rows("SELECT 1 FROM updates WHERE update_id = ?", u.update).length) return;
     this.exec("INSERT INTO updates VALUES (?, ?)", u.update, this.now());
-    if (u.kind === "managed" || !this.f.s.owners.includes(u.from)) return;
+    if (u.kind === "managed" || !this.allowed(u)) return;
     if (u.kind === "press") return this.run(() => this.onPress(u));
     if (!this.here(u.at)) return;
     const c = this.command(u.text);

@@ -29,7 +29,7 @@ export const ACTIONS: Record<string, Action> = {
     let text = p.text ? fill(String(p.text), vars) : String(c.input[String(p.field ?? "comment")] ?? "");
     if (p.append) text += fill(String(p.append), vars);
     if (!text.trim()) return;
-    c.data.commentId = await c.f.tracker.comment(c.t.n, c.f.sign(c.caller.role, text));
+    c.data.commentId = await c.f.tracker.comment(c.t.n, c.f.sign(c.caller.role, text, c.data.signature as string | undefined));
   },
 
   /** Labels, assignee and open/closed of the target state, in one write (the label last, as the contract asks). */

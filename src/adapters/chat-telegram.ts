@@ -18,7 +18,8 @@ import type {
   ViewOptions,
 } from "../ports/chat";
 
-type User = { id: number };
+type User = { id: number; first_name?: string; last_name?: string; username?: string };
+const sender = (u?: User) => ({ ...(u?.first_name ? { name: [u.first_name, u.last_name].filter(Boolean).join(" ") } : {}), ...(u?.username ? { username: u.username } : {}) });
 type Msg = {
   message_id: number;
   message_thread_id?: number;
@@ -127,6 +128,7 @@ export class Telegram implements Chat {
         kind: "press",
         update: u.update_id,
         from: String(q.from?.id),
+        ...sender(q.from),
         query: q.id,
         data: q.data ?? "",
         ...(q.message ? { message: q.message.message_id, at: ref(q.message.chat, q.message.message_thread_id) } : {}),
@@ -140,6 +142,7 @@ export class Telegram implements Chat {
       // a reply in a group without topics carries a thread id too; only a topic message names its topic
       at: ref(m.chat, m.chat.type === "private" || m.is_topic_message ? m.message_thread_id : undefined),
       from: String(m.from?.id),
+      ...sender(m.from),
       id: m.message_id,
       chatKind: m.chat.type === "private" ? "private" : "group",
       ...(m.chat.title ? { chatTitle: m.chat.title } : {}),

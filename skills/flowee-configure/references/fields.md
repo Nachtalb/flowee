@@ -47,6 +47,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `chat.publicUrl` | `https://…` | | The instance's public URL: `GET /setup` sets the webhook (`<url>/telegram`) and the bot profile from this workspace. Give it in one workspace only. |
 | `chat.managed` | boolean | `false` | Managed mode: the workspace's own bot, created through the instance bot; its webhook is `<publicUrl>/telegram/w/<id>` and its profile and settings come from this workspace. Without it the workspace uses the instance's bot. |
 | `chat.transport` | `webhook`, `polling` | `webhook`; self-hosted without a public URL: `polling` | `polling`: the self-hosted runtime fetches the bot's updates (getUpdates), no public address needed; `webhook`: needs `chat.publicUrl`. Cloudflare supports only `webhook`. |
+| `chat.members` | array of user ids | every member | In a group or topic: only these users work the tickets (the owners always do). Refused for a private chat. |
 | `files` | object | | Where files the owner sends are uploaded; without it files are refused. |
 | `files.url` | URL | required | A rustypaste-compatible endpoint (multipart `file`, `Authorization`, `expire` headers; answers the link). |
 | `files.token` | secret name | required | The upload token. |
@@ -61,6 +62,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `texts.shortAbout` | string | `The <project> review inbox as a todo list.` | The short description. |
 | `texts.filedBody` | string | `Filed by the owner through Envoy; the Board writes the spec from their words.` | First line of a ticket filed from the chat. |
 | `texts.untitled` | string | `Request from the owner` | Title of a ticket filed with an empty first line. |
+| `texts.memberSign` | string | `{who}` | The signature of an answer given in a group or topic: `{who}` is the name with `(@username)`, `{name}` and `{username}` alone (docs/envoy.md, "Teams"). |
 | `schedule` | object | | Times. |
 | `schedule.timezone` | IANA zone | `UTC` | The digest hour and "answered today". |
 | `schedule.digestFrom` | integer 0-23 | `9` | The morning digest is sent from this hour… |
@@ -69,6 +71,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `sync.webhooks` | `auto`, `off`, `required` | `auto` | `auto`: register the webhook through the tracker token and poll while it is missing or unhealthy; `off`: always poll; `required`: never poll. |
 | `sync.reconcileMinutes` | integer 5-1440 | `30` | Full listing this often while webhooks are healthy (catches missed deliveries). |
 | `sync.pollMinutes` | integer 1-60 | `1` | Full listing this often without webhooks. |
+| `managers` | array of user ids | the creator only | Managed mode: who manages the workspace besides the one who set it up: configuration, secrets, pause, delete, export. A manager's changes keep the creator as creator and do not add the manager to `owners`. |
 | `profile` | object | | The bot's profile. |
 | `profile.photo` | `https://…` | | A PNG fetched and set as the bot's photo (once per change). |
 

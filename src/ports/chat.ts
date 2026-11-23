@@ -63,7 +63,13 @@ export interface FileRef {
 
 export type Content = { text: string } | { caption: string; files: FileRef[] } | "voice" | "unsupported";
 
-export interface ChatMessage {
+/** Who sent an update: the display name and the @username, when the chat gives them. */
+export interface Sender {
+  name?: string;
+  username?: string;
+}
+
+export interface ChatMessage extends Sender {
   kind: "message";
   update: number;
   at: ChatRef;
@@ -82,7 +88,7 @@ export interface ChatMessage {
   service?: boolean;
 }
 
-export interface ChatPress {
+export interface ChatPress extends Sender {
   kind: "press";
   update: number;
   at?: ChatRef;

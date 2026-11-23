@@ -157,7 +157,7 @@ const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "")
 const WHERE_HERE = [
   "<p>🆕 <b>New workspace</b> · Step 4 of 6</p>",
   "<p><b>Where should the tickets appear?</b></p>",
-  TABLE(OPT("💬 Here", "In this chat with me.", CB("💬 Choose", "w:bind:here")), OPT("👥 In a group", "Everyone there can read them; only you answer them.", CB("👥 Choose", "w:bind:group"))),
+  TABLE(OPT("💬 Here", "In this chat with me.", CB("💬 Choose", "w:bind:here")), OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:bind:group"))),
   NAV,
 ].join("");
 const WHERE_GROUP = (bot: string, id: string) =>
@@ -222,7 +222,7 @@ async function sharedSetup(user = 100, repo = "acme/app") {
 
 // The guard of docs/chat-style.md: the wizard and the menu send rich messages only, and a reply keyboard only to
 // create a bot. Plain sendMessage calls of the instance bot are allowed only for the envoy's notices listed here.
-const ENVOY_NOTICES = ["Reply to a card to answer it."];
+const ENVOY_NOTICES = [/^Reply to a card to answer it\.$/, /^⚠️ \S+ was already answered by .+; yours was not recorded\.$/];
 /** docs/chat-style.md, "Layout": no list anywhere, a choice's description and its button in one table row. */
 function layout(html: string) {
   expect(html, "list markup in a screen").not.toMatch(/<ul|<ol|<li|<p>[•\-–] /);
@@ -236,7 +236,7 @@ afterEach(() => {
   for (const c of tg.calls) {
     const html = c.params?.rich_message?.html;
     if (typeof html === "string") layout(html);
-    if (c.method === "sendMessage") expect(ENVOY_NOTICES, `plain message: ${c.params.text}`).toContain(c.params.text);
+    if (c.method === "sendMessage") expect(ENVOY_NOTICES.some((n) => n.test(c.params.text)), `plain message: ${c.params.text}`).toBe(true);
     const kb = c.params.reply_markup?.keyboard;
     if (kb) expect(kb.flat().every((k: any) => k.request_managed_bot), "a reply keyboard other than the bot request").toBe(true);
   }
@@ -388,7 +388,7 @@ describe("the setup wizard: one living message", () => {
         "<p><b>Where should the tickets appear?</b></p>",
         TABLE(
           OPT("💬 In my private chat with @WidgetEnvoyBot", "Open it and press <b>Start</b> once, so it may write to you.", URL_("↗ Open", "https://t.me/WidgetEnvoyBot"), CB("💬 Choose", "w:bind:here")),
-          OPT("👥 In a group", "Everyone there can read them; only you answer them.", CB("👥 Choose", "w:bind:group")),
+          OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:bind:group")),
         ),
         NAV,
       ].join(""),
@@ -407,7 +407,7 @@ describe("the setup wizard: one living message", () => {
     expect(ack).toEqual({
       chat_id: "-100500",
       message_thread_id: 9,
-      rich_message: { html: "<p>✅ <b>Tickets of <code>widget</code> appear here</b></p><p>Everyone here can read them; only the workspace's owners answer them.</p>" },
+      rich_message: { html: "<p>✅ <b>Tickets of <code>widget</code> appear here</b></p><p>Your team works the tickets together: reply to a card to answer it, and the ticket records who answered.</p>" },
     });
     expect(screen(200)).toContain("<p><b>Send me a GitHub token for these repositories</b></p>");
     await dm(200, TOKEN);
@@ -455,11 +455,12 @@ describe("the setup wizard: one living message", () => {
     expect(card?.params).toMatchObject({ chat_id: "-100500", message_thread_id: 9 });
     const reply = (from: number, thread: number) => topic("Green.", from, thread);
     const r = (u: ReturnType<typeof topic>) => Object.assign(u.message, { reply_to_message: { message_id: card?.id, from: { id: 777 } } }) && u;
-    await post("/telegram/w/widget", r(reply(300, 9)), hook.secret_token);
-    await post("/telegram/w/widget", r(reply(200, 10)), hook.secret_token);
+    // another topic of the group is not where the tickets are: ignored
+    await post("/telegram/w/widget", r(reply(300, 10)), hook.secret_token);
     expect(lib.issues.get(1)?.comments.length).toBe(1);
-    await post("/telegram/w/widget", r(reply(200, 9)), hook.secret_token);
-    expect(lib.last(1)).toBe("Owner: Green.");
+    // any member in the topic answers, signed with the name Telegram gives
+    await post("/telegram/w/widget", r(reply(300, 9)), hook.secret_token);
+    expect(lib.last(1)).toBe("U: Green.");
   });
 
   it("branching, versioning and more options: one choice, then toggles in the same message; their token permissions in the form's link", async () => {
@@ -679,7 +680,7 @@ describe("the setup wizard: one living message", () => {
     await dm(200, "/start");
     await tap(200, "m:ws:app");
     expect(screen(200)).toBe(
-      ["<p>⚠️ <b>Workspace not found</b></p>", "<p>That workspace is not yours, or it no longer exists.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""),
+      ["<p>⚠️ <b>Not yours to manage</b></p>", "<p>Only the people who manage <code>app</code> can change it; ask the one who set it up.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""),
     );
     await dm(200, "/workspaces");
     expect(screen(200)).toBe(["<p>📂 <b>Your workspaces</b></p>", "<p>You have none yet.</p>", ROW(CB("🚀 Set up a workspace", "w:new"), CB("📥 Import", "m:import"))].join(""));
@@ -859,7 +860,7 @@ describe("the management menu: one living message", () => {
 });
 
 describe("groups, topics and preconfigured workspaces", () => {
-  it("this bot added to a group by its link: /start <code> there binds it; only owners, only that chat", async () => {
+  it("this bot added to a group by its link: /start <code> there binds it; the group is a team, only the creator manages", async () => {
     await dm(100, "/setup");
     await dm(100, "acme/app");
     await tap(100, "w:bot:shared");
@@ -871,7 +872,7 @@ describe("groups, topics and preconfigured workspaces", () => {
     await group(100, "/start@FloweeTestBot app");
     expect(tg.sent("sendRichMessage").at(-1)).toMatchObject({
       chat_id: "-100777",
-      rich_message: { html: "<p>✅ <b>Tickets of <code>app</code> appear here</b></p><p>Everyone here can read them; only the workspace's owners answer them.</p>" },
+      rich_message: { html: "<p>✅ <b>Tickets of <code>app</code> appear here</b></p><p>Your team works the tickets together: reply to a card to answer it, and the ticket records who answered.</p>" },
     });
     expect(screen()).toContain("<p><b>Send me a GitHub token for <code>acme/app</code></b></p>");
     await dm(100, TOKEN);
@@ -885,13 +886,31 @@ describe("groups, topics and preconfigured workspaces", () => {
     expect(card).toMatchObject({ chat_id: "-100777" });
     expect(card?.message_thread_id).toBeUndefined();
     tg.calls = [];
-    // a stranger's command and reply in the group: silence
-    await group(300, "/todo");
-    await group(300, "No.", { reply_to_message: { message_id: card?.id, from: { id: 999 } } });
-    expect(tg.calls).toEqual([]);
-    // the owner's reply (Telegram adds a thread id to replies in groups without topics) answers it
-    await group(100, "Yes.", { reply_to_message: { message_id: card?.id, from: { id: 999 } }, message_thread_id: card?.id });
-    expect(app.last(3)).toBe("Owner: Yes.");
+    // a team: every member of the group works the inbox, and the ticket says who answered
+    const bea = { from: { id: 300, is_bot: false, first_name: "Bea", last_name: "Berg", username: "bea" } };
+    const cid = { from: { id: 301, is_bot: false, first_name: "Cid" } };
+    const onCard = (id = card?.id) => ({ reply_to_message: { message_id: id, from: { id: 999 } } });
+    await group(300, "No.", { ...onCard(), ...bea });
+    expect(app.last(3)).toBe("Bea Berg (@bea): No.");
+    // the second person is told, in one sentence, who answered first; nothing more lands on the ticket
+    const comments = app.issues.get(3)?.comments.length;
+    await group(100, "Yes.", { ...onCard(), message_thread_id: card?.id });
+    expect(app.issues.get(3)?.comments.length).toBe(comments);
+    expect(tg.of("sendMessage").at(-1)).toMatchObject({ chat_id: "-100777", text: "⚠️ #3 was already answered by Bea Berg (@bea); yours was not recorded." });
+    // two members at once: one answer is recorded, the other one hears who was first
+    app.add({ number: 4, state_label: "board review" });
+    await api(s.board, "/v1/escalate", { n: 4, comment: CARD });
+    const card4 = tg.sent("sendRichMessage").at(-1);
+    await Promise.all([group(300, "Blue.", { ...onCard(card4?.id), ...bea }), group(301, "Green.", { ...onCard(card4?.id), ...cid })]);
+    expect(app.issues.get(4)?.comments.filter((c: { body: string }) => /^(Bea Berg \(@bea\)|Cid): /.test(c.body)).length).toBe(1);
+    expect(tg.of("sendMessage").at(-1)?.text).toMatch(/^⚠️ #4 was already answered by (Bea Berg \(@bea\)|Cid); yours was not recorded\.$/);
+    // managing stays with the one who set it up: a member is refused in one sentence
+    await dm(300, "/workspaces");
+    expect(screen(300)).toContain("<p>You have none yet.</p>");
+    await tap(300, "m:ws:app");
+    expect(screen(300)).toBe(
+      ["<p>⚠️ <b>Not yours to manage</b></p>", "<p>Only the people who manage <code>app</code> can change it; ask the one who set it up.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""),
+    );
     // the wizard runs in private chats only: in the bound group /setup is the envoy's unknown command (text)
     tg.calls = [];
     await group(100, "/setup");
@@ -917,6 +936,29 @@ describe("groups, topics and preconfigured workspaces", () => {
 
 describe("export and import", () => {
   const PROMPT = ["<p>📥 <b>Import a configuration</b></p>", "<p>Send the <code>.json</code> file, or paste the configuration as your next message.</p>", ROW(CB("✖ Cancel", "m:noimport"))].join("");
+
+  it("managers the creator names in the document manage the workspace too; the creator stays its creator", async () => {
+    await sharedSetup(100);
+    await dm(100, "/export");
+    const out = JSON.parse(await (tg.of("sendDocument").at(-1)?.document as File).text());
+    await dm(100, "/import");
+    await dm(100, JSON.stringify({ ...out.workspaces[0], managers: ["300"] }));
+    await tap(100, "w:confirm");
+    expect((await admin("GET", "/admin/workspaces/app")).body.workspace.managers).toEqual(["300"]);
+    await dm(300, "/workspaces");
+    expect(screen(300)).toContain('data="m:ws:app"');
+    await tap(300, "m:ws:app");
+    await tap(300, "m:pause:app");
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("⏸ Paused");
+    // a manager's changes keep the creator's ownership and do not make the manager an owner of the inbox
+    await tap(300, "m:edit:app:roles");
+    await tap(300, "w:roles:done");
+    await tap(300, "w:confirm");
+    const doc = (await admin("GET", "/admin/workspaces/app")).body;
+    expect(doc.workspace.owners).toEqual([{ chat: "100" }]);
+    await dm(100, "/workspaces");
+    expect(screen(100)).toContain('data="m:ws:app"');
+  });
 
   it("export -> edit -> import through the chat: only the missing secrets are asked", async () => {
     await sharedSetup(100);

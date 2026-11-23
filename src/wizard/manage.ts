@@ -117,7 +117,12 @@ export class Manager {
 
   private mine(user: string, id: string) {
     const d = this.host.doc(id);
-    return d && this.host.owner(id) === user ? d : undefined;
+    return d && this.manages(user, d) ? d : undefined;
+  }
+
+  /** Managing (configuration, secrets, pause, delete, export) is the creator's and the document's managers' only. */
+  private manages(user: string, d: WorkspaceDoc) {
+    return this.host.owner(d.id) === user || !!d.managers?.includes(user);
   }
 
   private where(user: string, d: WorkspaceDoc) {
@@ -183,7 +188,12 @@ export class Manager {
     }
     const d = this.mine(user, id);
     if (!d) {
-      await this.show(user, at, [heading("⚠️", "Workspace not found"), text("That workspace is not yours, or it no longer exists."), mine()]);
+      const exists = !!this.host.doc(id);
+      await this.show(user, at, [
+        heading("⚠️", exists ? "Not yours to manage" : "Workspace not found"),
+        text(exists ? `Only the people who manage ${code(id)} can change it; ask the one who set it up.` : "That workspace no longer exists."),
+        mine(),
+      ]);
       return;
     }
     switch (k) {
@@ -329,17 +339,18 @@ export class Manager {
     docs.forEach((d, i) => {
       const p = many ? `$.workspaces[${i}]` : "$";
       problems.push(...this.host.validate(d).map((e) => e.replace(/^\$/, p)));
-      const owner = d && typeof d.id === "string" ? this.host.owner(d.id) : undefined;
-      if (owner !== undefined && owner !== user) problems.push(`${p}.id: '${d.id}' belongs to someone else; choose another id.`);
+      const old = d && typeof d.id === "string" ? this.host.doc(d.id) : undefined;
+      if (old && !this.manages(user, old)) problems.push(`${p}.id: '${d.id}' belongs to someone else; choose another id.`);
     });
     if (!docs.length) problems.push("$.workspaces: must have at least 1 item(s).");
     if (problems.length) return refuse(problems);
     for (const d of docs) {
-      const why = this.host.refusal(user, this.host.owner(d.id) === user ? d.id : undefined);
+      const old = this.host.doc(d.id);
+      const why = this.host.refusal(user, old && this.manages(user, old) ? d.id : undefined);
       if (why) return refuse([why]);
     }
     this.host.expectImport(user, false);
-    const lines = docs.map((d) => `${this.host.owner(d.id) === user ? "replace" : "create"} ${code(d.id)}`);
+    const lines = docs.map((d) => `${this.host.doc(d.id) ? "replace" : "create"} ${code(d.id)}`);
     const [first, ...rest] = docs;
     await this.wizard.over(user, at, this.host.draftOf(first), undefined, rest, {
       lead: [text(`📥 The configuration is valid and will ${lines.join(", ")}. I ask only for what is missing, then you confirm.`)],

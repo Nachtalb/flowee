@@ -35,9 +35,10 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     { instance: "owner", role: "owner", secret: "T_OWNER" },
   ],
   owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
-  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true, transport: "webhook" },
+  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true, members: ["42", "43"], transport: "webhook" },
+  managers: ["43"],
   files: { url: "https://files.example/", token: "FILES", expire: "30d" },
-  texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u" },
+  texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u", memberSign: "{name}" },
   schedule: { timezone: "Europe/Zurich", digestFrom: 8, digestTo: 11 },
   sync: { webhooks: "auto", reconcileMinutes: 30, pollMinutes: 1 },
   profile: { photo: "https://x.example/p.png" },
@@ -165,7 +166,7 @@ describe("export and import", () => {
     expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy"]);
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });

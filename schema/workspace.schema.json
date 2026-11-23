@@ -597,6 +597,16 @@
             "polling"
           ],
           "description": "How the bot's updates arrive: webhook (needs publicUrl; the only one on Cloudflare) or polling (getUpdates; the self-hosted runtime's default without a public URL)."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Chat user id.",
+            "pattern": "^\\d+$"
+          },
+          "description": "In a group or topic: only these users work the tickets (default: every member)."
         }
       }
     },
@@ -628,6 +638,16 @@
           "default": "90d"
         }
       }
+    },
+    "managers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Chat user id.",
+        "pattern": "^\\d+$"
+      },
+      "description": "Who manages the workspace besides the one who set it up (managed mode): configuration, secrets, pause, delete, export."
     },
     "texts": {
       "type": "object",
@@ -683,6 +703,12 @@
           "type": "string",
           "minLength": 1,
           "description": "Title of a ticket filed with an empty first line."
+        },
+        "memberSign": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The signature of an answer given in a group or topic: {who} is the name with (@username), {name} and {username} alone.",
+          "default": "{who}"
         }
       }
     },

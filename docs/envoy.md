@@ -10,7 +10,8 @@ docs/chat-style.md.
 Names used below:
 
 - **The owner** is anyone in `owners[].chat`, writing in the bound chat (and topic, docs/telegram.md). Comments the
-  Envoy writes for them are signed `<texts.owner>:`; the card heading is `### <texts.cardHeading>`.
+  Envoy writes for them are signed `<texts.owner>:`; the card heading is `### <texts.cardHeading>`. In a group or
+  topic, the whole team works the inbox ("Teams" below).
 - **The inbox** is the state with `meta.inbox`, **postponed** the one with `meta.parked` (`trunk`: `human review`,
   `postponed`). **The project** is `texts.project`; the bot's name, descriptions, welcome and filing note are
   `texts.*` (docs/configuration.md).
@@ -113,3 +114,13 @@ Names used below:
 | The bot token is missing | `Telegram is not connected (the secret <NAME> is missing).` |
 | Unexpected error | `The service failed unexpectedly; …` |
 | `GET /setup` | `{<workspace>: {<step>: "set" \| "current" \| …}}`, one entry per workspace |
+
+## Teams: the inbox in a group or topic
+
+| # | Behaviour |
+|---|---|
+| T1 | Who works the inbox: the owners, and in a group or topic everyone Telegram delivers an update from there (or only `chat.members`). Others, other chats and other topics: ignored silently. |
+| T2 | Each answer is recorded with who gave it: `texts.memberSign` filled with `{who}` (`Bea Berg (@bea)`, the name without a username), `{name}`, `{username}`; then `: ` and the answer. In a private chat: `<texts.owner>:`. ✅ OK is `<signature>: OK`. |
+| T3 | The first answer to a card wins (checked and marked in one step, so two at once cannot both win); the second person gets, as a reply, `⚠️ #n was already answered by <signature>; yours was not recorded.`, a second ✅ OK the toast `#n was already answered by <signature>`. The one who answered may add to it. |
+| T4 | A reply is a whole answer (privacy mode shows the bot replies only, docs/telegram.md): no draft under the current card. |
+

@@ -24,6 +24,8 @@ export const bindings: Record<string, string> = {
   ...Object.fromEntries(who.map((w) => [`HOOKS_${w.toUpperCase()}`, hash(`h-${w}`)])),
   ...Object.fromEntries(who.map((w) => [`RELMAIN_${w.toUpperCase()}`, hash(`r-${w}`)])),
   ...Object.fromEntries(who.map((w) => [`BRANCHY_${w.toUpperCase()}`, hash(`b-${w}`)])),
+  ...Object.fromEntries(who.map((w) => [`CREW_${w.toUpperCase()}`, hash(`c-${w}`)])),
+  ...Object.fromEntries(who.map((w) => [`SQUAD_${w.toUpperCase()}`, hash(`d-${w}`)])),
   HOOKS2_BOARD: hash("k-board"),
   HOOKS2_OWNER: hash("k-owner"),
   HOOKSGL_BOARD: hash("g-board"),

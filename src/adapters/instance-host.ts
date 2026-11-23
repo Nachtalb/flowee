@@ -145,7 +145,8 @@ export class InstanceHost implements InstanceApi {
       expectImport: (user, on) => (on ? self.setKv(`import:${user}`, String(Date.now())) : void self.store.exec("DELETE FROM kv WHERE k = ?", `import:${user}`)),
       refusal(user, replacing) {
         const creators = cfg.creators ?? [cfg.owner];
-        if (!creators.includes(user) && user !== cfg.owner) return "Only the people this instance allows may set up workspaces; ask its owner.";
+        // a manager the creator named may change the workspace without being allowed to create any
+        if (!replacing && !creators.includes(user) && user !== cfg.owner) return "Only the people this instance allows may set up workspaces; ask its owner.";
         const max = cfg.limits?.workspacesPerUser ?? 5;
         if (!replacing && reg.ownedBy(user).length >= max) return `You have ${max} workspaces, the most this instance allows; delete one first.`;
         return null;
@@ -232,7 +233,8 @@ export class InstanceHost implements InstanceApi {
         d.bindCode = doc.id;
         return d;
       },
-      owned: (user) => reg.ownedBy(user).flatMap((id) => reg.get(id) ?? []),
+      // the creator's workspaces, and those whose document names the user among its managers
+      owned: (user) => [...new Set([...reg.ownedBy(user), ...reg.list().filter((d) => d.managers?.includes(user)).map((d) => d.id)])].flatMap((id) => reg.get(id) ?? []),
       doc: (id) => reg.get(id),
       owner: (id) => reg.owner(id),
       paused: (id) => reg.paused(id),

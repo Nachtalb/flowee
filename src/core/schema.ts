@@ -17,6 +17,8 @@ CREATE TABLE albums (group_id TEXT NOT NULL, msg TEXT NOT NULL, ts INTEGER NOT N
   `CREATE TABLE mirror (n INTEGER PRIMARY KEY, issue TEXT NOT NULL);
 CREATE TABLE deliveries (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE hook_events (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL, event TEXT NOT NULL);`,
+  // who answered a card in a group or topic: the first answer wins
+  "ALTER TABLE inbox ADD COLUMN answered_by TEXT;",
 ];
 
 export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events"];

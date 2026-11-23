@@ -818,6 +818,115 @@
       "sync": {
         "webhooks": "off"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "crew",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/crew"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "CREW_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "CREW_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "CREW_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "CREW_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "chat": "424242"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "-100902",
+        "members": [
+          "302"
+        ]
+      },
+      "sync": {
+        "webhooks": "off"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "squad",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/squad"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "SQUAD_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "SQUAD_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "SQUAD_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "SQUAD_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "chat": "424242"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "-100903",
+        "topicId": 4
+      },
+      "sync": {
+        "webhooks": "off"
+      },
+      "texts": {
+        "memberSign": "{name} via chat"
+      }
     }
   ]
 }

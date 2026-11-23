@@ -184,6 +184,7 @@ export function texts(d: WorkspaceDoc): Texts {
     shortAbout: t.shortAbout ?? `The ${project} review inbox as a todo list.`,
     filedBody: t.filedBody ?? "Filed by the owner through Envoy; the Board writes the spec from their words.",
     untitled: t.untitled ?? "Request from the owner",
+    memberSign: t.memberSign ?? "{who}",
   };
 }
 
@@ -201,7 +202,7 @@ export function settings(d: WorkspaceDoc): Settings {
     owners: d.owners.map((o) => o.chat).filter((x): x is string => !!x),
     instances: d.roles.map((r) => ({ ...r })),
     texts: texts(d),
-    chat: d.chat && { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username },
+    chat: d.chat && { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username, ...(d.chat.members ? { members: d.chat.members } : {}) },
     timezone: s.timezone ?? "UTC",
     digest: { from: s.digestFrom ?? 9, to: s.digestTo ?? 12 },
     // an own bot of the managed mode has its own path; the standalone bot is the instance's /telegram

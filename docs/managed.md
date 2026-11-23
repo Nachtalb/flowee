@@ -33,7 +33,9 @@ workspaces: `instance.creators` (default: the instance owner), at most `instance
 The same living message: `📂 Your workspaces` as a table with an `Open` button per workspace; a workspace's screen
 shows what it is as a two-column table with ✏️ Change in the row of each editable part, then its actions as rows
 (name, what it does, its button), and edits in place into each sub-screen, with a toast for done actions. Only the workspaces the
-user owns. Per workspace: show; ✏️ edit the repositories, the way of working, where tickets appear, the GitHub
+user set up or is a manager of (`managers` in the document); anyone else pressing a menu button is told `Only the
+people who manage <id> can change it; ask the one who set it up.` The team in a bound group works the tickets but
+never manages the workspace. Per workspace: show; ✏️ edit the repositories, the way of working, where tickets appear, the GitHub
 token or the agents (the same wizard steps under `✏️ Change <id>`, then ✅ Save the changes); 🔑 a new secret for one agent (the old
 one stops at once; the new one is shown once); 📤 export; own bot: ♻️ a new token (`replaceManagedBotToken`,
 webhook set again) and 🔐 access (`get/setManagedBotAccessSettings`: only me / everyone); ⏸ pause / ▶ resume

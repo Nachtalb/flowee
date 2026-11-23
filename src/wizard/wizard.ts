@@ -170,7 +170,10 @@ export class Living {
 }
 
 /** Shown in a group (or topic) the moment it is chosen for a workspace's tickets. */
-export const boundView = (id: string): View => [heading("✅", `Tickets of ${code(id)} appear here`), text("Everyone here can read them; only the workspace's owners answer them.")];
+export const boundView = (id: string): View => [
+  heading("✅", `Tickets of ${code(id)} appear here`),
+  text("Your team works the tickets together: reply to a card to answer it, and the ticket records who answered."),
+];
 
 /** Something failed: one sentence, and the way back. */
 export const failedView = (why: string, setup: boolean): View => [
@@ -226,7 +229,8 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
   const old = new Map((base.tracker?.repos ?? []).map((r) => (typeof r === "string" ? [r, r] : [r.repo, { repo: r.repo, ...(r.alias ? { alias: r.alias } : {}), ...(r.mainBranch ? { mainBranch: r.mainBranch } : {}) }]) as [string, RepoDoc]));
   const repos: RepoDoc[] = d.repos.map((r) => old.get(r) ?? (d.repos.length > 1 ? { repo: r, alias: aliasOf(r) } : r));
   const owners = base.owners?.length ? base.owners : [{ chat: user }];
-  if (!owners.some((o) => o.chat === user)) owners.push({ chat: user });
+  // a manager changing the workspace does not become one of its owners
+  if (!owners.some((o) => o.chat === user) && !base.managers?.includes(user)) owners.push({ chat: user });
   const own = d.bot === "own";
   const doc: WorkspaceDoc = {
     ...base,
@@ -512,7 +516,7 @@ export class Wizard {
               own
                 ? option(`💬 In my private chat with ${who}`, "Open it and press <b>Start</b> once, so it may write to you.", ...(bot ? [linkBtn("↗ Open", `https://t.me/${bot}`)] : []), b("💬 Choose", "bind:here"))
                 : option("💬 Here", "In this chat with me.", b("💬 Choose", "bind:here")),
-              option("👥 In a group", "Everyone there can read them; only you answer them.", b("👥 Choose", "bind:group")),
+              option("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", b("👥 Choose", "bind:group")),
             ),
             nav,
           ],

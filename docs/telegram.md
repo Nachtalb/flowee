@@ -86,10 +86,22 @@ every `/setup` where it changed. Updates are routed by the path (which bot) and 
 
 - A workspace is bound to a private chat, a group, or one topic of a forum group (`chat.chatId` + `chat.topicId`).
   Everything it sends carries the topic (`message_thread_id`); only updates from that chat and topic count.
-- Who may answer: the workspace's owners (`owners[].chat`), by user id. Everyone else in the group is ignored
-  silently: no reply, no reaction, their button presses unanswered, so a shared group stays quiet.
-- With privacy mode on, the bot sees in a group only commands and replies to its messages. Answering in a group
-  therefore means replying to a card (as the ForceReply prompt asks); the private-chat habit of typing under the
-  current card without replying is not seen by the bot there. Everything else of docs/envoy.md works the same.
+- **A group or topic is a team.** Every member there works the inbox: presses the buttons, answers by replying to a
+  card, sends files. Telegram delivers an update from that chat and topic, and that makes its sender a member;
+  `chat.members` (user ids) narrows it to those people, the owners (`owners[].chat`) always count. Anyone else, and
+  every other chat or topic, is ignored silently. Each answer on the ticket is signed with who gave it
+  (`texts.memberSign`, default `{who}`: `Bea Berg (@bea):`); the first answer to a card wins, and a second person is
+  told in one sentence who answered (docs/envoy.md, "Teams"). In a private chat the owner's signature stays.
+- **Managing is not the team's**: configuration, secrets, pause, delete and export stay with the one who set the
+  workspace up and the `managers` the document names (docs/managed.md).
+- **Privacy mode stays on** (`can_read_all_group_messages: false`): with it the bot receives in a group exactly what
+  a team needs, the commands addressed to it, replies to its own messages (a card, the bar, a filing note; a file
+  sent as a reply too) and the button presses; nothing a team requires needs the rest of the group's talk, and the
+  bot never sees it. Answering in a group therefore means replying to a card (as the ForceReply prompt asks), and
+  each reply is a whole answer: the private chat's drafts typed under the current card do not exist there.
+- **The confirmation in a group stays a normal message**, not an ephemeral one: Bot API 10.5 lets a bot send an
+  ephemeral message only within 15 seconds of a callback query or an incoming ephemeral message, or at any time
+  as a chat administrator. The binding is a `/start <code>` or `/bind <code>` message (neither), and Flowee asks
+  for no administrator rights; the note is also meant for the whole team (`✅ Tickets of <id> appear here`).
 - In a group without topics, Telegram also sets a thread id on replies; Flowee reads a topic only from messages
   marked as topic messages, so such replies still belong to the whole-group binding.

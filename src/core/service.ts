@@ -61,9 +61,9 @@ export class Flowee {
     return fill(this.flow.options.roles[role]?.sign ?? role, { owner: this.s.texts.owner });
   }
 
-  /** The caller's text with any signature it wrote itself removed, signed with its role. */
-  sign(role: string, text: string) {
-    return `${this.signWord(role)}: ${this.strip(text)}`;
+  /** The caller's text with any signature it wrote itself removed, signed with its role (or `by`: who answered in a group). */
+  sign(role: string, text: string, by?: string) {
+    return `${by ?? this.signWord(role)}: ${this.strip(text)}`;
   }
 
   /** `#12`, or `app#12` in a workspace with several repositories. */
@@ -340,11 +340,13 @@ export class Flowee {
   }
 
   /** The owner's words on a ticket (API or chat): the `answer` event as the owner. */
-  async answer(n: number, words: string, via: string) {
+  /** The owner's answer; `by`: the signature of the team member who gave it in a group (default the owner's). */
+  async answer(n: number, words: string, via: string, by?: string) {
     const role = this.flow.options.ownerRole;
     const t = await this.ticket(n);
     const x = this.ctx({ instance: role, role }, t, "answer", { text: words });
     x.data.via = via;
+    if (by) x.data.signature = by;
     await fire(x);
     return { state: t.state };
   }

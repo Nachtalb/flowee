@@ -18,6 +18,8 @@ export interface Texts {
   filedBody: string;
   /** The title of a ticket filed with an empty first line. */
   untitled: string;
+  /** An answer's signature in a group or topic: `{who}`, `{name}`, `{username}`. */
+  memberSign: string;
 }
 
 export interface Instance {
@@ -39,7 +41,8 @@ export interface Settings {
   owners: string[];
   instances: Instance[];
   texts: Texts;
-  chat?: ChatRef & { username?: string };
+  /** The bound chat; `members`: who works the tickets in a group (none: every member). */
+  chat?: ChatRef & { username?: string; members?: string[] };
   /** IANA time zone of the digest and "answered today". */
   timezone: string;
   digest: { from: number; to: number };

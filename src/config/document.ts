@@ -51,7 +51,11 @@ export interface WorkspaceDoc {
     managed?: boolean;
     /** How the bot's updates arrive; polling only in the self-hosted runtime (docs/self-hosting.md). */
     transport?: "webhook" | "polling";
+    /** In a group or topic: only these chat user ids work the tickets; default every member. */
+    members?: string[];
   };
+  /** Chat user ids who manage the workspace besides the one who set it up (managed mode). */
+  managers?: string[];
   files?: { url: string; token: string; expire?: string };
   texts?: Partial<Texts>;
   schedule?: { timezone?: string; digestFrom?: number; digestTo?: number };
