@@ -19,6 +19,8 @@ export interface WorkspaceDoc {
     /** owner/name; one repository per workspace for now. */
     repos: string[];
     mainBranch?: string;
+    /** The API base URL (GitHub Enterprise, a local stand-in); default https://api.github.com. */
+    api?: string;
     /** Secret name of the tracker token. */
     token: string;
     /** A GitHub Projects (v2) board whose Status follows the state; needs a classic token with `project`. */

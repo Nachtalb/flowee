@@ -107,7 +107,7 @@ export class Workspace extends DurableObject<Env> {
 export function build(doc: WorkspaceDoc, env: Env, store: Store, clock: Clock) {
   const secrets = envSecrets(env);
   const s = settings(doc);
-  const tracker = new GitHub({ repo: doc.tracker.repos[0], token: secrets.get(doc.tracker.token), tokenName: doc.tracker.token, project: doc.tracker.project });
+  const tracker = new GitHub({ repo: doc.tracker.repos[0], api: doc.tracker.api, token: secrets.get(doc.tracker.token), tokenName: doc.tracker.token, project: doc.tracker.project });
   const flow = new Flowee(s, tracker, store, clock, secrets);
   let envoy: Envoy | undefined;
   if (doc.chat) {

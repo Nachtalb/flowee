@@ -17,7 +17,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   name: "Full",
   flow: { preset: "trunk" },
   features: { anything: true },
-  tracker: { type: "github", repos: ["acme/app"], mainBranch: "main", token: "GH", project: { owner: "acme", number: 1 } },
+  tracker: { type: "github", repos: ["acme/app"], mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 } },
   roles: [
     { instance: "board", role: "board", secret: "T_BOARD" },
     { instance: "owner", role: "owner", secret: "T_OWNER" },

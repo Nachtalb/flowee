@@ -17,7 +17,6 @@ interface GhIssue {
   pull_request?: unknown;
 }
 
-const API = "https://api.github.com";
 type GhFail = Fail & { gh?: number };
 
 const issue = (i: GhIssue): Issue => ({
@@ -35,6 +34,8 @@ const issue = (i: GhIssue): Issue => ({
 
 export interface GitHubConfig {
   repo: string;
+  /** The API base URL; default https://api.github.com. */
+  api?: string;
   /** The token's value, undefined when the secret is missing. */
   token: string | undefined;
   /** The name of the token's secret, for the message when it is missing. */
@@ -51,7 +52,7 @@ export class GitHub implements Tracker {
 
   async req<T>(method: string, path: string, what: string, body?: unknown): Promise<T> {
     if (!this.c.token) throw new Fail(502, "github", `GitHub is not connected yet (the secret ${this.c.tokenName} is missing); nothing was changed.`);
-    const res = await fetch(API + path, {
+    const res = await fetch((this.c.api ?? "https://api.github.com") + path, {
       method,
       headers: {
         authorization: `Bearer ${this.c.token}`,

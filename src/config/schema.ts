@@ -52,6 +52,7 @@ export const SCHEMA: S = {
           type: { enum: ["github"], description: "The tracker adapter." },
           repos: { type: "array", minItems: 1, maxItems: 1, items: str("owner/name", { pattern: "^[\\w.-]+/[\\w.-]+$" }), description: "Repositories (one for now)." },
           mainBranch: str("The branch commits land on.", { default: "main" }),
+          api: str("The API base URL (GitHub Enterprise, a local stand-in).", { default: "https://api.github.com", pattern: "^https?://" }),
           token: secret("the tracker token"),
           project: obj(
             { owner: str("User login owning the project."), number: { type: "integer", minimum: 1, description: "Project number." } },

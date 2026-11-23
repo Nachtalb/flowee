@@ -29,7 +29,7 @@ describe("architecture boundaries", () => {
         expect(i.includes("adapters/"), `${path} imports ${i}`).toBe(false);
         expect(i.startsWith("cloudflare:"), `${path} imports ${i}`).toBe(false);
       }
-      expect(/api\.github\.com|api\.telegram\.org|DurableObject|SqlStorage/.test(src), path).toBe(false);
+      if (l !== "config") expect(/api\.github\.com|api\.telegram\.org|DurableObject|SqlStorage/.test(src), path).toBe(false);
     }
   });
 

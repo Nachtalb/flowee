@@ -110,6 +110,13 @@
           "description": "The branch commits land on.",
           "default": "main"
         },
+        "api": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The API base URL (GitHub Enterprise, a local stand-in).",
+          "default": "https://api.github.com",
+          "pattern": "^https?://"
+        },
         "token": {
           "type": "string",
           "minLength": 1,
