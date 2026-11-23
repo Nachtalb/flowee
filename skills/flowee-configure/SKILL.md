@@ -72,7 +72,7 @@ curl -fsS -H 'content-type: application/json' --data @workspace.json https://<in
 |---|---|---|
 | managed, in the chat | send the `.json` file to the instance bot in a private chat (or `/import`, then paste it) | the bot lists what it will create or replace; it asks only what is missing (the own bot when `chat.managed` is set and none exists yet, the GitHub token), then hands over the project key once |
 | managed, over HTTP | `PUT /admin/workspaces/<id>` with the document, `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` | the answer lists `missing` secret names; `PUT /admin/workspaces/<id>/secrets` with `{"NAME": "value"}` (the project key, or an agent's secret, is given as the key itself, only its SHA-256 is stored); `POST /admin/workspaces/<id>/key` makes a new key and answers it once |
-| standalone | put it in `flowee.config.local.json` (git-ignored; `{"flowee": 1, "workspaces": [<doc>]}`) | `wrangler secret put` each name, `bun run deploy` (skill `flowee-install`) |
+| standalone | put it in `flowee.config.local.json` (git-ignored; `{"flowee": 1, "workspaces": [<doc>]}`) | each secret it names stored, then the instance restarted (self-hosted) or `bun run deploy` (Cloudflare): [INSTALL.md](../../INSTALL.md) |
 
 A document imported in the chat gets the workspace's own secret slot names (`W_<ID>_TRACKER`, `W_<ID>_BOT`,
 `W_<ID>_HOOK`, `W_<ID>_KEY`, and `W_<ID>_<INSTANCE>` for agents with their own secrets), whatever it named; the admin API keeps the names given.

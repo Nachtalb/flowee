@@ -460,19 +460,31 @@ More checks (webhooks, the managed configuration API, the bot's profile):
 ## 9. Variant 4: your own Cloudflare deployment
 
 1. `git clone https://github.com/Nachtalb/flowee && cd flowee && bun install`; `bun run typecheck && bun run test`.
-   Remove a stray `~/.wrangler` (it hides the wrangler login); `bunx wrangler whoami` names the account. Ask before
-   deploying to it.
-2. The document as `flowee.config.local.json` (git-ignored; 3.1 with `chat.publicUrl` set to the Worker's URL
-   `https://flowee.<subdomain>.workers.dev`, or the managed instance document,
-   [docs/configuration.md](docs/configuration.md#instance)); `bun run validate flowee.config.local.json` prints `ok`.
+   Remove a stray `~/.wrangler` (it hides the wrangler login); `bunx wrangler whoami` names the account. Ask the user
+   before deploying to it.
+2. The document as `flowee.config.local.json` (git-ignored: ids and URLs never reach a commit):
+   - standalone: 3.1 with `chat.publicUrl` set to the Worker's URL `https://flowee.<subdomain>.workers.dev` (the
+     subdomain: wrangler prints the URL on the first deploy; deploy again after correcting it);
+   - managed: `{"flowee": 1, "workspaces": [], "instance": {...}}` with `instance.bot` (the secret names of the bot
+     token and webhook secret, `username`), `publicUrl`, `owner` (the user's Telegram id), `creators`
+     ([docs/configuration.md](docs/configuration.md#instance)).
+
+   `bun run validate flowee.config.local.json` prints `ok`.
 3. Every secret it names, each value on stdin, never as an argument: `bunx wrangler secret put <NAME>` (the first one
-   creates the Worker); generated ones as `python3 -c 'import secrets; print(secrets.token_hex(32))' | bunx wrangler
-   secret put FLOWEE_KEY`; the project key's digest from the file of 3.4:
+   creates the Worker; the user pastes tokens into its prompt). Generated ones:
+   `python3 -c 'import secrets; print(secrets.token_hex(32))' | bunx wrangler secret put FLOWEE_KEY` (also
+   `TG_WEBHOOK_SECRET`, and `FLOWEE_ADMIN_TOKEN` when managed; keep copies of `FLOWEE_KEY` and the admin token in the
+   user's password manager, wrangler never shows them again). The project key's digest from the file of 3.4:
    `python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1]).read().strip().encode()).hexdigest())' ~/.secrets/flowee/acme/key | bunx wrangler secret put ACME_KEY`.
-   Managed: also `FLOWEE_ADMIN_TOKEN`.
-4. `bun run deploy`: it deploys and calls `<publicUrl>/setup`, printing each bot profile step `set` or `current`.
-5. Managed: the user opens the bot and sends `/setup` ([docs/managed.md](docs/managed.md)). Then the project side (7)
-   and the checks (8) with the Worker's URL.
+   `bunx wrangler secret list` then names every one.
+4. `bun run deploy`: it validates, deploys, and calls `<publicUrl>/setup`, printing each bot profile step `set` or
+   `current` (managed: also `settings`, which turns on bot management, so BotFather needs no step). Tracker webhooks
+   register within a minute when `FLOWEE_KEY` is set and the token may manage webhooks; otherwise the workspace
+   polls.
+5. Managed: the user opens the bot and sends `/setup`, or the document as a file (variant 1, step 3, with this
+   instance). Automation instead: `PUT /admin/workspaces/<id>` with the admin token
+   ([skills/flowee-install/references/verify.md](skills/flowee-install/references/verify.md), "Managed").
+6. The project side (7) and the checks (8) with the Worker's URL.
 
 ## 10. Never
 
@@ -488,3 +500,22 @@ More checks (webhooks, the managed configuration API, the bot's profile):
 | run two processes on one data directory, or poll one bot from two places | one instance per data directory and per bot (Telegram answers 409 and Flowee stops polling) |
 | give Flowee a broad personal token | a fine-grained token limited to the repositories |
 | message the user's chat or a real tracker to test | the checks of 8 and the user's own `/start` |
+
+## 11. When something fails
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| the container exits at once with `EACCES: permission denied` or `unable to open database file` | the process cannot write `data/` (5.2), or `data/` is a Windows folder under `wslc` | the user mapping of 5.2; under `wslc` a volume for `/data` |
+| the start stops with exit 2 and `$.…` lines | the document is invalid | 3.2, fix every line |
+| `<NAME>_FILE: cannot read /run/secrets/<NAME>.` | the secret file is missing or not mounted | 3.3; `ls ~/flowee/secrets` |
+| `telegram …: 409` in the log, polling stopped | another process polls the bot, or a webhook is set | stop the other consumer (`getWebhookInfo` in 3.5 must say `none`), restart |
+| `failed: Unknown or missing token.` from the client | wrong key file, or `agents.key` names a secret holding the key instead of its SHA-256 | 3.4: the instance holds the digest, the agents the key |
+| `refused: unknown_agent` | the agent was not created | `python3 scripts/flowee.py agents add <role> <name>` (7) |
+| `403 error code: 1010` from a Cloudflare instance | a client without its own User-Agent (Python's default is blocked) | `flowee.py` sends one; any other client must too |
+| wrangler asks for `CLOUDFLARE_API_TOKEN` | a stray `~/.wrangler` hides the login | remove `~/.wrangler` |
+| every token entered in the chat stopped working | `FLOWEE_KEY` changed or was lost | restore it from the backup (3.3); otherwise every workspace needs its tokens again |
+| the tracker refuses writes to a Projects board | a fine-grained GitHub token cannot write a user-owned project | leave `tracker.project` out, or a classic `repo` + `project` token |
+| a second workspace naming the same repository is refused | a repository belongs to one workspace per instance | several repositories go into one workspace (`tracker.repos`) |
+| a changed document has no effect | it is read at start (self-hosted) or deploy (Cloudflare) | restart the container or process; `bun run deploy` (a plain `wrangler deploy` skips `/setup`) |
+| the owner's messages in a group are not seen | the bot runs in privacy mode | answer by replying to a card ([docs/telegram.md](docs/telegram.md)) |
+| any key holder can act as any agent | the project key is shared by design | `agents.secrets: "per-agent"` where roles must be enforced ([docs/api.md](docs/api.md#agents)) |

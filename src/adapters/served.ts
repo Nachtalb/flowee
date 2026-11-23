@@ -134,7 +134,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
   const create =
     f.mode === "managed"
       ? `yes, for the instance owner${f.creators ? " and the users its operator listed as creators" : ""} (up to ${f.perUser} each): in a private chat with ${bot ?? "the instance bot"}, \`/setup\` starts the wizard, or send the workspace document as a \`.json\` file (or \`/import\`, then paste it). Anyone else is refused by the bot. With the operator's admin token: \`PUT ${u("/admin/workspaces/<id>")}\`.`
-      : "no: this instance serves only the workspaces its operator deployed. A new workspace is added to the operator's deployment document and deployed again (skill flowee-install, \"Standalone\").";
+      : `no: this instance serves only the workspaces its operator configured. A new workspace is added to the operator's document and the instance restarted or deployed again (${u("/INSTALL.md")}, variants 2 to 4).`;
   const submit =
     f.mode === "managed"
       ? [
@@ -144,7 +144,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
             `${u("/skills/flowee-install/references/project-setup.md")}) and paste it when the bot asks; press **🤖 Create the bot** when the workspace gets its own bot; add the bot to the group (and enable topics) when the tickets go to a group; answer the cards.`,
         ]
       : [
-          "   - This instance is standalone: hand the validated document to its operator, who adds it to the deployment document, stores the secrets it names and deploys (skill flowee-install, \"Standalone\").",
+          `   - This instance is standalone: hand the validated document to its operator, who adds it to the instance's document, stores the secrets it names and restarts or deploys it (${u("/INSTALL.md")}).`,
           `   - What only the user can do: create the tracker token (the permissions in ${u("/skills/flowee-install/references/project-setup.md")}), create a bot with BotFather if the instance has none, add the bot to the group when the tickets go to a group, answer the cards.`,
         ];
   return [
