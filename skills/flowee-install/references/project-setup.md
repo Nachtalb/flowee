@@ -77,6 +77,7 @@ read**, **Contents: read**. A `tracker.project` board needs a classic token with
 | `uiReview` | **Contents: read** (with pull requests: **Pull requests: read**) |
 | `dependencyTickets` | **Pull requests: read**, **Issues: read and write** |
 | `untrustedReports` | (base) |
+| webhooks (`sync.webhooks: auto`, the default) | **Webhooks: read and write** (Flowee registers the hook itself; without it the workspace polls) |
 
 ### GitLab
 

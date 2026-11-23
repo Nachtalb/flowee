@@ -15,6 +15,9 @@ Run each check and compare with what it prints. Commands never put a secret on t
 | an agent's secret | in the agent's clone: `python3 <client> whoami` | `{"instance": "dev1", "role": "developer"}`; a wrong secret: `failed: Unknown or missing token.`, exit 1 |
 | the queue | `python3 <client> queue` | `{"role": "developer", "queue": [], "claim": null}` (board and owner also `"inbox"`) |
 | the chat | the owner sends `/start` to the bot | the bar (`✨ Inbox empty`) or the first open card |
+| webhooks registered | a minute after `/setup`: `curl -fsS -H @"$TMP/agent" https://<worker>/v1/sync` (an agent's `Authorization` header in a file) | each repository `"mode": "webhook", "via": "api"` and `"lastDelivery"` set (GitHub's ping arrived; GitLab: press **Test** on the hook once). `"mode": "poll"` names the `reason` (e.g. `the token lacks …`): add that permission, or set the hook up by hand (docs/webhooks.md) |
+| webhooks deliver | GitHub: the repository's Settings → Webhooks → the Flowee hook → Recent Deliveries; GitLab: Settings → Webhooks → Edit → Recent events | the `ping` (GitHub) or the test event answered `200` |
+| queue off the tracker | `python3 <client> queue` | `"source": "mirror"` while webhooks are healthy |
 
 ## Managed: the configuration API
 

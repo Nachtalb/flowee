@@ -37,6 +37,7 @@ turns a missing one into `501 unsupported` (`The tracker does not support pull r
 | `checks` | `forCommit(sha)` (check runs and commit statuses, newest per name) | `pullRequests` (`checksGreen`), `releases` (`checks`: the `tested` tag only onto a green commit) |
 | `releases` | `latest()` (tag, name, the built-from sha its notes name, body) | `releases` (`source: "release"`) |
 | `tags` | `get(name)`, `move(name, sha)` | `releases` (`source: "tag"`, `testedTag`) |
+| `hooks` | `verify(delivery, secret)` (constant time), `id(delivery)`, `parse(delivery)` → `TrackerEvent[]`, `register(url, secret)` (`403 forbidden` when the token may not), `unregister(url)`, `status(url)`, `permission`, `manual` (`src/ports/hooks.ts`) | webhooks instead of polling (docs/webhooks.md); without it every repository polls |
 
 A workspace that switches on a feature its tracker cannot do is refused when it is loaded
 (`$.features.pullRequests: the tracker 'github' cannot do pull requests.`); a call that reaches a missing
@@ -61,6 +62,7 @@ A fine-grained token limited to the workspace's repositories. The base flow need
 | `uiReview` | the files and lines of the ticket's commits | **Contents: read** |
 | `dependencyTickets` | list open pull requests, read one, file a ticket | **Pull requests: read**, **Issues: read and write** |
 | `untrustedReports` | labels only | (base) |
+| webhooks (`sync.webhooks`, docs/webhooks.md) | list, create, update and delete the repository's webhook | **Webhooks: read and write** (classic: `admin:repo_hook`); without it the workspace polls |
 
 ## Chat
 

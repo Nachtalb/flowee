@@ -37,9 +37,12 @@ src/
               (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts,
               features.ts (feature switches: defaults, terms, pruning a tagged chart), code.ts (the guards, actions
               and cron work of the code features: pull requests, checks, releases, tested tag, samples, UI review,
-              dependency and untrusted tickets), housekeeping.ts (what the cron runs for them), errors.ts (`Fail`:
+              dependency and untrusted tickets), housekeeping.ts (what the cron runs for them), events.ts
+              (webhooks: deliveries queued, the targeted work per event, the mirror of open tickets behind `queue`,
+              registration, health, fallback to polling, the listings' schedule), errors.ts (`Fail`:
               status, code, one sentence), text.ts (hashing, constant-time compare, templates)
-  ports/      interfaces: tracker.ts (+ optional capabilities), chat.ts (views, events, plain fallback), store.ts,
+  ports/      interfaces: tracker.ts (+ optional capabilities), hooks.ts (the trackers' webhooks, normalised
+              events), chat.ts (views, events, plain fallback), store.ts,
               clock.ts, secrets.ts, files.ts, bots.ts (managed bots)
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
               digest, profile), render.ts (the view building blocks every screen uses, cards, bar, lists,
@@ -55,24 +58,28 @@ src/
               document), presets.ts (presets, flowOf: a workspace's pruned flow)
   adapters/   trackers.ts (the tracker adapters by kind), tracker-github.ts (+ tracker-github-code.ts: branches,
               pulls, checks, releases, tags), tracker-gitlab.ts (REST v4: merge requests, pipelines, tags, releases),
+              hooks-github.ts / hooks-gitlab.ts (each tracker's webhooks: verify, parse, register),
               chat-telegram.ts (+ TelegramBots: managed bots), files-paste.ts, store-durable-object.ts (one Durable
               Object per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry),
               instance-durable-object.ts (managed mode: the stored registry, sealed secrets, wizard host, update
               routing, /admin, pasted imports only after /import), vault.ts (AES-GCM), photo.ts (the default bot
               photo: assets/logo-square.svg rendered at 256 px, base64)
-  index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup
+  index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup,
+              /hooks/<workspace>/<alias> (tracker webhooks, verified in the workspace's object)
 flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
 schema/       workspace.schema.json, instance.schema.json (generated)
 scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`)
 client/       flowee.py + test_flowee.py
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
 docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab's mapping and token scopes),
+              webhooks.md (events per feature, permissions, health and fallback, the alarm/cron split),
               envoy.md (the chat interface, row by row),
               chat-style.md (how every screen looks, the living message, the reply-keyboard exception),
               flow-features.md (the feature catalogue), managed.md (wizard, management, import), telegram.md
               (profiles, setMySettings, groups and topics), agents/ (role templates for projects using Flowee)
 skills/       agent skills: flowee-install, flowee-use, flowee-configure (the full configuration spec)
-test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts), tracker-contract.test.ts (every tracker
+test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts, fake-hooks.ts: hooks routes, signed
+              deliveries), hooks.test.ts (counts tracker calls), tracker-contract.test.ts (every tracker
               adapter, the same cases), fixtures (workspaces.json: neutral names), docs.test.ts
               (docs and skills complete, the skills' examples valid), e2e/wire.py
 ```
@@ -85,7 +92,16 @@ test/         vitest suites, fakes (fake.ts, fake-code.ts, fake-gitlab.ts), trac
   repository, person or chat of the test workspaces: those live in configuration only. The public repository
   names no real project, person or chat id anywhere (docs, tests, fixtures included).
 - **The tracker is the record.** Every command re-reads the ticket; the store keeps only what the tracker cannot
-  (claims, origins, handed commits, answers, the inbox, idempotency, chat message ids).
+  (claims, origins, handed commits, answers, the inbox, idempotency, chat message ids). The one copy of tracker data,
+  the webhook-fed mirror of open tickets (`src/core/events.ts`), answers only the read-only `queue` and the envoy's
+  sync; a webhook event is a hint to re-read, never a transition's reason.
+- **Scheduled work: alarm first, cron as the net.** `Flowee.cron(force)` is one pass (reaper, queued webhook events,
+  due listings and their housekeeping, the envoy's minute, pruning). The workspace's alarm runs it without `force` at
+  `wakeAt()` (queued events, the earliest lease expiry, the next reconcile, the next hour for the digest); the
+  every-minute cron runs it with `force`, which lists every polled repository as before. Decision: the cron stays
+  every minute because polling (no or unhealthy webhooks) needs it and it wakes objects whose alarm was never set;
+  for a healthy webhook workspace it makes no tracker call. Alarms are per workspace and exact, the cron one global
+  tick; a rarer cron would slow the polling fallback by the same factor (docs/webhooks.md).
 - **One workspace, one Durable Object, one store.** Every API token, chat update and stored key resolves a
   workspace first (`index.ts`); a Durable Object refuses a request for another workspace than its own. Commands of
   a workspace run under its lock (`Workspace.lock`).
@@ -135,7 +151,10 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   (`src/adapters/trackers.ts`, which `build()` uses per repository; the compiler demands it). Then a harness in
   `test/tracker-contract.test.ts` with an HTTP stand-in of its API, its own cases beside it (GitLab:
   `test/tracker-gitlab.test.ts`), a page like docs/gitlab.md (concept mapping, token scopes) and a stand-in in
-  test/e2e/wire.py.
+  test/e2e/wire.py. Webhooks: `src/adapters/hooks-<kind>.ts` implementing `Hooks` (`src/ports/hooks.ts`: verify in
+  constant time, the delivery id, parse into `TrackerEvent`s, register/unregister/status through the API, the
+  permission in words) set as the adapter's `hooks`; tests with the tracker's documented payloads
+  (`test/hooks-gitlab.test.ts`, `test/fixtures/`).
 - **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
   `plain()`; give the Worker a route for its updates (`index.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods

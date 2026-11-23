@@ -41,7 +41,8 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 | Method + path | Body | Response (besides `ok`) |
 |---|---|---|
 | `GET /v1/whoami` | | `instance`, `role` |
-| `GET /v1/queue` | | `role`, `queue: [n…]` (what `next` would hand out), `claim: {n, since, touched} \| null`; board and owner also `inbox: [n…]` |
+| `GET /v1/queue` | | `role`, `queue: [n…]` (what `next` would hand out), `claim: {n, since, touched} \| null`; board and owner also `inbox: [n…]`; `source: "mirror" \| "tracker"`: from the webhook-fed copy of the open tickets (no tracker call) or a listing of the tracker (docs/webhooks.md) |
+| `GET /v1/sync` | | `sync: {webhooks, repos: [{alias, repo, mode: "webhook" \| "poll", reason?, via?: "api" \| "manual", missing?, url?, lastDelivery?, lastListing?}]}`: how each repository learns of changes |
 | `GET /v1/show?n=N` | | `n`, `title`, `state`, `claim`, `depends_on`, `blocked_by`, `commits`, `origin` (board review), `answers: [{ts, text}]` |
 | `POST /v1/next` | `{}` | `ticket: {n, title, state, resumed, origin?, answers?}` or `ticket: null` |
 | `POST /v1/heartbeat` | `{n}` | `touched` |
@@ -58,7 +59,8 @@ Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "me
 | `POST /v1/approve`, `postpone`, `resume` | `{n, comment?}` | `state` |
 | `POST /v1/answer` | `{n, text}` | `state` |
 | `POST /telegram` | a Telegram update | the chat webhook (`X-Telegram-Bot-Api-Secret-Token`) |
-| `GET /setup` | | per workspace: the profile/webhook steps run (the deploy calls it) |
+| `GET /setup` | | per workspace: the profile/webhook steps run (the deploy calls it); a standalone workspace takes the request's origin as the base of its webhook address |
+| `POST /hooks/<workspace>/<alias>` | a tracker's webhook delivery | `200 ok` (also a redelivery, and in a paused workspace), `401` with no body for a wrong or missing signature/token or an unknown hook, `413` over 5 MB; the work runs after the response (docs/webhooks.md) |
 
 ## States and transitions (trunk)
 
@@ -165,7 +167,7 @@ secret; without it every call is 401). In the standalone mode every `/admin/` pa
 | `PUT /admin/workspaces/<id>` | the workspace document (`id` must be `<id>`) | `id`, `created`, `missing` (the secret names still needed). Invalid: `400 bad_config` with `problems: ["$.path: one sentence.", …]`, nothing changed. Owner: the instance owner (kept when replacing). |
 | `PUT /admin/workspaces/<id>/secrets` | `{"<SECRET_NAME>": "<value>", …}` | `stored`, `missing`. Names the document does not reference are refused. An agent's secret (`roles[].secret`) is given as the secret itself and stored only as its SHA-256; the rest is sealed (AES-GCM). |
 | `DELETE /admin/workspaces/<id>` | | `deleted: true` |
-| `GET /w/<id>/config` | (an agent token of that workspace) | `workspace`: its document, no secrets |
+| `GET /w/<id>/config` | (an agent token of that workspace) | `workspace`: its document, no secrets; `sync`: as `GET /v1/sync` |
 
 The documents keep the secret names they are given (the operator's API); the chat import gives a workspace its
 own slot names instead (docs/configuration.md, "Secrets in the managed mode").

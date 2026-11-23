@@ -62,7 +62,7 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
 2. The content must stay in the chat history by its nature: the agents' secrets (a file, or a rich message where
    files are refused), an exported configuration, the envoy's cards and bar (docs/envoy.md).
 3. Another chat: the confirmation in a group (`✅ Tickets of <id> appear here`).
-4. The envoy's notices and statuses as docs/envoy.md specifies them (rows 11, 37 to 41, 44 and 48, and its toasts); these
+4. The envoy's notices and statuses as docs/envoy.md specifies them (rows 11, 37 to 41, 44, 48 and 54, and its toasts); these
    stay plain messages exactly as in the bot the envoy reproduces.
 
 ## Exceptions: reply keyboards

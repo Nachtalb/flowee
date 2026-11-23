@@ -54,7 +54,10 @@ and scheduled runs: `references/project-setup.md`.
      `printf %s "$S" | sha256sum | cut -d' ' -f1 | bunx wrangler secret put ACME_DEV1`.
 6. `bun run deploy`: it prints `GET <url>/setup: 200 {...}` with each profile step `set` or `current` and exits
    non-zero when the deploy or `/setup` failed. `chat.publicUrl` must be the Worker's URL
-   (`https://<worker>.<subdomain>.workers.dev`; wrangler prints it).
+   (`https://<worker>.<subdomain>.workers.dev`; wrangler prints it). Webhooks (`sync.webhooks: auto`) need the Worker
+   secret `FLOWEE_KEY` (`openssl rand -hex 32 | bunx wrangler secret put FLOWEE_KEY`) and a GitHub token with
+   **Webhooks: read and write** (GitLab: Maintainer + `api`); the cron registers them within a minute of `/setup`.
+   Check that the ping arrived (`references/verify.md`, "webhooks registered"); without them the workspace polls.
 7. Verify (`references/verify.md`), then set up the project repository and the agents (`references/project-setup.md`).
 
 ## Managed

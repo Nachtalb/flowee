@@ -35,8 +35,12 @@ user owns. Per workspace: show; ✏️ edit the repositories, the way of working
 token or the agents (the same wizard steps under `✏️ Change <id>`, then ✅ Save the changes); 🔑 a new secret for one agent (the old
 one stops at once; the new one is shown once); 📤 export; own bot: ♻️ a new token (`replaceManagedBotToken`,
 webhook set again) and 🔐 access (`get/setManagedBotAccessSettings`: only me / everyone); ⏸ pause / ▶ resume
-(paused: the API answers `503 paused`, chat updates and the cron rest); 🗑 delete (confirmed; the
-configuration, secrets and stored state go, the repositories stay).
+(paused: the API answers `503 paused`, chat updates and the cron rest, tracker webhooks are acknowledged and
+ignored); ⚡ instant updates: the screen says `⚡ Instant updates: on`, or `off for <alias> (<reason>)` with **⚡ Turn
+on instant updates**, which names the token permission Flowee lacks to register the tracker's webhook itself and
+offers the webhook's address and a new secret (shown once) to paste into the tracker by hand (docs/webhooks.md);
+🗑 delete (confirmed; the configuration, secrets, stored state and the webhooks Flowee registered go, the
+repositories stay).
 
 ## Export and import
 

@@ -94,6 +94,7 @@ Names used below:
 | 47 | A new inbox item arrives as a note (row 18). |
 | 48 | A digest once a day between `schedule.digestFrom` and `schedule.digestTo` in `schedule.timezone`, silent, only with open items: `☀️ <b>Good morning: N open</b>` + one line per item `{emoji} <a>#n</a> {title cut to 70}`, split under 3800 characters, `▶ Start` on the last part; no digest on the first day. |
 | 49 | A one-off `hello` after a new interface version: the welcome text (`texts.welcome`) and the todo list (`📋 <b>N open</b>`); cards sent by an older layout are edited once into the current note layout (where the chat refuses the edit, their old buttons are removed); replies to them keep answering their ticket and no card is sent twice. |
+| 54 | A repository's webhooks fall back to polling, or come back (docs/webhooks.md): one silent plain line, once per change: `Instant updates for <repo> are off: <reason>. Flowee checks the tracker every few minutes instead.` / `⚡ Instant updates for <repo> are on again.` (with several repositories `<alias> (<repo>)`). Not on the first state after setup. |
 
 ## Buttons, errors, others
 

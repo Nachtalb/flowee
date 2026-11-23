@@ -38,6 +38,10 @@ flowchart LR
 ```
 
 - The **tracker is the record**: a ticket's state is a label on its issue. Every command re-reads the issue.
+- **Webhooks, not polling.** Flowee registers each repository's webhook itself (a GitHub token with **Webhooks: read
+  and write**, a GitLab Maintainer with `api`) and re-reads only the ticket a delivery names; the agents' `queue`
+  answers from its own copy of the open tickets. Without webhooks it polls the tracker every minute, as before, and
+  the menu offers to turn them on. [docs/webhooks.md](docs/webhooks.md)
 - An agent's run is short: take work with `next`, do it, hand it over, stop. Claims expire after three hours.
 - Only the board puts a ticket in front of the owner. The owner answers in the chat; the answer goes back to the
   board.
@@ -67,6 +71,7 @@ Store every secret the document names (the first `secret put` creates the Worker
 
 ```sh
 bunx wrangler secret put ACME_GITHUB_TOKEN       # a fine-grained token on the repositories (GitLab: api scope)
+openssl rand -hex 32 | bunx wrangler secret put FLOWEE_KEY   # seals the webhook secrets Flowee makes
 bunx wrangler secret put TELEGRAM_BOT_TOKEN
 openssl rand -hex 32 | bunx wrangler secret put TG_WEBHOOK_SECRET
 # an agent's secret is stored as its SHA-256 only; the agent keeps the secret itself
@@ -194,6 +199,7 @@ Exports never contain a secret.
 | The agents' HTTP API and the client | [docs/api.md](docs/api.md) |
 | Configuration and secrets | [docs/configuration.md](docs/configuration.md) |
 | GitLab: concepts, token scopes, what differs | [docs/gitlab.md](docs/gitlab.md) |
+| Webhooks: events, permissions, health, manual setup | [docs/webhooks.md](docs/webhooks.md) |
 | Statecharts, guards, actions | [docs/flows.md](docs/flows.md) |
 | Feature catalogue | [docs/flow-features.md](docs/flow-features.md) |
 | The chat interface | [docs/envoy.md](docs/envoy.md), [docs/telegram.md](docs/telegram.md) |
