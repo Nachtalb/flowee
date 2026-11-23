@@ -16,6 +16,7 @@ import { bindings } from "../bindings";
 import { install } from "../fake";
 import workspaces from "../workspaces.json";
 
+const real = globalThis.fetch;
 let dir: string;
 const apps: App[] = [];
 beforeEach(() => {
@@ -217,6 +218,24 @@ describe("Telegram by long polling", () => {
     // the profile was set at start, without a webhook
     expect(tg.of("setMyCommands").length).toBeGreaterThan(0);
     expect(tg.of("setWebhook")).toEqual([]);
+  });
+});
+
+describe("the served material, self-hosted", () => {
+  it("the root document says where it runs and how updates arrive; /validate is limited per client address over HTTP", async () => {
+    install();
+    const { publicUrl: _, ...chat } = shop.chat as typeof shop.chat & { publicUrl?: string };
+    const a = app({ flowee: 1, workspaces: [{ ...shop, chat: { ...chat, transport: "polling" } }] });
+    await a.start(true);
+    const base = `http://127.0.0.1:${a.port}`;
+    const md = await (await real(`${base}/`)).text();
+    expect(md).toContain(`- Base URL: ${base}\n`);
+    expect(md).toContain("- Runs on: a self-hosted Flowee process; chat updates by polling; no public URL, so tracker changes are polled\n");
+    const post = (ip: string) => real(`${base}/validate`, { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": ip }, body: "{}" }).then((r) => r.status);
+    // a client naming another address each time is still one address
+    const codes = await Promise.all(Array.from({ length: 31 }, (_, i) => post(`203.0.113.${i}`)));
+    expect(codes.filter((c) => c === 429)).toHaveLength(1);
+    expect((await real(`${base}/health`)).status).toBe(200);
   });
 });
 

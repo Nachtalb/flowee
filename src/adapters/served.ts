@@ -12,6 +12,10 @@ export interface ServedEnv {
   ASSETS?: { fetch(req: Request | string): Promise<Response> };
   FLOWEE_MODE?: string;
   FLOWEE_CONFIG?: string;
+  /** `bun` in the self-hosted runtime (src/runtime/bun), unset on Cloudflare. */
+  FLOWEE_RUNTIME?: string;
+  /** The self-hosted runtime's public URL (behind a reverse proxy); none: polling. */
+  FLOWEE_PUBLIC_URL?: string;
 }
 
 export interface Manifest {
@@ -87,9 +91,9 @@ async function text(req: Request, body: string, type: string, extra: Record<stri
 }
 
 type Doc = {
-  instance?: { bot?: { username?: string }; creators?: string[]; limits?: { workspacesPerUser?: number } };
-  workspaces?: { chat?: { username?: string } }[];
-  chat?: { username?: string };
+  instance?: { bot?: { username?: string }; creators?: string[]; limits?: { workspacesPerUser?: number }; transport?: string };
+  workspaces?: { chat?: { username?: string; transport?: string } }[];
+  chat?: { username?: string; transport?: string };
 };
 
 /** This instance's facts: never a secret, an id or a chat; only what an agent needs to choose its path. */
@@ -102,9 +106,14 @@ export async function facts(env: ServedEnv, base: string) {
   const ws = doc.workspaces ?? (doc.chat ? [doc] : []);
   const bot = (mode === "managed" ? doc.instance?.bot?.username : ws.find((w) => w.chat?.username)?.chat?.username) ?? null;
   const m = await manifest(env);
+  const selfHosted = env.FLOWEE_RUNTIME === "bun";
+  const transport = (mode === "managed" ? doc.instance?.transport : ws.find((w) => w.chat)?.chat?.transport) ?? "webhook";
   return {
     base,
     mode,
+    runtime: selfHosted ? "self-hosted" : "cloudflare",
+    transport,
+    publicUrl: !selfHosted || !!env.FLOWEE_PUBLIC_URL,
     version: m?.flowee ?? pkg.version,
     commit: m?.commit ?? "unknown",
     bot: bot?.replace(/^@/, "") ?? null,
@@ -149,6 +158,7 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
     `- Base URL: ${f.base}`,
     `- Version: ${f.version} (commit ${f.commit})`,
     `- Mode: ${f.mode}`,
+    `- Runs on: ${f.runtime === "self-hosted" ? "a self-hosted Flowee process" : "Cloudflare Workers"}; chat updates by ${f.transport}${f.publicUrl ? "" : "; no public URL, so tracker changes are polled"}`,
     `- Chat bot: ${bot ?? "none configured"}`,
     `- Trackers: ${f.trackers.join(", ")}`,
     `- Chat backends: ${f.chats.join(", ")}`,

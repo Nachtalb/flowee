@@ -19,6 +19,8 @@ export interface Options {
   assets?: string;
   debug: boolean;
   telegramApi?: string;
+  /** Behind a reverse proxy: the client address is the first X-Forwarded-For entry (FLOWEE_TRUST_PROXY=1). */
+  trustProxy?: boolean;
 }
 
 type Chat = { publicUrl?: string; transport?: string };
@@ -75,6 +77,7 @@ export async function load(raw: Record<string, string | undefined>, cwd = "."): 
     assets: vars.FLOWEE_ASSETS ?? (existsSync(join(cwd, "served", "manifest.json")) ? resolve(cwd, "served") : undefined),
     debug: (vars.FLOWEE_LOG ?? "info") === "debug",
     telegramApi: vars.FLOWEE_TELEGRAM_API,
+    trustProxy: vars.FLOWEE_TRUST_PROXY === "1",
   };
   if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) errs.push(`FLOWEE_PORT: '${vars.FLOWEE_PORT}' is no port.`);
   if (options.publicUrl && !/^https?:\/\//.test(options.publicUrl)) errs.push("FLOWEE_PUBLIC_URL: must start with https:// (or http:// behind a proxy that terminates TLS for the trackers only).");

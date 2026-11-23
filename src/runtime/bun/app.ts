@@ -84,6 +84,8 @@ export class App {
     readonly log: Log = jsonLog(o.debug),
   ) {
     if (o.telegramApi) setTelegramApi(o.telegramApi);
+    env.FLOWEE_RUNTIME = "bun";
+    if (o.publicUrl) env.FLOWEE_PUBLIC_URL = o.publicUrl;
     if (o.assets) (env as Record<string, unknown>).ASSETS = assets(resolve(o.assets));
     this.lock = lockData(o.data);
     mkdirSync(join(o.data, "workspaces"), { recursive: true });
@@ -127,8 +129,15 @@ export class App {
   }
 
   /** One HTTP request: /health for the container's check, everything else the router's. */
-  fetch = async (req: Request): Promise<Response> => {
+  fetch = async (req: Request, server?: { requestIP(r: Request): { address: string } | null }): Promise<Response> => {
     const t = Date.now();
+    if (server) {
+      // the client's address for the per-address limits (cf-connecting-ip on Cloudflare); never the client's own claim
+      const fwd = this.o.trustProxy ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+      const h = new Headers(req.headers);
+      h.set("cf-connecting-ip", fwd || server.requestIP(req)?.address || "unknown");
+      req = new Request(req, { headers: h });
+    }
     const path = new URL(req.url).pathname;
     let res: Response;
     try {

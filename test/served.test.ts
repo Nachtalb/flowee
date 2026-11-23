@@ -168,6 +168,9 @@ describe("the root document", () => {
     expect(md).toContain("- Base URL: https://flowee.test\n");
     expect(md).toContain(`- Version: ${m.flowee} (commit ${m.commit})\n`);
     expect(md).toContain("- Mode: standalone\n");
+    // the same suite runs on both runtimes (vitest.bun.config.ts): each says where it runs
+    const bun = typeof (globalThis as { Bun?: unknown }).Bun === "object";
+    expect(md).toContain(bun ? "- Runs on: a self-hosted Flowee process; chat updates by webhook; no public URL, so tracker changes are polled\n" : "- Runs on: Cloudflare Workers; chat updates by webhook\n");
     expect(md).toContain("- Trackers: GitHub, GitLab\n");
     expect(md).toContain("- Chat backends: Telegram\n");
     expect(md).toContain("- New workspaces by the user: no:");

@@ -39,7 +39,7 @@ interface BunServer {
 }
 
 declare const Bun: {
-  serve(o: { port: number; hostname?: string; idleTimeout?: number; fetch(req: Request): Response | Promise<Response> }): BunServer;
+  serve(o: { port: number; hostname?: string; idleTimeout?: number; fetch(req: Request, server: { requestIP(r: Request): { address: string } | null }): Response | Promise<Response> }): BunServer;
   file(path: string): Blob & { exists(): Promise<boolean>; text(): Promise<string> };
   argv: string[];
   version: string;
