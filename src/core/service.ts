@@ -390,8 +390,10 @@ export class Flowee {
   wakeAt(): number {
     const now = this.clock.now();
     const lease = this.rows<{ t: number | null }>("SELECT MIN(touched) AS t FROM claims")[0]?.t;
+    if (this.rows("SELECT 1 FROM hook_events LIMIT 1").length) return now;
     const at = [Math.floor(now / 3600e3 + 1) * 3600e3, this.events.next(), lease == null ? undefined : lease + this.flow.options.leaseHours * 3600e3 + 1000];
-    return Math.max(now, Math.min(...at.filter((x): x is number => x !== undefined)));
+    // something due that failed (the tracker down) is retried in a minute, not in a tight loop
+    return Math.max(now + 60e3, Math.min(...at.filter((x): x is number => x !== undefined)));
   }
 }
 

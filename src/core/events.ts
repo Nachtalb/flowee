@@ -402,9 +402,8 @@ export class Webhooks {
     return due;
   }
 
-  /** When the alarm must run next: queued events, the next reconcile; undefined when the cron is enough. */
+  /** When the next reconcile is due; undefined when the cron is enough (every repository polls). */
   next(): number | undefined {
-    if (this.f.rows("SELECT 1 FROM hook_events LIMIT 1").length) return this.f.clock.now();
     const at = this.f.tracker.list
       .filter((r) => this.option !== "off" && (this.state(r).mode === "webhook" || this.option === "required"))
       .map((r) => (this.state(r).listed ?? 0) + this.f.s.sync.reconcileMinutes * MIN);

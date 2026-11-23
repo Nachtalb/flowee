@@ -371,9 +371,14 @@ describe("alarms", () => {
     expect(next).toBe(Math.min(Math.floor(T / 3600e3 + 1) * 3600e3, (await run((f) => f.events.state(f.tracker.list[0]).listed ?? 0)) + 30 * MIN));
   });
 
-  it("queued events make the alarm due at once", async () => {
+  it("queued events make the alarm due at once; something due that keeps failing is retried a minute later", async () => {
     await cron();
     await deliver("hooks", "hooks", "issues", GH.issues("acme/hooks", 1), await secret());
     expect(await run((f) => f.wakeAt())).toBe(T);
+    await alarm();
+    const old = T - 4 * 3600e3;
+    await run((f) => f.db.exec("INSERT INTO claims VALUES (9, 'dev1', 'developer', ?, ?)", old, old));
+    expect(await run((f) => f.wakeAt())).toBe(T + 60e3);
   });
+
 });
