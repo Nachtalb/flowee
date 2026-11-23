@@ -6,6 +6,7 @@ import { GUARDS } from "../core/guards";
 import type { InstanceDoc, WorkspaceDoc } from "./document";
 import { FEATURES_SCHEMA, featureProblems } from "./features";
 import { flowOf, PRESETS, rawFlow } from "./presets";
+import { TRACKER_KINDS, TRACKER_TYPES, type TrackerKind } from "./trackers";
 
 type S = Record<string, unknown>;
 const str = (description: string, extra: S = {}): S => ({ type: "string", minLength: 1, description, ...extra });
@@ -24,7 +25,8 @@ const TEXTS = {
   untitled: str("Title of a ticket filed with an empty first line."),
 };
 
-const REPO = str("owner/name", { pattern: "^[\\w.-]+/[\\w.-]+$" });
+const REPO = str("The repository's path: owner/name (GitLab: group/subgroup/project).", { pattern: "^[\\w.-]+(?:/[\\w.-]+)+$" });
+const KIND = (description: string, d?: string): S => ({ enum: TRACKER_TYPES, ...(d ? { default: d } : {}), description });
 export const ALIAS = "^[a-z0-9][a-z0-9-]{0,31}$";
 
 export const SCHEMA: S = {
@@ -53,13 +55,13 @@ export const SCHEMA: S = {
       features: FEATURES_SCHEMA,
       tracker: obj(
         {
-          type: { enum: ["github"], description: "The tracker adapter." },
+          type: KIND("The tracker of every repository that names none.", "github"),
           repos: {
             type: "array",
             minItems: 1,
             description: "The repositories; with several, a ticket is alias#n.",
             items: {
-              description: "owner/name, or an object with an alias, its own token or branch.",
+              description: "A repository path, or an object with an alias, its own token, branch or tracker.",
               oneOf: [
                 REPO,
                 obj(
@@ -68,6 +70,8 @@ export const SCHEMA: S = {
                     alias: str("Short name in ticket references (alias#n); default: the repository's name, lowercased.", { pattern: ALIAS }),
                     token: secret("this repository's tracker token (default: tracker.token)"),
                     mainBranch: str("This repository's branch commits land on (default: tracker.mainBranch)."),
+                    type: KIND("This repository's tracker (default: tracker.type); another than tracker.type needs its own token."),
+                    api: str("This repository's tracker API base URL (default: tracker.api for tracker.type, else the type's public API).", { pattern: "^https?://" }),
                   },
                   ["repo"],
                   "A repository with options.",
@@ -76,7 +80,7 @@ export const SCHEMA: S = {
             },
           },
           mainBranch: str("The branch commits land on.", { default: "main" }),
-          api: str("The API base URL (GitHub Enterprise, a local stand-in).", { default: "https://api.github.com", pattern: "^https?://" }),
+          api: str("The API base URL of tracker.type (GitHub Enterprise, self-managed GitLab, a local stand-in).", { pattern: "^https?://" }),
           token: secret("the tracker token"),
           project: obj(
             { owner: str("User login owning the project."), number: { type: "integer", minimum: 1, description: "Project number." } },
@@ -84,7 +88,7 @@ export const SCHEMA: S = {
             "A GitHub Projects (v2) board whose Status follows the state.",
           ),
         },
-        ["type", "repos", "token"],
+        ["repos", "token"],
         "The issue tracker that keeps the record.",
       ),
       roles: {
@@ -198,7 +202,12 @@ export function check(schema: S, v: unknown, path = "$"): string[] {
     const ok = runs.filter((r) => !r.length).length;
     if (ok === 1) return [];
     if (ok > 1) return [`${path}: matches more than one form.`];
-    return runs.sort((a, b) => a.length - b.length)[0];
+    // the closest form: one of the value's own type first, then the fewest problems
+    const off = (i: number) => {
+      const t = (schema.oneOf as S[])[i].type;
+      return Number(!!t && t !== kind(v) && !(t === "number" && kind(v) === "integer"));
+    };
+    return runs.map((r, i) => ({ r, o: off(i) })).sort((a, b) => a.o - b.o || a.r.length - b.r.length)[0].r;
   }
   const t = schema.type as string | undefined;
   const k = kind(v);
@@ -246,10 +255,15 @@ export function validate(doc: unknown): string[] {
   errs.push(...featureProblems(d, rawFlow(d)));
   const repos = repoList(d);
   repos.forEach((r, i) => {
+    const k = TRACKER_KINDS[r.type];
+    if (!k.repo.test(r.repo)) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is no ${k.name} repository (${k.repoForm}).`);
+    if (r.type !== trackerType(d) && !(typeof d.tracker.repos[i] === "object" && (d.tracker.repos[i] as { token?: string }).token))
+      errs.push(`$.tracker.repos[${i}].token: a repository on ${k.name} while tracker.type is '${trackerType(d)}' needs its own token.`);
     if (!new RegExp(ALIAS).test(r.alias)) errs.push(`$.tracker.repos[${i}]: the alias '${r.alias}' made from the name is not usable; give an alias.`);
     if (repos.findIndex((x) => x.alias === r.alias) < i) errs.push(`$.tracker.repos[${i}].alias: '${r.alias}' is used twice.`);
-    if (repos.findIndex((x) => x.repo.toLowerCase() === r.repo.toLowerCase()) < i) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is listed twice.`);
+    if (repos.findIndex((x) => x.key.toLowerCase() === r.key.toLowerCase()) < i) errs.push(`$.tracker.repos[${i}]: '${r.repo}' is listed twice.`);
   });
+  if (d.tracker.project && !repos.some((r) => r.type === "github")) errs.push("$.tracker.project: a GitHub project board needs at least one GitHub repository.");
   const roles = Object.keys(flow.options.roles);
   const seen = new Set<string>();
   d.roles.forEach((r, i) => {
@@ -276,9 +290,9 @@ export function validate(doc: unknown): string[] {
 
 /** A repository already in another workspace (claims and tickets would clash): one sentence per repository. */
 export function repoClashes(others: WorkspaceDoc[], doc: WorkspaceDoc): string[] {
-  const owner = new Map(others.filter((w) => w.id !== doc.id).flatMap((w) => repoList(w).map((r) => [r.repo.toLowerCase(), w.id] as const)));
+  const owner = new Map(others.filter((w) => w.id !== doc.id).flatMap((w) => repoList(w).map((r) => [r.key.toLowerCase(), w.id] as const)));
   return repoList(doc).flatMap((r, j) => {
-    const w = owner.get(r.repo.toLowerCase());
+    const w = owner.get(r.key.toLowerCase());
     return w ? [`$.tracker.repos[${j}]: '${r.repo}' is already in workspace '${w}'; a repository belongs to one workspace only.`] : [];
   });
 }
@@ -304,15 +318,34 @@ export function validateInstance(doc: unknown): string[] {
   return errs;
 }
 
-/** The repositories of a document with their alias, token and branch resolved. */
+const host = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
+
+export const trackerType = (d: WorkspaceDoc): TrackerKind => d.tracker.type ?? "github";
+
+/**
+ * The repositories of a document with their alias, token, branch and tracker resolved. `key` names a repository
+ * across trackers: its path on GitHub (as it always was: ticket slots are stored by it), `<type>:<host>/<path>`
+ * on any other tracker.
+ */
 export function repoList(d: WorkspaceDoc) {
   return d.tracker.repos.map((x) => {
     const r = typeof x === "string" ? { repo: x } : x;
+    const type = r.type ?? trackerType(d);
+    const api = r.api ?? (type === trackerType(d) ? d.tracker.api : undefined) ?? TRACKER_KINDS[type].api;
     return {
       repo: r.repo,
-      alias: r.alias ?? r.repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32),
+      alias: r.alias ?? (r.repo.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32),
       token: r.token ?? d.tracker.token,
       branch: r.mainBranch ?? d.tracker.mainBranch ?? "main",
+      type,
+      api,
+      key: type === "github" ? r.repo : `${type}:${host(api)}/${r.repo}`,
     };
   });
 }

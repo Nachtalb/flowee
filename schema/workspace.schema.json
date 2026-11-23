@@ -358,29 +358,30 @@
       "description": "The issue tracker that keeps the record.",
       "additionalProperties": false,
       "required": [
-        "type",
         "repos",
         "token"
       ],
       "properties": {
         "type": {
           "enum": [
-            "github"
+            "github",
+            "gitlab"
           ],
-          "description": "The tracker adapter."
+          "default": "github",
+          "description": "The tracker of every repository that names none."
         },
         "repos": {
           "type": "array",
           "minItems": 1,
           "description": "The repositories; with several, a ticket is alias#n.",
           "items": {
-            "description": "owner/name, or an object with an alias, its own token or branch.",
+            "description": "A repository path, or an object with an alias, its own token, branch or tracker.",
             "oneOf": [
               {
                 "type": "string",
                 "minLength": 1,
-                "description": "owner/name",
-                "pattern": "^[\\w.-]+/[\\w.-]+$"
+                "description": "The repository's path: owner/name (GitLab: group/subgroup/project).",
+                "pattern": "^[\\w.-]+(?:/[\\w.-]+)+$"
               },
               {
                 "type": "object",
@@ -393,8 +394,8 @@
                   "repo": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "owner/name",
-                    "pattern": "^[\\w.-]+/[\\w.-]+$"
+                    "description": "The repository's path: owner/name (GitLab: group/subgroup/project).",
+                    "pattern": "^[\\w.-]+(?:/[\\w.-]+)+$"
                   },
                   "alias": {
                     "type": "string",
@@ -412,6 +413,19 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "This repository's branch commits land on (default: tracker.mainBranch)."
+                  },
+                  "type": {
+                    "enum": [
+                      "github",
+                      "gitlab"
+                    ],
+                    "description": "This repository's tracker (default: tracker.type); another than tracker.type needs its own token."
+                  },
+                  "api": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "This repository's tracker API base URL (default: tracker.api for tracker.type, else the type's public API).",
+                    "pattern": "^https?://"
                   }
                 }
               }
@@ -427,8 +441,7 @@
         "api": {
           "type": "string",
           "minLength": 1,
-          "description": "The API base URL (GitHub Enterprise, a local stand-in).",
-          "default": "https://api.github.com",
+          "description": "The API base URL of tracker.type (GitHub Enterprise, self-managed GitLab, a local stand-in).",
           "pattern": "^https?://"
         },
         "token": {

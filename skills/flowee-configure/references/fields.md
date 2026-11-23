@@ -15,14 +15,16 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see `features.md`. |
 | `tracker` | object | required | The tracker that keeps the record. |
-| `tracker.type` | `"github"` | required | The tracker adapter. |
-| `tracker.repos` | array, ≥ 1, of `owner/name` or `{repo, alias?, token?, mainBranch?}` | required | The repositories. With several, a ticket is `alias#n` (see below). |
-| `tracker.repos[].repo` | `owner/name` | required | The repository. |
-| `tracker.repos[].alias` | string `^[a-z0-9][a-z0-9-]{0,31}$` | the name, lowercased | The `app` of `app#12`; unique in the workspace. |
-| `tracker.repos[].token` | secret name | `tracker.token` | This repository's own tracker token. |
+| `tracker.type` | `"github"`, `"gitlab"` | `"github"` | The tracker of every repository that names none (docs/gitlab.md for GitLab). |
+| `tracker.repos` | array, ≥ 1, of paths or `{repo, alias?, token?, mainBranch?, type?, api?}` | required | The repositories. With several, a ticket is `alias#n` (see below). |
+| `tracker.repos[].repo` | `owner/name` (GitLab: `group/subgroup/project`, any depth) | required | The repository's path on its tracker. |
+| `tracker.repos[].alias` | string `^[a-z0-9][a-z0-9-]{0,31}$` | the last path part, lowercased | The `app` of `app#12`; unique in the workspace. |
+| `tracker.repos[].token` | secret name | `tracker.token` | This repository's own tracker token; required when its `type` differs from `tracker.type`. |
 | `tracker.repos[].mainBranch` | string | `tracker.mainBranch` | This repository's branch commits land on. |
+| `tracker.repos[].type` | `"github"`, `"gitlab"` | `tracker.type` | This repository's tracker: a workspace may mix GitHub and GitLab repositories, each ticket goes through its own repository's tracker. |
+| `tracker.repos[].api` | URL | `tracker.api` when its type is `tracker.type`, else the type's public API | This repository's tracker API (self-managed GitLab `https://gitlab.example.com/api/v4`, GitHub Enterprise). |
 | `tracker.mainBranch` | string | `main` | The branch commits land on. |
-| `tracker.api` | URL | `https://api.github.com` | The API base (GitHub Enterprise, a local stand-in). |
+| `tracker.api` | URL | `https://api.github.com` (`gitlab`: `https://gitlab.com/api/v4`) | The API base of `tracker.type` (GitHub Enterprise, self-managed GitLab, a local stand-in). |
 | `tracker.token` | secret name | required | The tracker token, shared by every repository without its own. |
 | `tracker.project` | `{owner, number}` | | A user's GitHub Projects (v2) board whose Status follows the state (needs a classic token). |
 | `tracker.project.owner` | string | required | The user login owning the project. |
@@ -74,11 +76,16 @@ errors; a bare number is refused. A commit names its ticket with ` (#12)` in the
 `repo` (an alias; default the first repository). Aliases default to the repository name, lowercased, other
 characters as `-`; give one when two names would collide or the name gives no usable alias.
 
+Repositories may live on different trackers (`tracker.repos[].type`, `tracker.repos[].api`): each ticket's issue,
+comments, commits, pull or merge request, checks, tags and releases go through its own repository's tracker, and
+every feature must be one each of them can do. The same path on GitHub and on GitLab is two repositories; slots of
+a non-GitHub repository are kept by `<type>:<host>/<path>`.
+
 ## Secrets
 
 | Field naming a secret | The secret's value |
 |---|---|
-| `tracker.token` | the tracker token (GitHub: a fine-grained token with Issues read/write and Contents read on the repository; a classic token with `repo` + `project` when `tracker.project` is set) |
+| `tracker.token` | the tracker token (GitHub: a fine-grained token with Issues read/write and Contents read on the repository; a classic token with `repo` + `project` when `tracker.project` is set. GitLab: a project or personal access token with `api` scope and at least the Planner role, Developer for the code features: docs/gitlab.md) |
 | `roles[].secret` | the SHA-256 hex of the instance's API secret (`printf %s "$SECRET" \| sha256sum`), never the secret |
 | `chat.token` | the bot token |
 | `chat.webhookSecret` | a random string; Telegram sends it back with every update |
@@ -121,7 +128,9 @@ configuration API's bearer token).
 ## Invalid combinations (the validator says each in one sentence)
 
 - A `roles[].role` that is no role of the flow; an `instance` used twice.
-- Two repositories with the same alias, the same repository twice, or a name that gives no usable alias.
+- Two repositories with the same alias, the same repository twice on one tracker, or a name that gives no usable alias.
+- A repository path that is not of its tracker's form (GitHub: `owner/name`); a repository whose `type` differs from
+  `tracker.type` without its own `token`; `tracker.project` (a GitHub board) without any GitHub repository.
 - No instance with the flow's owner role (`trunk`: `owner`): the owner could not answer through the API.
 - `chat` without any `owners[].chat`.
 - `files` without `chat`; `profile` without `chat.publicUrl`.

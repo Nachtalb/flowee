@@ -11,7 +11,9 @@ import { INSTANCE, problems, SCHEMA } from "../src/config/schema";
 const fields = (s: Record<string, any>, p = ""): string[] =>
   s.type === "array"
     ? fields(s.items, `${p}[]`)
-    : s.properties
+    : s.oneOf
+      ? (s.oneOf as Record<string, any>[]).flatMap((o) => fields(o, p))
+      : s.properties
       ? Object.entries(s.properties as Record<string, any>).flatMap(([k, v]) => [`${p}${p ? "." : ""}${k}`, ...(k === "flow" || k === "features" ? [] : fields(v, `${p}${p ? "." : ""}${k}`))])
       : [];
 

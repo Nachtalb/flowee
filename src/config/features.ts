@@ -4,6 +4,7 @@ import { type Chart, type FlowOptions } from "../core/chart";
 import { FEATURES, type FeatureName, featuresOf, NEEDS, resolve } from "../core/features";
 import type { Capability } from "../ports/tracker";
 import type { WorkspaceDoc } from "./document";
+import { TRACKER_KINDS } from "./trackers";
 
 type S = Record<string, unknown>;
 const str = (description: string, extra: S = {}): S => ({ type: "string", minLength: 1, description, ...extra });
@@ -60,7 +61,7 @@ export const FEATURES_SCHEMA: S = {
 };
 
 /** Capabilities per tracker type. */
-export const TRACKER_CAPABILITIES: Record<string, Capability[]> = { github: ["board", "branches", "pulls", "checks", "releases", "tags"] };
+export const TRACKER_CAPABILITIES: Record<string, Capability[]> = Object.fromEntries(Object.entries(TRACKER_KINDS).map(([k, v]) => [k, v.capabilities]));
 
 const NAMES: Record<Capability, string> = { board: "a project board", branches: "branches", pulls: "pull requests", checks: "check runs", releases: "releases", tags: "tags" };
 
@@ -69,14 +70,17 @@ export function featureProblems(d: WorkspaceDoc, raw: { chart: Chart; options: F
   const errs: string[] = [];
   const f = resolve(d.features);
   const known = featuresOf(raw.chart, raw.options);
-  const has = caps[d.tracker.type] ?? [];
+  // every repository's tracker must do what a feature needs (a mixed workspace: each kind once)
+  const kinds = [...new Set(d.tracker.repos.map((r) => (typeof r === "object" && r.type) || d.tracker.type || "github"))];
   const flowName = "preset" in d.flow ? `'${d.flow.preset}'` : "inline";
   for (const k of FEATURES) {
     if (!f[k]) continue;
     if (!known.has(k)) errs.push(`$.features.${k}: the ${flowName} flow has no feature '${k}'.`);
     const need = [...NEEDS[k as FeatureName], ...(k === "releases" && f.releases?.checks.length ? (["checks"] as Capability[]) : [])];
-    const lacks = [...new Set(need.filter((c) => !has.includes(c)))];
-    if (lacks.length) errs.push(`$.features.${k}: the tracker '${d.tracker.type}' cannot do ${lacks.map((c) => NAMES[c]).join(" or ")}.`);
+    for (const kind of kinds) {
+      const lacks = [...new Set(need.filter((c) => !(caps[kind] ?? []).includes(c)))];
+      if (lacks.length) errs.push(`$.features.${k}: the tracker '${kind}' cannot do ${lacks.map((c) => NAMES[c]).join(" or ")}.`);
+    }
   }
   const r = f.releases;
   if (r?.source === "tag" && !r.tag) errs.push("$.features.releases.tag: is required when source is 'tag'.");

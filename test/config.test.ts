@@ -5,7 +5,7 @@ import committed from "../schema/workspace.schema.json";
 import committedInstance from "../schema/instance.schema.json";
 import type { WorkspaceDoc } from "../src/config/document";
 import { missingSecrets, StaticRegistry } from "../src/config/registry";
-import { INSTANCE, problems, SCHEMA, validate } from "../src/config/schema";
+import { INSTANCE, problems, repoList, SCHEMA, validate } from "../src/config/schema";
 import { plain } from "../src/ports/chat";
 import { plan } from "../scripts/deploy";
 import workspaces from "./workspaces.json";
@@ -26,7 +26,10 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     dependencyTickets: { authors: ["dependabot[bot]"], labels: ["deps"] },
     untrustedReports: { label: "feedback", role: "board" },
   },
-  tracker: { type: "github", repos: ["acme/app"], mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 } },
+  tracker: {
+    type: "github",
+    repos: ["acme/app", { repo: "acme/tools/lib", alias: "lib", token: "GL", mainBranch: "master", type: "gitlab", api: "https://gitlab.acme.example/api/v4" }],
+    mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 } },
   roles: [
     { instance: "board", role: "board", secret: "T_BOARD" },
     { instance: "owner", role: "owner", secret: "T_OWNER" },
@@ -107,6 +110,29 @@ describe("the schema", () => {
       "$.schedule: digestFrom must be before digestTo.",
       "$.schedule.timezone: 'Mars/Olympus' is no IANA time zone.",
     ]);
+  });
+
+  it("names each repository's tracker: kind, path form, own token, a board only with GitHub, unique per tracker", () => {
+    const d = (repos: unknown[], extra: Record<string, unknown> = {}) => ({ ...JSON.parse(JSON.stringify(FULL)), tracker: { repos, token: "GH", ...extra } });
+    expect(validate(d(["acme/app", { repo: "grp/sub/deep/lib", type: "gitlab", token: "GL" }]))).toEqual([]);
+    expect(validate(d(["grp/sub/lib"], { type: "gitlab" }))).toEqual([]);
+    expect(validate(d(["grp/sub/lib"]))).toEqual(["$.tracker.repos[0]: 'grp/sub/lib' is no GitHub repository (owner/name)."]);
+    expect(validate(d(["acme/app", { repo: "grp/lib", type: "gitlab" }]))).toEqual([
+      "$.tracker.repos[1].token: a repository on GitLab while tracker.type is 'github' needs its own token.",
+    ]);
+    expect(validate(d([{ repo: "acme/app", type: "bitbucket" }]))).toEqual(['$.tracker.repos[0].type: must be one of "github", "gitlab".']);
+    expect(validate(d(["grp/lib"], { type: "gitlab", project: { owner: "acme", number: 1 } }))).toEqual([
+      "$.tracker.project: a GitHub project board needs at least one GitHub repository.",
+    ]);
+    // the same path on two trackers is two repositories; twice on one tracker is refused
+    expect(validate(d(["acme/app", { repo: "acme/app", alias: "gl", type: "gitlab", token: "GL" }]))).toEqual([]);
+    expect(validate(d(["acme/app", { repo: "acme/app", alias: "gl" }]))).toEqual(["$.tracker.repos[1]: 'acme/app' is listed twice."]);
+    expect(repoList(d([{ repo: "grp/sub/lib", type: "gitlab", token: "GL" }], { api: "https://ghe.example/api/v3" }) as WorkspaceDoc)[0]).toMatchObject({
+      alias: "lib",
+      type: "gitlab",
+      api: "https://gitlab.com/api/v4",
+      key: "gitlab:gitlab.com/grp/sub/lib",
+    });
   });
 
   it("validates an inline statechart with the engine's own loader", () => {

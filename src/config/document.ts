@@ -3,13 +3,17 @@
 import type { Chart, FlowOptions } from "../core/chart";
 import type { FeaturesDoc } from "../core/features";
 import type { Texts } from "../core/settings";
+import type { TrackerKind } from "./trackers";
 
 export const VERSION = 1;
 
 export type FlowRef = { preset: string } | { chart: Chart; options: FlowOptions };
 
-/** One repository: `owner/name`, or with an alias (the `app` of `app#12`), its own token or branch. */
-export type RepoDoc = string | { repo: string; alias?: string; token?: string; mainBranch?: string };
+/**
+ * One repository: its path (`owner/name`; GitLab `group/subgroup/project`), or with an alias (the `app` of
+ * `app#12`), its own token, branch, or tracker (`type`, `api`) when it lives on another one than `tracker.type`.
+ */
+export type RepoDoc = string | { repo: string; alias?: string; token?: string; mainBranch?: string; type?: TrackerKind; api?: string };
 
 export interface WorkspaceDoc {
   flowee: 1;
@@ -19,11 +23,12 @@ export interface WorkspaceDoc {
   /** Feature switches of the flow; phase 1 knows none, presets of later versions read them. */
   features?: FeaturesDoc;
   tracker: {
-    type: "github";
+    /** The tracker of every repository that names none; default `github`. */
+    type?: TrackerKind;
     /** The repositories; tickets are `alias#n` when there are several. */
     repos: RepoDoc[];
     mainBranch?: string;
-    /** The API base URL (GitHub Enterprise, a local stand-in); default https://api.github.com. */
+    /** The API base URL of `type` (GitHub Enterprise, self-managed GitLab, a local stand-in); default its public one. */
     api?: string;
     /** Secret name of the tracker token (shared by every repository without its own). */
     token: string;

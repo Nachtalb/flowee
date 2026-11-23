@@ -13,7 +13,7 @@ import type { Clock } from "../ports/clock";
 import type { Secrets } from "../ports/secrets";
 import type { Store, Value } from "../ports/store";
 import { Paste } from "./files-paste";
-import { GitHub } from "./tracker-github";
+import { TRACKERS } from "./trackers";
 import { Telegram } from "./chat-telegram";
 import { registry, type Env } from "./instance";
 import { PHOTO } from "./photo";
@@ -153,7 +153,9 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
   const tracker = new Repos(
     repoList(doc).map((r) => ({
       ...r,
-      tracker: new GitHub({ repo: r.repo, api: doc.tracker.api, token: secrets.get(r.token), tokenName: r.token, project: doc.tracker.project }),
+      // a GitHub repository keeps its plain path as its slot key, as before mixed workspaces
+      key: r.type === "github" ? undefined : r.key,
+      tracker: TRACKERS[r.type].make({ repo: r.repo, api: r.api, token: secrets.get(r.token), tokenName: r.token, project: r.type === "github" ? doc.tracker.project : undefined }),
     })),
     store,
   );

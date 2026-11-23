@@ -4,7 +4,7 @@
 // the store, so renaming an alias or reordering repositories never moves a ticket. With several repositories a
 // ticket is written `alias#n` everywhere it is shown or accepted.
 import type { Store } from "../ports/store";
-import type { Comment, Commit, Issue, IssuePatch, Tracker } from "../ports/tracker";
+import type { Board, Comment, Commit, Issue, IssuePatch, Tracker } from "../ports/tracker";
 import { Fail } from "./errors";
 import { or } from "./text";
 
@@ -12,8 +12,10 @@ export const SLOT = 1_000_000_000;
 
 export interface RepoConfig {
   alias: string;
-  /** owner/name */
+  /** owner/name (GitLab: group/subgroup/project) */
   repo: string;
+  /** What the ticket slot is stored by; default `repo` (repositories on another tracker than GitHub: type and host too). */
+  key?: string;
   branch: string;
   tracker: Tracker;
 }
@@ -32,10 +34,11 @@ export class Repos implements Tracker {
     const stored = new Map(db.rows<{ k: string; v: string }>("SELECT k, v FROM meta WHERE k LIKE 'slot:%'").map((r) => [r.k.slice(5), Number(r.v)]));
     let next = stored.size ? Math.max(...stored.values()) + 1 : 0;
     this.list = repos.map((r) => {
-      let slot = stored.get(r.repo);
+      const key = r.key ?? r.repo;
+      let slot = stored.get(key);
       if (slot === undefined) {
         slot = next++;
-        db.exec("INSERT OR REPLACE INTO meta VALUES (?, ?)", `slot:${r.repo}`, String(slot));
+        db.exec("INSERT OR REPLACE INTO meta VALUES (?, ?)", `slot:${key}`, String(slot));
       }
       return { ...r, slot };
     });
@@ -176,9 +179,10 @@ export class Repos implements Tracker {
     return this.list[0].tracker.contains(base, head);
   }
 
-  /** The project board is the workspace's: any repository's issue goes on it by its tracker ref. */
-  get board() {
-    return this.list[0].tracker.board;
+  /** The board of the issue's own repository (a GitHub project takes any of its GitHub repositories' issues). */
+  get board(): Board | undefined {
+    if (!this.list.some((r) => r.tracker.board)) return undefined;
+    return { setStatus: async (i, status) => this.at(i.n).repo.tracker.board?.setStatus(i, status) };
   }
 
   // Repository-level capabilities answer for the one repository; with several, reach them per ticket through
