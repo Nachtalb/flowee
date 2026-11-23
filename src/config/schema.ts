@@ -136,6 +136,27 @@ export const SCHEMA: S = {
         ["type", "token", "webhookSecret", "chatId"],
         "The owner's chat (the envoy).",
       ),
+      tui: obj(
+        {
+          people: {
+            type: "array",
+            minItems: 1,
+            description: "Who signs in with flowee-tui; more than one makes the inbox a team inbox (answers signed by name, the first answer wins).",
+            items: obj(
+              {
+                id: str("The person's id (in /admin paths).", { pattern: "^[a-z0-9][a-z0-9-]{0,31}$" }),
+                name: str("Display name: signs the person's answers in a team inbox."),
+                role: { enum: ["manager", "member"], default: "member", description: "member answers the inbox; manager also manages the workspace (managed mode)." },
+                key: str("SHA-256 hex digest of the person's key (flowee-tui --new-key prints it); never the key.", { pattern: "^[0-9a-f]{64}$" }),
+              },
+              ["id", "key"],
+              "One person.",
+            ),
+          },
+        },
+        ["people"],
+        "The terminal interface (docs/tui.md): with chat too, Telegram and the terminals show the same inbox.",
+      ),
       files: obj(
         { url: str("Upload endpoint (rustypaste compatible).", { pattern: "^https?://" }), token: secret("the upload token"), expire: str("Expiry header value.", { default: "90d" }) },
         ["url", "token"],
@@ -297,7 +318,11 @@ export function validate(doc: unknown): string[] {
     errs.push(`$.roles: no instance has the owner role '${flow.options.ownerRole}', so the owner cannot answer through the API.`);
   if (d.chat && !d.owners.some((o) => o.chat)) errs.push("$.owners: with a chat, at least one owner needs a chat user id.");
   if (d.chat?.members && !d.chat.chatId.startsWith("-")) errs.push("$.chat.members: only a group or a topic has members; a private chat is the owner's alone.");
-  if (d.files && !d.chat) errs.push("$.files: files come from the chat, so they need $.chat.");
+  if (d.files && !d.chat && !d.tui) errs.push("$.files: files come from the chat, so they need $.chat or $.tui.");
+  (d.tui?.people ?? []).forEach((p, i, all) => {
+    if (all.findIndex((x) => x.id === p.id) < i) errs.push(`$.tui.people[${i}].id: '${p.id}' is used twice.`);
+    if (all.findIndex((x) => x.key === p.key) < i) errs.push(`$.tui.people[${i}].key: two people have the same key.`);
+  });
   if (d.profile && !d.chat?.publicUrl && d.chat?.transport !== "polling") errs.push("$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.");
   const sc = d.schedule;
   if (sc && (sc.digestFrom ?? 9) >= (sc.digestTo ?? 12)) errs.push("$.schedule: digestFrom must be before digestTo.");

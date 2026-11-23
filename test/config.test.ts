@@ -36,6 +36,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   ],
   owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
   chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true, members: ["42", "43"], transport: "webhook" },
+  tui: { people: [{ id: "ann", name: "Ann", role: "manager", key: "a".repeat(64) }] },
   managers: ["43"],
   files: { url: "https://files.example/", token: "FILES", expire: "30d" },
   texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u", memberSign: "{name}" },
@@ -166,7 +167,7 @@ describe("export and import", () => {
     expect(r.export("shop")).toEqual(shop);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad"]);
+    expect(r.list().map((w) => w.id)).toEqual(["shop", "other", "multi", "viewer", "deps", "suite", "hooks", "hooks2", "mixed", "mixrel", "hooksgl", "relmain", "branchy", "crew", "squad", "desk", "team", "duo"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [shop, shop] })).toThrow("$.workspaces[1].id: 'shop' is used twice.");
     expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });

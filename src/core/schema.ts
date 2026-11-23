@@ -19,9 +19,15 @@ CREATE TABLE deliveries (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE hook_events (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL, event TEXT NOT NULL);`,
   // who answered a card in a group or topic: the first answer wins
   "ALTER TABLE inbox ADD COLUMN answered_by TEXT;",
+  // the terminal conversation (src/adapters/chat-tui.ts): what it shows, its event log, handled frames, uploads
+  `CREATE TABLE tui_messages (id INTEGER PRIMARY KEY, ord INTEGER NOT NULL, msg TEXT NOT NULL);
+CREATE TABLE tui_log (seq INTEGER PRIMARY KEY, ev TEXT NOT NULL);
+CREATE TABLE tui_frames (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
+CREATE TABLE tui_files (id TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL);
+CREATE TABLE tui_state (k TEXT PRIMARY KEY, v TEXT NOT NULL);`,
 ];
 
-export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events"];
+export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events", "tui_messages", "tui_log", "tui_frames", "tui_files", "tui_state"];
 
 export function migrate(db: Store) {
   db.exec("CREATE TABLE IF NOT EXISTS _migrations (v INTEGER NOT NULL)");

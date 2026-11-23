@@ -33,6 +33,20 @@ const room = (ctx: DurableObjectState): Room => ({
     if (!now || now > at) await ctx.storage.setAlarm(at);
   },
   clear: () => ctx.storage.deleteAll(),
+  // hibernatable WebSockets: an idle terminal costs the object nothing while it sleeps
+  sockets: {
+    accept(tag) {
+      const [client, server] = Object.values(new WebSocketPair());
+      ctx.acceptWebSocket(server, [tag]);
+      return new Response(null, { status: 101, webSocket: client });
+    },
+    ring(tag, text) {
+      for (const ws of ctx.getWebSockets(tag))
+        try {
+          ws.send(text);
+        } catch {}
+    },
+  },
 });
 
 const platform = (env: CloudflareEnv): Platform => ({
@@ -47,6 +61,14 @@ export class Workspace extends DurableObject<CloudflareEnv> {
   constructor(ctx: DurableObjectState, env: CloudflareEnv) {
     super(ctx, env);
     this.host = new WorkspaceHost(room(ctx), env);
+    // the terminals' keep-alive is answered without waking the object
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+  }
+  webSocketMessage() {}
+  webSocketClose(ws: WebSocket, code: number) {
+    try {
+      ws.close(code === 1005 ? 1000 : code);
+    } catch {}
   }
   fetch(req: Request) {
     return this.host.fetch(req);

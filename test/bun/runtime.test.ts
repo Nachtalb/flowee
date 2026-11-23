@@ -200,7 +200,7 @@ describe("Telegram by long polling", () => {
     let a = app(doc);
     await a.start(false);
     expect([...a.pollers.keys()]).toEqual(["main"]);
-    const owner = Number(shop.owners[0].chat);
+    const owner = Number((shop.owners[0] as { chat: string }).chat);
     const msg = (id: number, text: string) => ({ update_id: id, message: { message_id: id, chat: { id: owner, type: "private" }, from: { id: owner }, text } });
     tg.pending["999:tg-test"] = [msg(500, "/help")];
     const sent = () => tg.calls.filter((c) => /^send/.test(c.method)).length;

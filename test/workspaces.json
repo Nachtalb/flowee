@@ -927,6 +927,204 @@
       "texts": {
         "memberSign": "{name} via chat"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "desk",
+      "name": "Desk",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/desk"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "DESK_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "DESK_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "DESK_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "DESK_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann"
+        }
+      ],
+      "tui": {
+        "people": [
+          {
+            "id": "ann",
+            "name": "Ann",
+            "role": "manager",
+            "key": "0f8fb6e40d93bd65e8738a5a41b971147a5940c98b12b095db6425c5f8906fc4"
+          }
+        ]
+      },
+      "sync": {
+        "webhooks": "off"
+      },
+      "files": {
+        "url": "https://paste.example",
+        "token": "PASTE_TOKEN"
+      },
+      "texts": {
+        "owner": "Ann",
+        "cardHeading": "For Ann"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "team",
+      "name": "Team",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/team"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "TEAM_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "TEAM_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "TEAM_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "TEAM_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann"
+        }
+      ],
+      "tui": {
+        "people": [
+          {
+            "id": "ann",
+            "name": "Ann",
+            "role": "manager",
+            "key": "0f8fb6e40d93bd65e8738a5a41b971147a5940c98b12b095db6425c5f8906fc4"
+          },
+          {
+            "id": "bob",
+            "name": "Bob",
+            "role": "member",
+            "key": "67e0a947ccfdaf17356b547fb38d16ba9d440eb7c14fc2701b4b5fbe9d8a18ac"
+          }
+        ]
+      },
+      "sync": {
+        "webhooks": "off"
+      },
+      "texts": {
+        "owner": "Ann",
+        "cardHeading": "For Ann"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "duo",
+      "name": "Duo",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/duo"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "DUO_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "DUO_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "DUO_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "DUO_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "chat": "424243"
+        }
+      ],
+      "tui": {
+        "people": [
+          {
+            "id": "ann",
+            "name": "Ann",
+            "role": "manager",
+            "key": "0f8fb6e40d93bd65e8738a5a41b971147a5940c98b12b095db6425c5f8906fc4"
+          }
+        ]
+      },
+      "sync": {
+        "webhooks": "off"
+      },
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "424243"
+      },
+      "files": {
+        "url": "https://paste.example",
+        "token": "PASTE_TOKEN"
+      },
+      "texts": {
+        "owner": "Ann",
+        "cardHeading": "For Ann"
+      }
     }
   ]
 }

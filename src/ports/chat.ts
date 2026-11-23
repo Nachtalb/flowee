@@ -147,6 +147,8 @@ export interface Chat {
   setScopedCommands?(commands: Command[], scope: CommandScope): Promise<void>;
   setSettings?(settings: BotSettings): Promise<void>;
   sendFile?(to: ChatRef, name: string, data: string, caption?: string): Promise<number>;
+  /** A side view kept beside the conversation (the terminal's inbox pane): the open items, set whenever they change. */
+  panel?(to: ChatRef, view: View): Promise<void>;
   download(file: FileRef): Promise<ArrayBuffer>;
   /** Profile items, each applied only when `changed(item, value)` says so. */
   setName(name: string): Promise<void>;

@@ -21,6 +21,7 @@ import {
   next,
   okRow,
   page,
+  panel,
   paragraphs,
   parseNumber,
   postponed,
@@ -467,6 +468,8 @@ export class Envoy implements Inbox {
     const cmds = COMMANDS.map((c) =>
       c.command === "todo" ? { ...c, description: `${n} open items` } : c.command === "postponed" ? { ...c, description: `${p} postponed tickets` } : c,
     );
+    // a backend with a side view keeps the open items there (it skips one that did not change)
+    if (this.chat.panel) await this.chat.panel(this.at, panel(this.openItems(), p, this.answeredToday(), this.now())).catch((e) => console.warn("panel", e));
     const mark = cmds.map((c) => `${c.command}=${c.description};`).join("");
     if (this.get(KV.menu) === mark) return;
     // e.g. "chat not found" until the owner has started the bot: /start clears the mark and retries

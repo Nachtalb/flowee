@@ -8,15 +8,35 @@ import { same } from "../core/text";
 import { Telegram } from "../adapters/chat-telegram";
 import { bot, instanceDoc, mode, registry } from "../adapters/instance";
 import { served } from "../adapters/served";
-import { envSecrets, ORIGIN_HEADER, WORKSPACE_HEADER } from "../adapters/workspace-host";
+import { envSecrets, ORIGIN_HEADER, PERSON_HEADER, WORKSPACE_HEADER } from "../adapters/workspace-host";
+import type { TuiPersonDoc } from "../config/document";
 import type { Platform } from "./platform";
 
-function forward(p: Platform, id: string, req: Request, path?: string) {
+function forward(p: Platform, id: string, req: Request, path?: string, person?: string) {
   const url = new URL(req.url);
   if (path) url.pathname = path;
   const r = new Request(url, req);
   r.headers.set(WORKSPACE_HEADER, id);
+  // only the router names the terminal person; a client's own header never passes
+  if (person) r.headers.set(PERSON_HEADER, person);
+  else r.headers.delete(PERSON_HEADER);
   return p.workspace(id).fetch(r);
+}
+
+/** The terminal protocol (docs/tui-protocol.md): `/tui/v1/me`, `/tui/v1/w/<id>/sync`, `/tui/v1/w/<id>/socket`. */
+const TUI = /^\/tui\/v1\/(?:(me)|w\/([a-z0-9-]+)\/(sync|socket))$/;
+type Seat = { id: string; name?: string; paused: boolean; person: TuiPersonDoc };
+
+async function terminal(req: Request, p: Platform, m: RegExpExecArray, seats: (digest: string) => Promise<Seat[]>): Promise<Response> {
+  const t = bearer(req);
+  const list = t ? await seats(await digestOf(t)) : [];
+  if (!list.length) return json({ ok: false, error: "unauthorized", message: "Unknown or missing key." }, 401);
+  const who = (s: Seat) => ({ id: s.person.id, name: s.person.name ?? s.person.id, role: s.person.role ?? "member" });
+  if (m[1]) return json({ ok: true, person: who(list[0]), workspaces: list.map((s) => ({ id: s.id, name: s.name ?? s.id, paused: s.paused, person: who(s) })) });
+  const seat = list.find((s) => s.id === m[2]);
+  if (!seat) return json({ ok: false, error: "forbidden", message: `Your key does not open the workspace '${m[2]}'.` }, 403);
+  if (seat.paused) return paused(seat.id);
+  return forward(p, seat.id, req, `/tui/${m[3]}`, JSON.stringify(who(seat)));
 }
 
 const ids = async (p: Platform) => (mode(p.env) === "managed" ? await p.instance().active(instanceDoc(p.env)) : registry(p.env).list().map((w) => w.id));
@@ -50,6 +70,8 @@ async function managed(req: Request, p: Platform): Promise<Response> {
     const r = await inst.mainUpdate(doc, await body());
     return r.forward ? forward(p, r.forward, req) : new Response("ok");
   }
+  const tui = TUI.exec(pathname);
+  if (tui) return terminal(req, p, tui, (d) => inst.people(doc, d));
   const h = HOOK.exec(pathname);
   if (h) {
     const hit = req.method === "POST" ? await inst.resolve(doc, { id: h[1] }) : null;
@@ -114,6 +136,8 @@ async function routes(req: Request, p: Platform): Promise<Response> {
     // updates of chats no workspace is bound to (and anything a standalone instance does not manage) are dropped
     return w ? forward(p, w.id, req) : new Response("ok");
   }
+  const tui = TUI.exec(pathname);
+  if (tui) return terminal(req, p, tui, async (d) => reg.people(d).map(({ doc, person }) => ({ id: doc.id, name: doc.name, paused: false, person })));
   const h = HOOK.exec(pathname);
   if (h) return req.method === "POST" && reg.get(h[1]) ? forward(p, h[1], req, `/hooks/${h[2]}`) : refused();
   let m = /^\/w\/([a-z0-9-]+)(\/v1\/.*)$/.exec(pathname);

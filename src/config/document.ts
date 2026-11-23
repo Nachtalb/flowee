@@ -56,6 +56,8 @@ export interface WorkspaceDoc {
     /** In a group or topic: only these chat user ids work the tickets; default every member. */
     members?: string[];
   };
+  /** The terminal interface (docs/tui.md): who signs in with `flowee-tui`; with `chat` too, both show the same inbox. */
+  tui?: { people: TuiPersonDoc[] };
   /** Chat user ids who manage the workspace besides the one who set it up (managed mode). */
   managers?: string[];
   files?: { url: string; token: string; expire?: string };
@@ -64,6 +66,16 @@ export interface WorkspaceDoc {
   profile?: { photo?: string };
   /** How Flowee learns of tracker changes: webhooks, a slow reconcile, polling as the fallback (docs/webhooks.md). */
   sync?: { webhooks?: "auto" | "off" | "required"; reconcileMinutes?: number; pollMinutes?: number };
+}
+
+/** One person of the terminal interface: a personal key, kept here only as its SHA-256 hex digest. */
+export interface TuiPersonDoc {
+  id: string;
+  name?: string;
+  /** `member` answers the inbox; `manager` also manages the workspace (managed mode). Default `member`. */
+  role?: "manager" | "member";
+  /** The SHA-256 hex digest of the person's key (`flowee-tui --new-key` prints it); never the key. */
+  key: string;
 }
 
 export interface InstanceDoc {

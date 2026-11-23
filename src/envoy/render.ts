@@ -214,6 +214,12 @@ export function list(rows: Item[], heading: string, page: number, pages: number,
   ];
 }
 
+/** The open items in one table, every row with its Open button: a backend's side view (the terminal's inbox pane). */
+export function panel(rows: Item[], postponedCount: number, answeredToday: number, now: number): View {
+  const facts = [`${rows.length} open`, `${answeredToday} answered today`, ...(postponedCount ? [`💤 ${postponedCount} postponed`] : [])];
+  return [{ html: `<p><b>📋 Inbox</b> · ${facts.join(" · ")}</p>` }, rows.length ? table(rows, "o", now) : { html: "<p>✨ Inbox empty</p>" }];
+}
+
 export function postponed(rows: Item[], total: number, page: number, pages: number, now: number): View {
   return [
     { html: `<p><b>💤 ${total} postponed</b></p>` },

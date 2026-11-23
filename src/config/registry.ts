@@ -8,7 +8,8 @@ import { hex, sha256 } from "../core/text";
 import type { ChatRef } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
 import type { Store } from "../ports/store";
-import { type InstanceDoc, VERSION, type WorkspaceDoc } from "./document";
+import { type InstanceDoc, type TuiPersonDoc, VERSION, type WorkspaceDoc } from "./document";
+import { tuiChat } from "./chats";
 import { resolve } from "../core/features";
 import { flowOf } from "./presets";
 import { secretNames, validate, validateInstance } from "./schema";
@@ -20,6 +21,8 @@ export interface WorkspaceRegistry {
   byDigest(digest: string): { doc: WorkspaceDoc; instance: string; role: string } | undefined;
   /** The workspace bound to a chat (and topic). */
   byChat(at: ChatRef): WorkspaceDoc | undefined;
+  /** The terminal people whose key has this SHA-256 hex digest, one entry per workspace they are in. */
+  people(digest: string): { doc: WorkspaceDoc; person: TuiPersonDoc }[];
   export(id: string): WorkspaceDoc;
   exportAll(): InstanceDoc;
   /** Creates or replaces a workspace; validated first, nothing changes when it is invalid. */
@@ -61,6 +64,10 @@ export class StaticRegistry implements WorkspaceRegistry {
   byChat(at: ChatRef) {
     const d = [...this.docs.values()].find((w) => w.chat?.chatId === at.chat && (w.chat.topicId === undefined || w.chat.topicId === at.topic));
     return d && clone(d);
+  }
+  people(digest: string) {
+    const h = digest.toLowerCase();
+    return [...this.docs.values()].flatMap((w) => (w.tui?.people ?? []).filter((p) => p.key === h).map((person) => ({ doc: clone(w), person: clone(person) })));
   }
   export(id: string) {
     const d = this.docs.get(id);
@@ -199,10 +206,13 @@ export function settings(d: WorkspaceDoc): Settings {
     features: resolve(d.features),
     mainBranch: d.tracker.mainBranch ?? "main",
     ownerLogin: d.owners.find((o) => o.tracker)?.tracker,
-    owners: d.owners.map((o) => o.chat).filter((x): x is string => !!x),
+    // a terminal person is an owner of the conversation: the router only lets in who has a key
+    owners: [...d.owners.map((o) => o.chat).filter((x): x is string => !!x), ...(d.tui?.people ?? []).map((p) => `tui:${p.id}`)],
     instances: d.roles.map((r) => ({ ...r })),
     texts: texts(d),
-    chat: d.chat && { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username, ...(d.chat.members ? { members: d.chat.members } : {}) },
+    chat: d.chat
+      ? { chat: d.chat.chatId, ...(d.chat.topicId ? { topic: d.chat.topicId } : {}), username: d.chat.username, ...(d.chat.members ? { members: d.chat.members } : {}) }
+      : d.tui && { chat: tuiChat(d.tui.people.length) },
     timezone: s.timezone ?? "UTC",
     digest: { from: s.digestFrom ?? 9, to: s.digestTo ?? 12 },
     // an own bot of the managed mode has its own path; the standalone bot is the instance's /telegram

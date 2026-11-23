@@ -465,6 +465,11 @@ export class InstanceHost implements InstanceApi {
     return id ? { id, paused: this.registry.paused(id) } : null;
   }
 
+  async people(doc: InstanceDoc, digest: string) {
+    await this.ready(doc);
+    return this.registry.people(digest).map(({ doc: w, person }) => ({ id: w.id, ...(w.name ? { name: w.name } : {}), paused: this.registry.paused(w.id), person }));
+  }
+
   /** Workspaces the cron and the deploy's /setup run (paused ones rest). */
   async active(doc: InstanceDoc): Promise<string[]> {
     await this.ready(doc);

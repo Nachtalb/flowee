@@ -26,6 +26,9 @@ subtle.timingSafeEqual ??= (a, b) => {
   return d === 0;
 };
 
+/** The answer header naming a socket to upgrade to (the room's `accept`); never leaves the process. */
+const SOCKET_HEADER = "x-flowee-socket";
+
 export type Log = (level: "debug" | "info" | "warn" | "error", msg: string, extra?: Record<string, unknown>) => void;
 
 export const jsonLog =
@@ -87,6 +90,8 @@ export class App {
   readonly scheduler: Scheduler;
   readonly lock: Database;
   private hosts = new Map<string, WorkspaceHost>();
+  /** The terminals' sockets by `<workspace>/<tag>` (the Durable Object's tags). */
+  private sockets = new Map<string, Set<BunSocket>>();
   private stores: SqliteStore[] = [];
   private inst?: InstanceHost;
   pollers = new Map<string, Poller>();
@@ -131,7 +136,21 @@ export class App {
     let h = this.hosts.get(id);
     if (!h) {
       const store = this.store(`workspaces/${id}.sqlite`);
-      const room: Room = { store, wake: (at) => this.scheduler.wake(id, at), clear: async () => store.clear() };
+      const room: Room = {
+        store,
+        wake: (at) => this.scheduler.wake(id, at),
+        clear: async () => store.clear(),
+        sockets: {
+          // Bun upgrades in its own fetch handler: the answer names the socket's key, serve() upgrades with it
+          accept: (tag) => new Response(null, { status: 426, headers: { [SOCKET_HEADER]: `${id}/${tag}` } }),
+          ring: (tag, text) => {
+            for (const ws of this.sockets.get(`${id}/${tag}`) ?? [])
+              try {
+                ws.send(text);
+              } catch {}
+          },
+        },
+      };
       h = new WorkspaceHost(room, this.env);
       this.hosts.set(id, h);
     }
@@ -158,6 +177,8 @@ export class App {
     }
     const path = new URL(req.url).pathname;
     let res: Response;
+    // a socket only through serve(), which upgrades; anyone else gets no internal header
+    const strip = (r: Response) => (r.headers.has(SOCKET_HEADER) && !server ? new Response(null, { status: 426 }) : r);
     try {
       res = path === "/health" ? Response.json({ ok: !this.closing }, { status: this.closing ? 503 : 200 }) : await route(req, this.platform);
     } catch (e) {
@@ -165,7 +186,7 @@ export class App {
       res = Response.json({ ok: false, error: "internal", message: "The request failed; the log has the reason." }, { status: 500 });
     }
     this.log("debug", "request", { method: req.method, path, status: res.status, ms: Date.now() - t });
-    return res;
+    return strip(res);
   };
 
   /** The bots this process polls for: none with webhooks; one loop per bot otherwise. */
@@ -215,7 +236,32 @@ export class App {
     await this.poll();
     this.scheduler.start();
     if (listen) {
-      this.server = Bun.serve({ port: this.o.port, hostname: this.o.host, idleTimeout: 60, fetch: this.fetch });
+      const sockets = this.sockets;
+      this.server = Bun.serve({
+        port: this.o.port,
+        hostname: this.o.host,
+        idleTimeout: 60,
+        fetch: async (req, server) => {
+          const res = await this.fetch(req, server);
+          const key = res.headers.get(SOCKET_HEADER);
+          if (key) return server.upgrade(req, { data: { key } }) ? undefined : Response.json({ ok: false, error: "bad_request", message: "The socket needs a WebSocket upgrade." }, { status: 426 });
+          return res;
+        },
+        websocket: {
+          idleTimeout: 120,
+          open(ws) {
+            const set = sockets.get(ws.data.key) ?? new Set();
+            set.add(ws);
+            sockets.set(ws.data.key, set);
+          },
+          message(ws, m) {
+            if (m === "ping") ws.send("pong");
+          },
+          close(ws) {
+            sockets.get(ws.data.key)?.delete(ws);
+          },
+        },
+      });
       this.log("info", "listening", { host: this.o.host, port: this.server.port, data: this.o.data, mode: mode(this.env) });
     }
   }

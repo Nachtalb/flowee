@@ -101,6 +101,12 @@ valid, 1 a problem, 2 unreadable).
 | `chat.managed` | boolean | `false` | Managed mode: the workspace's own bot, created through the instance bot; its webhook is `<publicUrl>/telegram/w/<id>` and its profile and settings come from this workspace. Without it the workspace uses the instance's bot. |
 | `chat.transport` | `webhook`, `polling` | `webhook`; self-hosted: `polling` when no public URL is configured | How the bot's updates arrive. `webhook`: Telegram POSTs to `<publicUrl>/telegram` (needs `chat.publicUrl`). `polling`: the self-hosted runtime fetches them with getUpdates and needs no public address (docs/self-hosting.md); the profile is set at start. The Worker supports only `webhook` and refuses `polling`. |
 | `chat.members` | array of user ids | every member | In a group or topic: only these users work the tickets (the owners always do). Refused for a private chat. |
+| `tui` | object | | The terminal interface (docs/tui.md): people who sign in with `flowee-tui`. With `chat` too, Telegram and the terminals show one conversation: the same cards, bar and answers, each answer visible in both. Without `chat` the workspace needs no messenger at all. |
+| `tui.people` | array, ≥ 1 | required | Who may sign in. More than one person makes the inbox a team inbox: answers are signed by name and the first answer to a card wins. |
+| `tui.people[].id` | string `^[a-z0-9][a-z0-9-]{0,31}$` | required | The person's id, unique in the workspace (in `/admin/workspaces/<id>/people/<person>`). |
+| `tui.people[].name` | string | the id | The display name; signs the person's answers in a team inbox. |
+| `tui.people[].role` | `member`, `manager` | `member` | `member` answers the inbox; `manager` also manages the workspace in the managed mode (people and their keys). |
+| `tui.people[].key` | SHA-256 hex | required | The digest of the person's key (`flowee-tui --new-key` writes the key to its key file and prints only this digest). The key itself is never in a document. One key may open several workspaces: give the same digest in each. |
 | `files` | object | | Where files the owner sends are uploaded; without it files are refused. |
 | `files.url` | URL | required | A rustypaste-compatible endpoint (multipart `file`, `Authorization`, `expire` headers; answers the link). |
 | `files.token` | secret name | required | The upload token. |
@@ -200,7 +206,7 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
   `tracker.type` without its own `token`; `tracker.project` (a GitHub board) without any GitHub repository.
 - No instance with the flow's owner role (`trunk`: `owner`): the owner could not answer through the API.
 - `chat` without any `owners[].chat`.
-- `files` without `chat`; `profile` without `chat.publicUrl` (unless `chat.transport` is `polling`).
+- `files` without `chat` or `tui`; two `tui.people` with the same `id` or `key`; `profile` without `chat.publicUrl` (unless `chat.transport` is `polling`).
 - `schedule.digestFrom` not before `schedule.digestTo`; a `schedule.timezone` that is no IANA zone.
 - An inline `flow` that does not load (every problem of docs/flows.md's checks).
 - A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the inline flow has no

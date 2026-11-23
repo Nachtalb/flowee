@@ -15,7 +15,8 @@ import type { Store } from "../ports/store";
 import type { Room } from "../runtime/platform";
 import { Paste } from "./files-paste";
 import { TRACKERS } from "./trackers";
-import { Telegram } from "./chat-telegram";
+import { chatOf } from "./chats";
+import { MAX_FILE, type Terminal, type TuiFrame, type TuiPerson } from "./chat-tui";
 import { registry, type Env } from "./instance";
 import { PHOTO } from "./photo";
 import { seal, unseal, vaultKey } from "./vault";
@@ -23,6 +24,8 @@ import { seal, unseal, vaultKey } from "./vault";
 export const WORKSPACE_HEADER = "x-flowee-workspace";
 /** The public origin the deploy called /setup on (standalone): the base of the webhook addresses. */
 export const ORIGIN_HEADER = "x-flowee-origin";
+/** The terminal person the router resolved from the key (JSON TuiPerson); set by the router only. */
+export const PERSON_HEADER = "x-flowee-person";
 
 export const envSecrets = (env: Env): Secrets => ({
   get: (name) => {
@@ -34,7 +37,7 @@ export const envSecrets = (env: Env): Secrets => ({
 export class WorkspaceHost {
   readonly store: Store;
   private chain: Promise<unknown> = Promise.resolve();
-  private rt?: { id: string; flow: Flowee; envoy?: Envoy };
+  private rt?: { id: string; flow: Flowee; envoy?: Envoy; terminal?: Terminal };
   /** Opened secrets of a managed workspace (sealed in its storage, opened once per object life). */
   private plain?: Map<string, string>;
 
@@ -132,10 +135,17 @@ export class WorkspaceHost {
     const managed = this.store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'doc'")[0]?.v;
     const doc = managed ? (JSON.parse(managed) as WorkspaceDoc) : registry(this.env).get(ws);
     if (!doc) throw new Error(`there is no workspace '${ws}'`);
-    this.rt = build(doc, this.env, this.store, this.secrets(), {
-      now: () => Date.now(),
-      wake: (ms) => this.room.wake(Date.now() + ms),
-    });
+    this.rt = build(
+      doc,
+      this.env,
+      this.store,
+      this.secrets(),
+      {
+        now: () => Date.now(),
+        wake: (ms) => this.room.wake(Date.now() + ms),
+      },
+      (seq) => this.room.sockets?.ring("tui", JSON.stringify({ seq })),
+    );
     return this.rt;
   }
 
@@ -154,6 +164,38 @@ export class WorkspaceHost {
 
   private schedule(f: Flowee) {
     return this.room.wake(f.wakeAt());
+  }
+
+  /**
+   * The terminal protocol (docs/tui-protocol.md), behind the router's key check: `sync` hands the frames to the
+   * envoy, each once, then answers the events after `after`; `socket` is the doorbell.
+   */
+  private async tui(req: Request, path: string, rt: NonNullable<WorkspaceHost["rt"]>): Promise<Response> {
+    const person = JSON.parse(req.headers.get(PERSON_HEADER) ?? "null") as TuiPerson | null;
+    const term = rt.terminal;
+    if (!person || !term || !rt.envoy) return json({ ok: false, error: "not_found", message: "This workspace has no terminal interface." }, 404);
+    if (path === "/tui/socket") {
+      if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") return json({ ok: false, error: "bad_request", message: "The socket needs a WebSocket upgrade." }, 426);
+      return this.room.sockets ? this.room.sockets.accept("tui") : json({ ok: false, error: "unsupported", message: "This runtime has no sockets; poll sync instead." }, 501);
+    }
+    if (req.method !== "POST") return json({ ok: false, error: "bad_request", message: "sync takes a POST." }, 405);
+    const raw = await req.text();
+    if (raw.length > MAX_FILE * 1.4 + 100_000) return json({ ok: false, error: "too_large", message: "A file over 20 MB cannot be sent." }, 413);
+    let body: { after?: unknown; send?: unknown };
+    try {
+      body = JSON.parse(raw || "{}");
+    } catch {
+      return json({ ok: false, error: "bad_request", message: "The body is not JSON." }, 400);
+    }
+    const after = typeof body.after === "number" && Number.isInteger(body.after) ? body.after : 0;
+    const frames = Array.isArray(body.send) ? (body.send as TuiFrame[]).slice(0, 50) : [];
+    const envoy = rt.envoy;
+    for (const f of frames)
+      await this.lock(async () => {
+        const u = term.frame(f, person);
+        if (u) await envoy.onUpdate(u);
+      }).catch((e) => console.error("terminal frame", e));
+    return json({ ok: true, ...term.since(after) });
   }
 
   async fetch(req: Request): Promise<Response> {
@@ -183,6 +225,7 @@ export class WorkspaceHost {
       rt.flow.events.base = origin;
     }
     if (url.pathname === "/setup") return json(rt.envoy ? await this.lock(() => (rt.envoy as Envoy).setup()) : { chat: "none" });
+    if (url.pathname === "/tui/sync" || url.pathname === "/tui/socket") return this.tui(req, url.pathname, rt);
     if (url.pathname.startsWith("/telegram")) {
       const u = await req.json<Record<string, unknown>>().catch(() => null);
       if (u && rt.envoy) await this.lock(() => (rt.envoy as Envoy).onUpdate(u)).catch((e) => console.error("chat update", e));
@@ -193,7 +236,7 @@ export class WorkspaceHost {
 }
 
 /** Wires a workspace document to its adapters. */
-export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secrets, clock: Clock) {
+export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secrets, clock: Clock, ring?: (seq: number) => void) {
   const s = settings(doc);
   const tracker = new Repos(
     repoList(doc).map((r) => ({
@@ -211,16 +254,17 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
   }
   flow.events.base = store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'publicUrl'")[0]?.v ?? doc.chat?.publicUrl;
   let envoy: Envoy | undefined;
-  if (doc.chat) {
+  const { chat, terminal } = flow.s.chat ? chatOf({ doc, secrets, store, at: flow.s.chat, ring }) : {};
+  if (chat) {
     const files = doc.files && new Paste(doc.files.url, secrets.get(doc.files.token), doc.files.expire);
     const photo = doc.profile?.photo;
     // a workspace's own bot without a photo of its own gets the bundled one
-    const own = doc.chat.managed ? () => Uint8Array.from(atob(PHOTO), (c) => c.charCodeAt(0)).buffer : undefined;
-    envoy = new Envoy(flow, new Telegram(secrets.get(doc.chat.token), doc.chat.token), files, async () =>
+    const own = doc.chat?.managed ? () => Uint8Array.from(atob(PHOTO), (c) => c.charCodeAt(0)).buffer : undefined;
+    envoy = new Envoy(flow, chat, files, async () =>
       photo ? (await fetch(photo)).arrayBuffer() : own?.(),
     );
     envoy.version = env.VERSION?.id ?? "dev";
     flow.envoy = envoy;
   }
-  return { id: doc.id, flow, envoy };
+  return { id: doc.id, flow, envoy, terminal };
 }

@@ -33,13 +33,24 @@ declare module "node:path" {
   export function dirname(p: string): string;
 }
 
+interface BunSocket {
+  data: { key: string };
+  send(text: string): void;
+}
+
 interface BunServer {
   port: number;
   stop(closeActive?: boolean): Promise<void>;
 }
 
 declare const Bun: {
-  serve(o: { port: number; hostname?: string; idleTimeout?: number; fetch(req: Request, server: { requestIP(r: Request): { address: string } | null }): Response | Promise<Response> }): BunServer;
+  serve(o: {
+    port: number;
+    hostname?: string;
+    idleTimeout?: number;
+    fetch(req: Request, server: { requestIP(r: Request): { address: string } | null; upgrade(req: Request, o: { data: { key: string } }): boolean }): Response | undefined | Promise<Response | undefined>;
+    websocket?: { idleTimeout?: number; open(ws: BunSocket): void; message(ws: BunSocket, m: string | Uint8Array): void; close(ws: BunSocket): void };
+  }): BunServer;
   file(path: string): Blob & { exists(): Promise<boolean>; text(): Promise<string> };
   argv: string[];
   version: string;

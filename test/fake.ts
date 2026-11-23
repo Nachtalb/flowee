@@ -272,7 +272,10 @@ export function install() {
   const branchy = new FakeGitHub("acme/branchy");
   const crew = new FakeGitHub("acme/crew");
   const squad = new FakeGitHub("acme/squad");
-  const repos = [gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy, crew, squad];
+  const desk = new FakeGitHub("acme/desk");
+  const team = new FakeGitHub("acme/team");
+  const duo = new FakeGitHub("acme/duo");
+  const repos = [gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy, crew, squad, desk, team, duo];
   // GitLab projects on gitlab.com (gl, and those of the mixed workspaces) and on a self-managed instance (glself)
   const gl = new FakeGitLab();
   const glmix = new FakeGitLab("acme/backend/api", 501);
@@ -294,5 +297,5 @@ export function install() {
     if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy, crew, squad, gl, glmix, glrel, glself, glhk, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, mixweb, relweb, hk, hk2, relmain, branchy, crew, squad, desk, team, duo, gl, glmix, glrel, glself, glhk, tg, paste };
 }
