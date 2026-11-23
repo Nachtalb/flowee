@@ -2,6 +2,7 @@
 // opens for edits and imports, and shown in the same living message. Buttons carry `m:` data; everything is limited
 // to the workspaces the user owns.
 import type { WorkspaceDoc } from "../config/document";
+import type { SyncStatus } from "../core/events";
 import { btn, bullets, esc, heading, question, row, text } from "../envoy/render";
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
@@ -24,6 +25,21 @@ export interface ManageHost extends WizardHost {
   validate(doc: unknown): string[];
   /** The next message of the user is a configuration to import (or no longer is). */
   expectImport(user: string, on: boolean): void;
+  /** Webhooks or polling per repository (src/core/events.ts). */
+  sync?(id: string): Promise<SyncStatus>;
+  /** A hook set up by hand: its URL and a new secret (shown once), where to paste them, the permission instead. */
+  manualHook?(id: string, alias: string): Promise<{ url: string; secret: string; where: string; permission: string }>;
+}
+
+/** The lines and the button the workspace screen shows for webhooks; also what another chat front end renders. */
+export function instantUpdates(s: SyncStatus) {
+  const off = s.repos.filter((r) => r.mode === "poll");
+  const line = !off.length
+    ? "⚡ Instant updates: on"
+    : s.webhooks === "off"
+      ? "⚡ Instant updates: off (sync.webhooks is off); the tracker is checked every minute"
+      : `⚡ Instant updates: off for ${off.map((r) => esc(r.alias)).join(", ")} (${esc(off[0].reason ?? "")}); the tracker is checked every minute`;
+  return { line, offer: s.webhooks !== "off" && off.length > 0, off };
 }
 
 const b = (label: string, data: string) => btn(label, `m:${data}`);
@@ -119,7 +135,9 @@ export class Manager {
   }
 
   /** One workspace: what it is, and everything that can be done with it. */
-  private workspace(user: string, at: ChatRef, d: WorkspaceDoc, note?: string) {
+  private async workspace(user: string, at: ChatRef, d: WorkspaceDoc, note?: string) {
+    const sync = await this.host.sync?.(d.id).catch(() => undefined);
+    const hooks = sync && instantUpdates(sync);
     const own = !!d.chat?.managed;
     const paused = this.host.paused(d.id);
     const on = Object.entries(d.features ?? {}).filter(([, v]) => v).map(([k]) => featureName(k));
@@ -131,12 +149,14 @@ export class Manager {
         `🔀 Way of working: ${presetName("preset" in d.flow ? d.flow.preset : undefined)}${on.length ? `, with ${on.join(", ")}` : ""}`,
         `💬 Tickets appear: ${this.where(user, d)}`,
         `👥 Agents: ${d.roles.filter((r) => !this.host.presets().some((p) => p.ownerRole === r.role)).map((r) => esc(r.instance)).join(", ") || "none"}`,
+        ...(hooks ? [hooks.line] : []),
       ]),
       ...(note ? [text(note)] : []),
       row(...parts.slice(0, 2).map(([s, l]) => b(`✏️ ${l}`, `edit:${d.id}:${s}`))),
       row(...parts.slice(2, 4).map(([s, l]) => b(`✏️ ${l}`, `edit:${d.id}:${s}`))),
       row(b(`✏️ ${parts[4][1]}`, `edit:${d.id}:${parts[4][0]}`), b("🔑 New agent secret", `rot:${d.id}`)),
       ...(own ? [row(b("♻️ New bot token", `tok:${d.id}`), b("🔐 Who may use the bot", `acc:${d.id}`))] : []),
+      ...(hooks?.offer ? [row(b("⚡ Turn on instant updates", `hook:${d.id}`))] : []),
       row(b("📤 Export", `exp:${d.id}`), b(paused ? "▶ Resume" : "⏸ Pause", `${paused ? "resume" : "pause"}:${d.id}`), b("🗑 Delete", `del:${d.id}`)),
       row(b("« All workspaces", "list")),
     ]);
@@ -208,6 +228,35 @@ export class Manager {
           row(back(id)),
         ]);
         return;
+      }
+      case "hook": {
+        const s = await this.host.sync?.(id);
+        const off = s ? instantUpdates(s).off : [];
+        const r = off.find((x) => x.alias === v);
+        if (!r || !this.host.manualHook) {
+          const need = off.find((x) => x.missing)?.missing;
+          await this.show(user, at, [
+            heading("⚡", "Turn on instant updates", code(id)),
+            text(
+              need
+                ? `Flowee sets up the tracker's webhook itself when its token has ${esc(need)}. Give the token that permission (✏️ ${parts[3][1]}) and it switches on within half an hour.`
+                : "Flowee could not set up the tracker's webhook itself; it checks the tracker every minute until it can.",
+            ),
+            text("Or add the webhook by hand: pick the repository, paste the address and the secret it shows into the tracker."),
+            ...chunk(off.map((x) => b(`🔗 ${esc(x.alias)}`, `hook:${id}:${x.alias}`)), 3).map((x) => row(...x)),
+            row(back(id)),
+          ]);
+          return;
+        }
+        const m = await this.host.manualHook(id, r.alias);
+        await this.show(user, at, [
+          heading("⚡", `Webhook for ${code(r.repo)}`),
+          text(`In ${esc(m.where)}, add a webhook with:`),
+          bullets([`Address: ${code(m.url)}`, `Secret: ${code(m.secret)} (<b>shown only this once</b>)`, "Events: issues, comments, pushes, pull or merge requests, checks or pipelines, releases"]),
+          text("Instant updates switch on with its first delivery; until then the tracker is checked every minute."),
+          row(back(id)),
+        ]);
+        return "⚡ Webhook details below";
       }
       case "pause":
       case "resume":

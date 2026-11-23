@@ -15,7 +15,7 @@ import type { Store, Value } from "../ports/store";
 import { Paste } from "./files-paste";
 import { TRACKERS } from "./trackers";
 import { Telegram } from "./chat-telegram";
-import { instanceDoc, mode, registry, type Env } from "./instance";
+import { registry, type Env } from "./instance";
 import { PHOTO } from "./photo";
 import { seal, unseal, vaultKey } from "./vault";
 
@@ -65,7 +65,7 @@ export class Workspace extends DurableObject<Env> {
   }
 
   /** Managed mode: the instance hands over the document and the sealed secrets it names. */
-  async configure(doc: WorkspaceDoc, sealed: Record<string, string>) {
+  async configure(doc: WorkspaceDoc, sealed: Record<string, string>, publicUrl?: string) {
     const stored = this.store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'workspace'")[0]?.v;
     if (stored && stored !== doc.id) throw new Error(`this object belongs to the workspace '${stored}', not '${doc.id}'`);
     // repositories the new document drops lose their webhooks (only the old runtime still has their trackers)
@@ -74,9 +74,24 @@ export class Workspace extends DurableObject<Env> {
     for (const r of old?.tracker.list ?? []) if (!keep.has(r.repo)) await old?.events.disable(r);
     this.store.exec("INSERT OR REPLACE INTO meta VALUES ('workspace', ?)", doc.id);
     this.store.exec("INSERT OR REPLACE INTO meta VALUES ('doc', ?)", JSON.stringify(doc));
+    // the instance's public URL: the base of the workspace's webhook addresses
+    if (publicUrl) this.store.exec("INSERT OR REPLACE INTO meta VALUES ('publicUrl', ?)", publicUrl);
     this.store.exec("DELETE FROM meta WHERE k LIKE 'vault:%'");
     for (const [n, v] of Object.entries(sealed)) this.store.exec("INSERT INTO meta VALUES (?, ?)", `vault:${n}`, v);
     this.reset();
+  }
+
+  /** How the workspace learns of tracker changes (webhooks or polling), per repository. */
+  async syncStatus() {
+    await this.unlock();
+    return this.runtime().flow.events.status();
+  }
+
+  /** Webhooks set up by hand for one repository: its URL and a new secret, shown once. */
+  async manualHook(alias: string) {
+    await this.unlock();
+    const f = this.runtime().flow;
+    return this.lock(() => f.events.manual(alias));
   }
 
   /** Managed mode: the workspace was deleted; its webhooks and its storage go. */
@@ -195,7 +210,7 @@ export function build(doc: WorkspaceDoc, env: Env, store: Store, secrets: Secret
     const key = vaultKey(env.FLOWEE_KEY);
     flow.events.vault = { seal: async (v) => seal(await key, v), unseal: async (v) => unseal(await key, v) };
   }
-  flow.events.base = mode(env) === "managed" ? instanceDoc(env).instance?.publicUrl : doc.chat?.publicUrl;
+  flow.events.base = store.rows<{ v: string }>("SELECT v FROM meta WHERE k = 'publicUrl'")[0]?.v ?? doc.chat?.publicUrl;
   let envoy: Envoy | undefined;
   if (doc.chat) {
     const files = doc.files && new Paste(doc.files.url, secrets.get(doc.files.token), doc.files.expire);

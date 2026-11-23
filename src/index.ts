@@ -75,7 +75,8 @@ async function managed(req: Request, env: Env): Promise<Response> {
       const who = t ? await inst.resolve(doc, { digest: await digestOf(t) }) : null;
       if (who?.id !== m[1]) return unauthorized();
       const r = await inst.admin(doc, "GET", `/admin/workspaces/${m[1]}`, null);
-      return json({ ok: true, workspace: (JSON.parse(r.json) as { workspace: unknown }).workspace });
+      const sync = await stub(env, m[1]).syncStatus().catch(() => undefined);
+      return json({ ok: true, workspace: (JSON.parse(r.json) as { workspace: unknown }).workspace, ...(sync ? { sync } : {}) });
     }
     return hit.paused ? paused(hit.id) : forward(env, m[1], req, m[2]);
   }

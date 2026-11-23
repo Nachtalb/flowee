@@ -331,7 +331,8 @@ export class Webhooks {
     // the old secret no longer verifies: poll until the new hook's first delivery
     if (st.mode === "webhook") this.fallBack(r, st, "waiting for the first delivery of the hook set up by hand");
     st.since = 0;
-    st.said = "poll";
+    // the owner is setting it up and sees the result in the menu: no note when it turns on
+    st.said = undefined;
     this.save(r, st);
     return { url, secret, where: hooks.manual, permission: hooks.permission };
   }

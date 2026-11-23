@@ -3,7 +3,7 @@
 // one reply keyboard and its removal, the new message where an edit is refused; Back, Cancel, resume and expiry,
 // routing by bot, chat and topic, two users kept apart, export and import through the chat and the API, the
 // instance bot's profile, and who may create.
-import { env, runInDurableObject } from "cloudflare:test";
+import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Instance } from "../src/adapters/instance-durable-object";
 import worker from "../src/index";
@@ -604,11 +604,12 @@ describe("the management menu: one living message", () => {
   const WS = (paused = false, note = "") =>
     [
       `<p>📂 <b><code>app</code></b> · ${paused ? "⏸ paused" : "▶ running"}</p>`,
-      "<ul><li>📦 Repositories: <code>acme/app</code></li><li>🤖 Bot: this bot</li><li>🔀 Way of working: Simple</li><li>💬 Tickets appear: your private chat with this bot</li><li>👥 Agents: board, dev1, tester</li></ul>",
+      "<ul><li>📦 Repositories: <code>acme/app</code></li><li>🤖 Bot: this bot</li><li>🔀 Way of working: Simple</li><li>💬 Tickets appear: your private chat with this bot</li><li>👥 Agents: board, dev1, tester</li><li>⚡ Instant updates: off for app (not set up yet); the tracker is checked every minute</li></ul>",
       note,
       ROW(CB("✏️ Repositories", "m:edit:app:repos"), CB("✏️ Way of working", "m:edit:app:flow")),
       ROW(CB("✏️ Where tickets appear", "m:edit:app:bind"), CB("✏️ GitHub token", "m:edit:app:credential")),
       ROW(CB("✏️ Agents", "m:edit:app:roles"), CB("🔑 New agent secret", "m:rot:app")),
+      ROW(CB("⚡ Turn on instant updates", "m:hook:app")),
       ROW(CB("📤 Export", "m:exp:app"), CB(paused ? "▶ Resume" : "⏸ Pause", `m:${paused ? "resume" : "pause"}:app`), CB("🗑 Delete", "m:del:app")),
       ROW(CB("« All workspaces", "m:list")),
     ].join("");
@@ -669,6 +670,40 @@ describe("the management menu: one living message", () => {
     edited(id, ["<p>🗑 <b><code>app</code> is deleted</b></p>", "<p>The repositories and their issues are untouched.</p>", ROW(CB("📂 My workspaces", "m:list"))].join(""));
     expect((await api(fresh.dev1, "/v1/whoami")).status).toBe(401);
     expect((await admin("GET", "/admin/workspaces")).body.workspaces).toEqual([]);
+  });
+
+  it("instant updates: the workspace screen offers them, the manual way shows the address and a secret once; a paused workspace acknowledges deliveries and ignores them", async () => {
+    const s = await sharedSetup(100);
+    await dm(100, "/workspaces");
+    const id = living(100)?.id as number;
+    await tap(100, "m:ws:app");
+    await tap(100, "m:hook:app");
+    expect(screen()).toContain("<p>⚡ <b>Turn on instant updates</b> · <code>app</code></p>");
+    expect(screen()).toContain(CB("🔗 app", "m:hook:app:app"));
+    await tap(100, "m:hook:app:app");
+    const html = screen();
+    expect(html).toContain("<code>https://flowee.test/hooks/app/app</code>");
+    expect(html).toContain("Settings → Webhooks");
+    const secret = /Secret: <code>([0-9a-f]{64})<\/code>/.exec(html)?.[1] as string;
+    expect(secret).toBeTruthy();
+    expect(living(100)?.id).toBe(id);
+    const ping = JSON.stringify({ zen: "Design for failure.", hook_id: 1, repository: { full_name: "acme/app" } });
+    const sig = async (body: string) => {
+      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      return `sha256=${[...new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)))].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+    };
+    const post = async (body: string, signature: string, delivery: string) =>
+      worker.fetch(new Request("https://flowee.test/hooks/app/app", { method: "POST", headers: { "x-github-event": "ping", "x-github-delivery": delivery, "x-hub-signature-256": signature }, body }), menv());
+    expect((await post(ping, "sha256=00", "d1")).status).toBe(401);
+    expect((await post(ping, await sig(ping), "d2")).status).toBe(200);
+    await runDurableObjectAlarm(env.WORKSPACE.get(env.WORKSPACE.idFromName("app")));
+    expect((await api(s.board, "/w/app/config")).body.sync.repos[0]).toMatchObject({ alias: "app", mode: "webhook", via: "manual" });
+    await tap(100, "m:ws:app");
+    expect(screen()).toContain("<li>⚡ Instant updates: on</li>");
+    await tap(100, "m:pause:app");
+    const r = await post(ping, "not even signed", "d3");
+    expect([r.status, await r.text()]).toEqual([200, "ok"]);
+    expect((await worker.fetch(new Request("https://flowee.test/hooks/nope/app", { method: "POST", body: "{}" }), menv())).status).toBe(401);
   });
 
   it("editing one part opens that step in the living message, then asks to save", async () => {

@@ -100,7 +100,7 @@ export class Instance extends DurableObject<Env> {
     if (!doc) return;
     const names = secretNames(doc);
     const sealed = Object.fromEntries(this.store.rows<{ name: string; sealed: string }>("SELECT name, sealed FROM vault").filter((r) => names.includes(r.name)).map((r) => [r.name, r.sealed]));
-    await this.stub(id).configure(doc, sealed);
+    await this.stub(id).configure(doc, sealed, this.cfg.publicUrl);
   }
 
   private main() {
@@ -262,6 +262,8 @@ export class Instance extends DurableObject<Env> {
       },
       access: (id) => bots.access(botOf(id) ?? ""),
       setAccess: (id, a: BotAccess) => bots.setAccess(botOf(id) ?? "", a),
+      sync: (id) => self.stub(id).syncStatus(),
+      manualHook: (id, alias) => self.stub(id).manualHook(alias),
       validate: (doc) => {
         const errs = validate(doc);
         return errs.length ? errs : repoClashes(reg.list(), doc as WorkspaceDoc);
