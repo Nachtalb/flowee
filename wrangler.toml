@@ -35,3 +35,15 @@ binding = "VERSION"
 # Secrets (wrangler secret put NAME) are whatever names that document references.
 [vars]
 FLOWEE_MODE = "standalone"
+
+# The agent material at its repository paths (skills, docs, client, schema, presets, bundle.tar.gz): scripts/bundle.ts
+# builds served/ before every `wrangler dev` and `wrangler deploy`; src/adapters/served.ts answers with its headers.
+[build]
+command = "bun scripts/bundle.ts"
+
+[assets]
+directory = "./served"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+not_found_handling = "none"

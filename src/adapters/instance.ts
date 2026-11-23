@@ -22,6 +22,8 @@ export interface Env {
   FLOWEE_MODE?: string;
   /** The instance's configuration document (JSON); else flowee.config.json next to wrangler.toml. */
   FLOWEE_CONFIG?: string;
+  /** The static assets scripts/bundle.ts builds (served/): skills, docs, client, schema, presets, the bundle. */
+  ASSETS?: Fetcher;
 }
 
 const cache = new Map<string, WorkspaceRegistry>();

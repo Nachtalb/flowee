@@ -8,7 +8,8 @@
   "repository": "github:Nachtalb/flowee",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "bun scripts/bundle.ts && vitest run",
+    "bundle": "bun scripts/bundle.ts",
     "test:client": "python3 client/test_flowee.py",
     "typecheck": "tsc",
     "schema": "bun scripts/schema.ts",

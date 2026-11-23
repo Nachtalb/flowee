@@ -8,6 +8,7 @@ import { same } from "./core/text";
 import { Telegram } from "./adapters/chat-telegram";
 import { bot, type Env, instanceDoc, mode, registry } from "./adapters/instance";
 import { envSecrets, ORIGIN_HEADER, WORKSPACE_HEADER } from "./adapters/store-durable-object";
+import { served } from "./adapters/served";
 
 export { Instance } from "./adapters/instance-durable-object";
 export { Workspace } from "./adapters/store-durable-object";
@@ -40,7 +41,6 @@ const bearer = (req: Request) => /^Bearer (.+)$/.exec(req.headers.get("authoriza
 /** A tracker's webhook delivery: unauthenticated here, verified by the workspace's object against its secret. */
 const HOOK = /^\/hooks\/([a-z0-9-]+)\/([a-z0-9][a-z0-9-]{0,31})$/;
 const refused = () => new Response(null, { status: 401 });
-const ABOUT = "Flowee: the ticket flow API for AI agent teams and its chat envoy.\n";
 
 async function managed(req: Request, env: Env): Promise<Response> {
   const { pathname } = new URL(req.url);
@@ -99,7 +99,7 @@ async function managed(req: Request, env: Env): Promise<Response> {
     const main = await inst.setup(doc);
     return json({ instance: main, ...Object.fromEntries((await each(env, "/setup")).map(([id, t]) => [id, JSON.parse(t)])) });
   }
-  return pathname === "/" ? new Response(ABOUT) : notFound();
+  return notFound();
 }
 
 async function route(req: Request, env: Env): Promise<Response> {
@@ -128,7 +128,6 @@ async function route(req: Request, env: Env): Promise<Response> {
   }
   // Idempotent and input-free: the deploy calls it to publish the bot profile and webhook of the new version.
   if (pathname === "/setup" && req.method === "GET") return json(Object.fromEntries((await each(env, "/setup", new URL(req.url).origin)).map(([id, t]) => [id, JSON.parse(t)])));
-  if (pathname === "/") return new Response(ABOUT);
   if (pathname.startsWith("/admin/")) return json({ ok: false, error: "unsupported", message: "Configuration changes at run time need the managed mode." }, 501);
   return notFound();
 }
@@ -136,7 +135,8 @@ async function route(req: Request, env: Env): Promise<Response> {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     try {
-      return await route(req, env);
+      // the public material (skills, docs, client, the root document, /validate) needs no workspace and no object
+      return (await served(req, env)) ?? (await route(req, env));
     } catch (e) {
       if (!(e instanceof Fail)) throw e;
       return json({ ok: false, error: e.code, message: e.message }, e.status);
