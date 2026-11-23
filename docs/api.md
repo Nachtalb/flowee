@@ -1,0 +1,145 @@
+# The HTTP API for agents
+
+Every agent instance (and the owner, through whoever relays their words) calls the API with its own secret. The
+`trunk` preset's contract is below; another flow changes the commands and states, never the protocol. The API is
+wire-compatible with livedu's `docs/agents/flow-api.md`: same paths, bodies, codes, so its `scripts/flow.py`
+works unchanged (`test/e2e/wire.py --flow-py …` proves it against `wrangler dev`).
+
+## Addressing and auth
+
+- Base URL: `https://<instance>/w/<workspace>` (paths `…/v1/<command>`), or the bare `https://<instance>` with
+  `/v1/<command>`, where the workspace is the one whose role secret the token is.
+- `Authorization: Bearer <secret>`. The instance stores only the SHA-256 hex of each secret (a Worker secret
+  named in the workspace's `roles`) and compares digests in constant time. The role comes from the token, never
+  from the body. Unknown token: `401 unauthorized`.
+- Clients send their own `User-Agent` (`flowee/<version>`): Cloudflare answers Python's default agent with 403.
+- Every POST may carry `Idempotency-Key: <uuid>`: key + caller + response are kept 24 h; a repeat returns the
+  stored response without acting again (5xx answers are not stored, so a retry completes the command).
+- Commands of one workspace run one at a time; every command re-reads the ticket from the tracker first.
+
+Success: `200 {"ok": true, ...}`. Failure: `{"ok": false, "error": "<code>", "message": "<one sentence>"}`.
+
+| Status | `error` | Example |
+|---|---|---|
+| 400 | `bad_request` | `build must be a 40-character commit sha.` |
+| 401 | `unauthorized` | `Unknown or missing token.` |
+| 403 | `wrong_role` | `Only the board may use escalate.` |
+| 404 | `not_found` | `#41 does not exist or is a pull request.` / `There is no POST /v1/nope.` |
+| 409 | `wrong_state` | `#12 is 'ready'; handoff needs 'in development'.` |
+| 409 | `not_claimed` / `claimed` | `#12 is not claimed by dev2.` / `#12 is claimed by dev1.` |
+| 409 | `two_states` | `#12 has two state labels (ready, testing); fix it by hand.` |
+| 422 | `no_commits` / `not_in_build` / `gates_mismatch` / `bad_card` / `comment_required` | see docs/flows.md |
+| 501 | `unsupported` | `The tracker does not support pull requests.` |
+| 502 | `github` / `telegram` | `GitHub answered 502 for the label change of #12.` |
+
+## Endpoints (trunk)
+
+| Method + path | Body | Response (besides `ok`) |
+|---|---|---|
+| `GET /v1/whoami` | | `instance`, `role` |
+| `GET /v1/queue` | | `role`, `queue: [n…]` (what `next` would hand out), `claim: {n, since, touched} \| null`; board and owner also `inbox: [n…]` |
+| `GET /v1/show?n=N` | | `n`, `title`, `state`, `claim`, `depends_on`, `blocked_by`, `commits`, `origin` (board review), `answers: [{ts, text}]` |
+| `POST /v1/next` | `{}` | `ticket: {n, title, state, resumed, origin?, answers?}` or `ticket: null` |
+| `POST /v1/heartbeat` | `{n}` | `touched` |
+| `POST /v1/release` | `{n, comment}` | `state` |
+| `POST /v1/file` | `{title, body}` | `n`, `url` |
+| `POST /v1/handoff` | `{n, comment}` | `state`, `commits` |
+| `POST /v1/pass` | `{n, comment, build, gates: {sha, ok}, owner_check?}` | `state` (`closed` or `board review`) |
+| `POST /v1/fail` | `{n, comment, build}` | `state` |
+| `POST /v1/stuck` | `{n, comment}` | `state` |
+| `POST /v1/triage` | `{n, comment}` | `state` |
+| `POST /v1/spec` | `{n, body, title?, comment?}` | `state` |
+| `POST /v1/sendback`, `rework`, `drop` | `{n, comment}` | `state` |
+| `POST /v1/escalate` | `{n, comment}` (with the owner card) | `state`, `telegram: "sent" \| "queued"` |
+| `POST /v1/approve`, `postpone`, `resume` | `{n, comment?}` | `state` |
+| `POST /v1/answer` | `{n, text}` | `state` |
+| `POST /telegram` | a Telegram update | the chat webhook (`X-Telegram-Bot-Api-Secret-Token`) |
+| `GET /setup` | | per workspace: the profile/webhook steps run (the deploy calls it) |
+
+## States and transitions (trunk)
+
+| State label | Means | Board | Owner assigned |
+|---|---|---|---|
+| `needs triage` | new; the board specifies it (no label counts as this) | Todo | no |
+| `ready` | specified, a developer may take it | Todo | no |
+| `in development` | a developer holds it | In progress | no |
+| `ready for testing` | commits on main, waits for the tester | In progress | no |
+| `testing` | the tester holds it | In progress | no |
+| `back to development` | testing, the board or the owner found problems | Todo | no |
+| `board review` | waits for the board: a question, a blocker, a passed ticket | Todo | no |
+| `human review` | the owner's inbox; only the board puts a ticket here | Owner | yes |
+| `postponed` | parked on the owner's word | On hold | no |
+| (closed) | done (`completed`) or dropped (`not planned`) | Done | no |
+
+| Command | Role | From | To | Comment | Checks |
+|---|---|---|---|---|---|
+| `file` | all | (new) | `needs triage` | none | title 1-120 chars, body non-empty |
+| `next` | developer | `back to development`, `ready` | `in development` | none | resumes the caller's claim first; dependencies closed |
+| `next` | tester | `ready for testing` | `testing` | none | as above |
+| `next` | board | `board review`, `needs triage` | (unchanged) | none | claim only; oldest hand-over first, then lowest number |
+| `heartbeat` | board, developer, tester | `needs triage`, `board review`, `in development`, `testing` | (unchanged) | none | caller holds the claim |
+| `release` | board | `needs triage`, `board review` | (unchanged) | optional | caller holds the claim |
+| `release` | developer | `in development` | `back to development` with commits, else `ready` | required | caller holds the claim |
+| `release` | tester | `testing` | `ready for testing` | required | caller holds the claim |
+| `handoff` | developer | `in development` | `ready for testing` | required; `Commits: …` appended | claim; a new ` (#N)` commit on main |
+| `pass` | tester | `testing` | closed; `board review` with `owner_check` | required; `Tested build: …` appended | claim; gates on the build; build on main and containing the ticket's commits; with `owner_check` a valid card |
+| `fail` | tester | `testing` | `back to development` | required | claim; build on main |
+| `stuck` | developer, tester | `in development`, `testing` | `board review` | required | claim; origin recorded |
+| `triage` | board | `needs triage`, `board review`, `human review` | `ready` | required | no developer/tester claim; `## Acceptance` |
+| `spec` | board | `needs triage`, `ready`, `back to development`, `board review` | (unchanged) | optional | no developer/tester claim |
+| `sendback` | board | `board review` | origin `in development` → `back to development`, `testing` → `ready for testing` | required | origin not `passed` |
+| `rework` | board | `board review`, `human review`, `ready for testing`, `needs triage (answered)` | `back to development` | required | no tester claim |
+| `escalate` | board | `needs triage`, `ready`, `back to development`, `board review` | `human review` | the card | card valid; the chat card goes out in the same request |
+| `approve` | board | `board review`, `human review`, `needs triage (answered)` | closed `completed` | optional | |
+| `drop` | board | `needs triage`, `ready`, `back to development`, `board review`, `human review`, `postponed` | closed `not planned` | required | no developer/tester claim |
+| `postpone` | board | `human review`, `needs triage (answered)` | `postponed` | optional | |
+| `resume` | board | `postponed` | `needs triage` | optional | |
+| `answer` | owner | any, also closed | `needs triage` from `human review`, `postponed`, closed; else unchanged | the owner's words | text non-empty |
+
+Leaving `board review` drops the recorded origin; every state change drops the claim except `next` and
+`answer`. Claims expire after `leaseHours` (3) without a heartbeat or command: the cron puts an expired
+developer/tester claim back in its queue with a `Board:` comment and drops an expired board claim silently.
+`(answered)`: only when an owner answer was recorded after the ticket last entered that state.
+
+## The owner card
+
+`escalate` and `pass` with `owner_check` need this block in the comment (`texts.cardHeading`, default
+`For the owner`):
+
+```
+### For the owner
+Kind: test | question | decision
+Changed: <one line, what is different now, in user words>   (test)
+Check:                                                       (test)
+- <where to look and what to see>
+Question: <the question, the options, a recommendation>      (question, decision)
+```
+
+The block runs from the heading (2 to 4 `#`) to the next heading; field names are case-sensitive at line start;
+a value continues on the following non-empty lines.
+
+## The client
+
+`client/flowee.py` (stdlib Python ≥ 3.11) is one subcommand per endpoint plus the local steps `gates`, `commit`,
+`push`, `busy`. It reads `.flowee.toml` in the repository root:
+
+```toml
+url = "https://flowee.example.workers.dev"
+workspace = "acme"                                   # → /w/acme/v1/…
+instance = "dev1"                                    # or FLOWEE_AS
+secret_file = "~/.secrets/flowee/{workspace}/{instance}"   # or FLOWEE_TOKEN
+main_branch = "main"
+commit_types = ["feat", "fix", "docs", "test", "refactor", "perf", "build", "chore", "style"]
+ticket_suffix = " (#{n})"
+busy_hours = 2
+git_config = ["credential.helper=!/usr/bin/gh auth git-credential"]   # -c values for fetch and push
+
+[[gates]]
+name = "test"
+dir = "."
+cmd = ["bun", "run", "test"]
+```
+
+Exit codes: 0 ok, 2 refused, 1 failure, 3 `next` found nothing. `pass` sends `HEAD` as the build and refuses
+locally unless `flowee.py gates` passed on a clean `HEAD`; `commit` refuses unless the gates passed on exactly
+the working tree; `push` only ever pushes to the clone's own `origin`.
