@@ -62,7 +62,7 @@ export function githubRepo(api?: string): RepoReference {
   };
 }
 
-const PERMISSION: Record<string, string> = { issues: "Issues", contents: "Contents", pull_requests: "Pull requests", checks: "Checks", statuses: "Commit statuses" };
+const PERMISSION: Record<string, string> = { issues: "Issues", contents: "Contents", repository_hooks: "Webhooks", pull_requests: "Pull requests", checks: "Checks", statuses: "Commit statuses" };
 
 /** A fine-grained token's permissions per feature (docs/adapters.md) and the token form filled in with them. */
 export function githubToken(api?: string): TokenHelp {
@@ -72,6 +72,8 @@ export function githubToken(api?: string): TokenHelp {
     const on = new Set(features);
     if (on.has("pullRequests")) Object.assign(p, { pull_requests: "write", checks: "read", statuses: "read", contents: "write" });
     if (on.has("dependencyTickets")) p.pull_requests ??= "read";
+    // lets Flowee register its webhook itself (docs/webhooks.md); without it the workspace polls
+    p.repository_hooks = "write";
     const owners = [...new Set(repos.map((r) => r.split("/")[0]))];
     const q = new URLSearchParams({ name: name.slice(0, 40), description: `Flowee: ${repos.join(", ")}`.slice(0, 1024), ...(owners.length === 1 ? { target_name: owners[0] } : {}), ...p });
     return {

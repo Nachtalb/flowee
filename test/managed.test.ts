@@ -140,7 +140,7 @@ const WHERE_GROUP = (bot: string, id: string) =>
     NAV,
   ].join("");
 const TOKEN_URL = (id: string, repo: string) =>
-  `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&issues=write&contents=read`;
+  `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&issues=write&contents=read&repository_hooks=write`;
 const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 6", lead = "") =>
   [
     `<p>🆕 <b>New workspace</b> · ${step}</p>`,
@@ -148,7 +148,7 @@ const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 6", 
     `<p><b>Send me a GitHub token for <code>${repo}</code></b></p>`,
     `<p>Tap <b>🔑 Create a token</b>: GitHub opens the form with the permissions filled in. Under <b>Repository access</b> choose <code>${repo}</code>, create the token and paste it here.</p>`,
     "<p>🔒 I delete your message right away and keep the token encrypted; it is never shown again.</p>",
-    "<details><summary>Permissions it needs</summary><ul><li>Issues: read and write</li><li>Contents: read</li></ul></details>",
+    "<details><summary>Permissions it needs</summary><ul><li>Issues: read and write</li><li>Contents: read</li><li>Webhooks: read and write</li></ul></details>",
     extra,
     ROW(URL_("🔑 Create a token", TOKEN_URL(id, repo))),
     NAV,
@@ -438,10 +438,10 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:flow:done");
     await tap(100, "w:bind:here");
     expect(screen()).toContain(
-      "<ul><li>Issues: read and write</li><li>Contents: read and write</li><li>Pull requests: read and write</li><li>Checks: read</li><li>Commit statuses: read</li></ul>",
+      "<ul><li>Issues: read and write</li><li>Contents: read and write</li><li>Pull requests: read and write</li><li>Checks: read</li><li>Commit statuses: read</li><li>Webhooks: read and write</li></ul>",
     );
     expect(screen()).toContain(
-      URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&issues=write&contents=write&pull_requests=write&checks=read&statuses=read"),
+      URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&issues=write&contents=write&pull_requests=write&checks=read&statuses=read&repository_hooks=write"),
     );
   });
 
