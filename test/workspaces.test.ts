@@ -98,4 +98,4 @@ describe("standalone mode", () => {
   });
 });
 
-const texts = () => tg.of("sendMessage").map((m) => m.text);
+const texts = () => tg.sent("sendRichMessage").map((m) => m.rich_message.html.replace(/^<p>|<\/p>$/g, ""));

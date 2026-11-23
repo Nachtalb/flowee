@@ -11,8 +11,9 @@ const where = (re: RegExp) =>
     .sort();
 
 describe("chat style guard", () => {
-  it("plain messages (the Chat port's text/editText) are sent only by the envoy, for the notices docs/envoy.md lists", () => {
-    expect(where(/\b(?:chat|tg)\.(?:text|editText)\(/)).toEqual(["envoy/envoy.ts"]);
+  it("no plain messages at all: the Chat port has no text/editText, every notice of the envoy is a rich message", () => {
+    expect(where(/\b(?:chat|tg)\.(?:text|editText)\(/)).toEqual([]);
+    expect(files["../src/ports/chat.ts"]).not.toMatch(/\btext\(to: ChatRef|editText\(/);
   });
 
   it("only the Telegram adapter names sendMessage, a reply keyboard or ReplyKeyboardRemove", () => {

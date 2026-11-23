@@ -11,7 +11,7 @@ import { CARD_Q, CARD_TEST, call, hook, inFlow, setup, stub, wipe } from "./help
 const nav = (...a: Parameters<typeof navV>) => richHtml(navV(...a));
 const newBar = () => richHtml(newBarV());
 const okRow = () => richHtml(okRowV());
-const WELCOME = textsOf(workspaces.workspaces[0] as never).welcome;
+const WELCOME = textsOf(workspaces.workspaces[0] as never).welcome.split("\n").filter((l) => l.trim()).join("\n");
 
 let gh: FakeGitHub;
 let tg: FakeTelegram;
@@ -45,7 +45,17 @@ const press = (data: string, message_id = 1) => ({
 const html = (p: Record<string, any>) => (p.rich_message?.html ?? "") as string;
 const rich = () => tg.sent("sendRichMessage");
 const toasts = () => tg.of("answerCallbackQuery").map((a) => a.text);
-const texts = () => tg.of("sendMessage").map((m) => m.text);
+/** The envoy's notices (rich, one paragraph per line, a digest's items as a table) as text, one line per paragraph or row. */
+const isNotice = (m: Record<string, any>) => !m.reply_markup?.force_reply && !/<details|Older ticket|<th>|data="t"|data="f"/.test(html(m));
+const texts = () =>
+  rich()
+    .filter(isNotice)
+    .map((m) =>
+      html(m)
+        .replace(/<tg-button-row.*$/s, "")
+        .replace(/<\/(p|tr)>(?=<(p|tr|table)[ >])/g, "\n")
+        .replace(/<\/?(p|table|tr|td)( [^>]*)?>/g, ""),
+    );
 const reactions = () => tg.of("setMessageReaction").map((r) => r.reaction[0].emoji);
 const status = (n: number) => inFlow((f) => f.rows<{ status: string }>("SELECT status FROM inbox WHERE n = ?", n)[0]?.status);
 const ISSUE = (n: number) => `https://github.com/acme/shop/issues/${n}`;
@@ -116,11 +126,11 @@ describe("cards and notes (12-18, 20, 47)", () => {
   it("the cron picks up human review tickets: none on the first pass, a note for later ones; gone ones leave (20)", async () => {
     gh.add({ number: 3, state_label: "human review" }).comments.push({ id: 30, body: `Board: escalated\n\n${CARD_Q}` });
     await inFlow((f) => f.cron());
-    expect(rich()).toEqual([]);
+    expect(rich().filter((m) => !isNotice(m))).toEqual([]);
     expect(await status(3)).toBe("sent");
     gh.add({ number: 4, state_label: "human review" }).comments.push({ id: 40, body: "Tester: something <odd>" });
     await inFlow((f) => f.cron());
-    expect(html(rich()[0])).toBe(
+    expect(html(rich().filter((m) => !isNotice(m))[0])).toBe(
       `<p>👀 <b>Review</b> · <a href="${ISSUE(4)}#issuecomment-40">#4</a> · ⏳ 0 min</p><p><b>Ticket 4</b></p><details><summary>Details</summary><p>Tester: something &lt;odd&gt;</p></details>${okRow()}`,
     );
     gh.issues.get(3)!.labels = [{ name: "needs triage" }];
@@ -309,8 +319,8 @@ describe("answers (34-42)", () => {
     const u = msg("Blue.", note);
     await hook(u);
     expect(reactions()).toEqual(["👀", "👎"]);
-    expect(tg.of("sendMessage")[0]).toMatchObject({
-      text: "⚠️ #1: not recorded: GitHub answered 503 for reading #1",
+    expect(rich().filter(isNotice)[0]).toMatchObject({
+      rich_message: { html: "<p>⚠️ #1: not recorded: GitHub answered 503 for reading #1</p>" },
       reply_parameters: { message_id: u.message.message_id },
     });
     expect(await status(1)).toBe("sent");
@@ -399,9 +409,9 @@ describe("new ticket (7, 43-46)", () => {
     expect(html(rich().at(-1) as never)).toBe(newBar());
     tg.calls = [];
     await hook(press("F"));
-    const [st] = tg.sent("sendMessage");
-    expect(st.text).toBe("⏳ Filing your ticket…");
-    expect(tg.of("editMessageText")[0]).toEqual({ chat_id: "100000001", message_id: st.id, text: "🆕 #1 filed for the Board" });
+    const st = rich().find((m) => html(m) === "<p>⏳ Filing your ticket…</p>") as Record<string, any>;
+    expect(st).toBeDefined();
+    expect(tg.of("editMessageText").find((e) => e.message_id === st.id)).toEqual({ chat_id: "100000001", message_id: st.id, rich_message: { html: "<p>🆕 #1 filed for the Board</p>" } });
     const i = gh.issues.get(1)!;
     expect(i.title).toBe("Dark mode is too dark");
     expect(i.body).toBe(
@@ -453,12 +463,13 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
     vi.setSystemTime(new Date("2026-11-23T08:30:00Z"));
     await inFlow((f) => f.cron());
     await inFlow((f) => f.cron());
-    const d = tg.of("sendMessage").filter((m) => m.text.startsWith("☀️"));
+    const d = rich().filter((m) => html(m).startsWith("<p>☀️"));
     expect(d).toHaveLength(1);
     expect(d[0]).toMatchObject({
-      text: `☀️ <b>Good morning: 1 open</b>\n❓ <a href="${ISSUE(1)}#issuecomment-1">#1</a> Ticket 1`,
+      rich_message: {
+        html: `<p>☀️ <b>Good morning: 1 open</b></p><table bordered striped compact><tr><td>❓ <a href="${ISSUE(1)}#issuecomment-1">#1</a> Ticket 1</td></tr></table><tg-button-row align="center"><tg-button type="callback_data" data="n">▶ Start</tg-button></tg-button-row>`,
+      },
       disable_notification: true,
-      reply_markup: { inline_keyboard: [[{ text: "▶ Start", callback_data: "n" }]] },
     });
   });
 
@@ -494,7 +505,7 @@ describe("commands, digest, old interface (1-11, 33, 48, 49, 52)", () => {
     tg.calls = [];
     expect((await (await SELF.fetch("https://flow.test/setup")).json<Record<string, Record<string, string>>>()).shop.hello).toBe("sent");
     expect(texts()).toEqual([WELCOME, `📋 <b>1 open</b>\n❓ <a href="${ISSUE(1)}#issuecomment-1">#1</a> Ticket 1`]);
-    expect(tg.of("sendMessage")[1].reply_markup).toEqual({ inline_keyboard: [[{ text: "▶ Start", callback_data: "n" }]] });
+    expect(html(rich().filter(isNotice)[1])).toMatch(/<\/table><tg-button-row align="center"><tg-button type="callback_data" data="n">▶ Start<\/tg-button><\/tg-button-row>$/);
     expect(tg.of("editMessageText")).toEqual([]);
   });
 

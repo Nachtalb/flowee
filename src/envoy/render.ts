@@ -128,6 +128,12 @@ export const heading = (emoji: string, name: string, ...facts: string[]): Block 
 /** The second line: what the screen asks or shows, bold (a card's title). */
 export const question = (html: string): Block => ({ html: `<p><b>${html}</b></p>` });
 export const text = (html: string): Block => ({ html: `<p>${html}</p>` });
+/** Lines of HTML as paragraphs: a notice of the envoy. */
+export const paragraphs = (html: string): Block[] =>
+  html
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => ({ html: `<p>${l}</p>` }));
 /** One choice or toggle: its name and one-line description in one cell, its own buttons in the same row. */
 export const option = (name: string, description: string, ...buttons: Button[]): TableRow => ({ cells: [`<b>${name}</b> · ${description}`], buttons });
 /** Choices as a single-column table, a button per row (docs/chat-style.md: never a list, never buttons apart). */

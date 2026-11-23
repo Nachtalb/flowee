@@ -4,13 +4,15 @@ import type { Flowee, Inbox } from "../core/service";
 import { Fail } from "../core/errors";
 import { parseCard } from "../core/card";
 import { fill, hex, sha256 } from "../core/text";
-import type { Chat, ChatMessage, ChatPress, ChatRef, Command, FileRef, Sender, View } from "../ports/chat";
+import type { Chat, ChatMessage, ChatPress, ChatRef, Command, FileRef, Sender, View, ViewOptions } from "../ports/chat";
 import type { Files } from "../ports/files";
 import {
   back,
+  btn,
   type Content,
   card,
   esc,
+  facts,
   hasTerms,
   type Item,
   list,
@@ -19,9 +21,11 @@ import {
   next,
   okRow,
   page,
+  paragraphs,
   parseNumber,
   postponed,
   results,
+  row,
   search,
   todo,
   todoHeader,
@@ -236,9 +240,11 @@ export class Envoy implements Inbox {
 
   // ---- sending ----
 
-  private send = (text: string, buttons?: { label: string; data: string }[][], quiet = false) =>
-    this.chat.text(this.at, text, { html: true, quiet, ...(buttons ? { buttons } : {}) });
-  private reply = (to: ChatMessage, text: string) => this.chat.text(this.at, text, { replyTo: to.id, noPreview: true });
+  /** A notice: one paragraph per line of `html`, a rich message like every other screen (docs/chat-style.md). */
+  private say = (html: string, o: ViewOptions = {}) => this.chat.view(this.at, paragraphs(html), o);
+  private send = (html: string, quiet = false) => this.say(html, { quiet });
+  /** A one-sentence answer to one of the chat's messages; `text` is plain. */
+  private reply = (to: ChatMessage, text: string) => this.say(esc(text), { replyTo: to.id });
   private forceReply = (h: string, placeholder: string) => this.chat.view(this.at, html(h), { forceReply: placeholder });
 
   private async react(id: number, emoji: string) {
@@ -379,7 +385,7 @@ export class Envoy implements Inbox {
           this.set(draftKey(n), text);
           warn += ". It is open again and your text is kept.";
         }
-        await this.chat.text(this.at, warn, answer ? { replyTo: answer } : {}).catch(() => {});
+        await this.say(esc(warn), answer ? { replyTo: answer } : {}).catch(() => {});
       }
       await this.refreshMenu();
     });
@@ -445,9 +451,12 @@ export class Envoy implements Inbox {
   async sendTodo(header: string, quiet: boolean) {
     const items = this.openItems();
     const parts = todo(items, header);
+    // the header, then the items as a one-column table; ▶ Start under the last part
     for (const [i, p] of parts.entries()) {
+      const lines = p.split("\n");
+      const head = i === 0 ? lines.shift() : undefined;
       const last = i === parts.length - 1 && items.length > 0;
-      await this.send(p, last ? [[{ label: "▶ Start", data: "n" }]] : undefined, quiet);
+      await this.chat.view(this.at, [...(head ? paragraphs(head) : []), ...(lines.length ? [facts(lines.map((l) => [l]))] : []), ...(last ? [row(btn("▶ Start", "n"))] : [])], { quiet });
     }
   }
 
@@ -728,7 +737,7 @@ export class Envoy implements Inbox {
     // a reply to any other card or note is the whole answer; in a group the first one wins
     if (by) {
       const prior = this.claimAnswer(key, by);
-      if (prior) return void (await this.reply(first, `⚠️ ${this.f.label(key)} was already answered by ${esc(prior)}; yours was not recorded.`));
+      if (prior) return void (await this.reply(first, `⚠️ ${this.f.label(key)} was already answered by ${prior}; yours was not recorded.`));
     }
     await this.react(first.id, "👀");
     await this.showAnswered(key);
@@ -749,7 +758,7 @@ export class Envoy implements Inbox {
     if (!text?.trim()) return "Nothing written yet";
     this.del(KV.newDraft);
     await this.deleteTracked(KV.new);
-    const status = await this.chat.text(this.at, "⏳ Filing your ticket…");
+    const status = await this.say("⏳ Filing your ticket…");
     await this.postNav(this.navView());
     this.deferred.push(async () => {
       const quoted = text
@@ -774,7 +783,7 @@ export class Envoy implements Inbox {
         this.set(KV.newDraft, text);
         note = `⚠️ Ticket not filed: ${e instanceof Error ? e.message.replace(/\.$/, "") : e}. Your text is kept: ➕ New ticket, then 📨 File ticket.`;
       }
-      await this.chat.editText(this.at, status, note).catch((e) => console.warn("filing status", e));
+      await this.chat.editView(this.at, status, paragraphs(esc(note))).catch((e) => console.warn("filing status", e));
     });
     return undefined;
   }
@@ -905,7 +914,7 @@ export class Envoy implements Inbox {
 
   /** A one-line note to the owner, quietly (the sync state: webhooks off or back on). */
   async notice(text: string) {
-    await this.send(esc(text), undefined, true);
+    await this.send(esc(text), true);
   }
 
   /** The poller's minute: inbox sync, new item notes, the menu counts, the digest. */

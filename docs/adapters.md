@@ -71,11 +71,12 @@ A chat adapter implements `Chat` (`src/ports/chat.ts`):
 - `parse(update)`: a raw update to a `ChatEvent`: a `message` (update id, chat + topic, sender id, message id,
   text, the message it replies to and whether that is the bot's, album id, content: text / files / voice /
   unsupported) or a `press` (update id, sender, query id, button data, the message pressed). Anything else: null.
-- `view(to, view, {forceReply?, replyTo?, keyboard?, removeKeyboard?})`, `editView`: a `View` is a list of blocks:
-  `{html}` (p, b, i, a, code, pre, ul, li, details, summary), `{buttons}` (a centred row), `{table}` (head + rows
-  with one button each). A backend with rich messages renders them (Telegram: `sendRichMessage`, `tg-button`); one without
+- `view(to, view, {forceReply?, replyTo?, keyboard?, removeKeyboard?, quiet?})`, `editView`: every message is a
+  view (there is no plain-text method); a `View` is a list of blocks: `{html}` (p, b, i, a, code, pre, details,
+  summary; ul/li only inside a ticket's own text), `{buttons}` (a centred row), `{table}` (an optional head, rows
+  of cells each with its own buttons in the same row). A backend with rich messages renders them (Telegram: `sendRichMessage`, `tg-button`); one without
   renders `plain(view)` (text plus keyboard rows, exported by the port) and fakes `details` by showing it.
-- `text(to, text, {html, quiet, buttons, replyTo, noPreview})`, `editText`, `remove`, `dropButtons`, `react`,
+- `remove`, `dropButtons`, `react`,
   `answer(query, toast?)`, `setCommands(commands, to?)`, `download(file)` (never put a token in an error).
 - Profile: `setName`, `setDescription`, `setShortDescription`, `setPhoto(png)`, `setWebhook(url, secret)`,
   `webhookUrl()`. A backend without one of them makes it a no-op.

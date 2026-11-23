@@ -97,7 +97,7 @@ describe("several repositories", () => {
     await hook(u("lib#2", 70001));
     expect(tg.of("sendRichMessage")[0].rich_message.html).toContain(">lib#2</a>");
     await hook(u("app#9", 70002));
-    expect(tg.of("sendMessage").at(-1)?.text).toBe("app#9: Not in your inbox");
+    expect(tg.sent("sendRichMessage").at(-1)?.rich_message.html).toBe("<p>app#9: Not in your inbox</p>");
   });
 });
 

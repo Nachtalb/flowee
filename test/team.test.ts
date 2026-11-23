@@ -56,7 +56,7 @@ describe("a team in a group", () => {
     // the first answer wins: the next one is refused in one sentence, the ticket unchanged
     await hook(reply(-100903, person(311, "Gus"), card, "No.", 4));
     expect(squad.issues.get(1)?.comments.length).toBe(2);
-    expect(tg.of("sendMessage").at(-1)).toMatchObject({ chat_id: "-100903", text: "⚠️ #1 was already answered by Fay via chat; yours was not recorded." });
+    expect(tg.sent("sendRichMessage").at(-1)).toMatchObject({ chat_id: "-100903", rich_message: { html: "<p>⚠️ #1 was already answered by Fay via chat; yours was not recorded.</p>" } });
     // the one who answered may add to it
     await hook(reply(-100903, person(310, "Fay"), card, "Also fast.", 4));
     expect(squad.last(1)).toBe("Fay via chat: Also fast.");

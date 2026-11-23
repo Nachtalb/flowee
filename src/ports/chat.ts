@@ -42,16 +42,8 @@ export interface ViewOptions {
   keyboard?: ChatRequest;
   /** Takes a reply keyboard away again. */
   removeKeyboard?: boolean;
-}
-
-export interface TextOptions {
-  /** The text is HTML (b, i, a, code) and links get no preview. */
-  html?: boolean;
+  /** Without a notification sound (the digest, sync notices). */
   quiet?: boolean;
-  buttons?: Button[][];
-  replyTo?: number;
-  /** No link preview for a plain text. */
-  noPreview?: boolean;
 }
 
 export interface FileRef {
@@ -144,8 +136,6 @@ export interface Chat {
   parse(update: unknown): ChatEvent | null;
   view(to: ChatRef, view: View, o?: ViewOptions): Promise<number>;
   editView(to: ChatRef, id: number, view: View): Promise<void>;
-  text(to: ChatRef, text: string, o?: TextOptions): Promise<number>;
-  editText(to: ChatRef, id: number, text: string): Promise<void>;
   remove(to: ChatRef, id: number): Promise<void>;
   dropButtons(to: ChatRef, id: number): Promise<void>;
   react(to: ChatRef, id: number, emoji: string): Promise<void>;

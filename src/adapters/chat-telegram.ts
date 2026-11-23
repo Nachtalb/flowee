@@ -13,7 +13,6 @@ import type {
   CommandScope,
   Content,
   FileRef,
-  TextOptions,
   View,
   ViewOptions,
 } from "../ports/chat";
@@ -171,6 +170,7 @@ export class Telegram implements Chat {
         one_time_keyboard: true,
       };
     if (o.removeKeyboard) extra.reply_markup = { remove_keyboard: true };
+    if (o.quiet) extra.disable_notification = true;
     return (await this.call("sendRichMessage", { ...this.to(at), rich_message: { html: richHtml(view) }, ...extra })).message_id;
   }
 
@@ -178,18 +178,6 @@ export class Telegram implements Chat {
     await this.call("editMessageText", { chat_id: at.chat, message_id: id, rich_message: { html: richHtml(view) } });
   }
 
-  async text(at: ChatRef, text: string, o: TextOptions = {}): Promise<number> {
-    const p: Record<string, unknown> = { ...this.to(at), text };
-    if (o.html) Object.assign(p, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, disable_notification: !!o.quiet });
-    else if (o.noPreview) p.link_preview_options = { is_disabled: true };
-    if (o.buttons) p.reply_markup = { inline_keyboard: o.buttons.map((r) => r.map((b) => ({ text: b.label, callback_data: b.data }))) };
-    if (o.replyTo) p.reply_parameters = { message_id: o.replyTo };
-    return (await this.call("sendMessage", p)).message_id;
-  }
-
-  async editText(at: ChatRef, id: number, text: string) {
-    await this.call("editMessageText", { chat_id: at.chat, message_id: id, text });
-  }
 
   async remove(at: ChatRef, id: number) {
     await this.call("deleteMessage", { chat_id: at.chat, message_id: id });

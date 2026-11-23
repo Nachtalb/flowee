@@ -175,11 +175,11 @@ export function texts(d: WorkspaceDoc): Texts {
       t.welcome ??
       `👋 <b>${botName}</b> brings the ${project} inbox to your phone.
 
-• Every ticket waiting for you arrives as a card; <i>Details</i> opens the hand-over.
-• Reply to any card (or the bar under it) to answer that ticket: text, screenshots and files go to its issue.
-• The buttons at the bottom walk through the open items: ◀ Prev goes back (also to a skipped one), ⏭ Skip puts the current one last, ▶ Next moves on, 📋 List shows them all.
-• Type a number like <code>7</code> to open that item directly, answered ones too.
-• 🔎 Search in the list finds open items by words: all must match, the start of a word is enough, <code>#7</code> finds a number, "quotes" a phrase.`,
+Every ticket waiting for you arrives as a card; <i>Details</i> opens the hand-over.
+Reply to any card (or the bar under it) to answer that ticket: text, screenshots and files go to its issue.
+The buttons at the bottom walk through the open items: ◀ Prev goes back (also to a skipped one), ⏭ Skip puts the current one last, ▶ Next moves on, 📋 List shows them all.
+Type a number like <code>7</code> to open that item directly, answered ones too.
+🔎 Search in the list finds open items by words: all must match, the start of a word is enough, <code>#7</code> finds a number, "quotes" a phrase.`,
     about: t.about ?? `Your ${project} review inbox as a todo list: tests, questions and decisions waiting for you, answered by replying.`,
     shortAbout: t.shortAbout ?? `The ${project} review inbox as a todo list.`,
     filedBody: t.filedBody ?? "Filed by the owner through Envoy; the Board writes the spec from their words.",

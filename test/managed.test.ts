@@ -222,7 +222,7 @@ async function sharedSetup(user = 100, repo = "acme/app") {
 
 // The guard of docs/chat-style.md: the wizard and the menu send rich messages only, and a reply keyboard only to
 // create a bot. Plain sendMessage calls of the instance bot are allowed only for the envoy's notices listed here.
-const ENVOY_NOTICES = [/^Reply to a card to answer it\.$/, /^⚠️ \S+ was already answered by .+; yours was not recorded\.$/];
+const ENVOY_NOTICES: RegExp[] = [];
 /** docs/chat-style.md, "Layout": no list anywhere, a choice's description and its button in one table row. */
 function layout(html: string) {
   expect(html, "list markup in a screen").not.toMatch(/<ul|<ol|<li|<p>[•\-–] /);
@@ -896,14 +896,14 @@ describe("groups, topics and preconfigured workspaces", () => {
     const comments = app.issues.get(3)?.comments.length;
     await group(100, "Yes.", { ...onCard(), message_thread_id: card?.id });
     expect(app.issues.get(3)?.comments.length).toBe(comments);
-    expect(tg.of("sendMessage").at(-1)).toMatchObject({ chat_id: "-100777", text: "⚠️ #3 was already answered by Bea Berg (@bea); yours was not recorded." });
+    expect(tg.sent("sendRichMessage").at(-1)).toMatchObject({ chat_id: "-100777", rich_message: { html: "<p>⚠️ #3 was already answered by Bea Berg (@bea); yours was not recorded.</p>" } });
     // two members at once: one answer is recorded, the other one hears who was first
     app.add({ number: 4, state_label: "board review" });
     await api(s.board, "/v1/escalate", { n: 4, comment: CARD });
     const card4 = tg.sent("sendRichMessage").at(-1);
     await Promise.all([group(300, "Blue.", { ...onCard(card4?.id), ...bea }), group(301, "Green.", { ...onCard(card4?.id), ...cid })]);
     expect(app.issues.get(4)?.comments.filter((c: { body: string }) => /^(Bea Berg \(@bea\)|Cid): /.test(c.body)).length).toBe(1);
-    expect(tg.of("sendMessage").at(-1)?.text).toMatch(/^⚠️ #4 was already answered by (Bea Berg \(@bea\)|Cid); yours was not recorded\.$/);
+    expect(tg.sent("sendRichMessage").at(-1)?.rich_message.html).toMatch(/^<p>⚠️ #4 was already answered by (Bea Berg \(@bea\)|Cid); yours was not recorded\.<\/p>$/);
     // managing stays with the one who set it up: a member is refused in one sentence
     await dm(300, "/workspaces");
     expect(screen(300)).toContain("<p>You have none yet.</p>");
@@ -914,7 +914,7 @@ describe("groups, topics and preconfigured workspaces", () => {
     // the wizard runs in private chats only: in the bound group /setup is the envoy's unknown command (text)
     tg.calls = [];
     await group(100, "/setup");
-    expect(tg.of("sendMessage").map((m) => [m.chat_id, m.text])).toEqual([["-100777", "Reply to a card to answer it."]]);
+    expect(tg.sent("sendRichMessage").map((m) => [m.chat_id, m.rich_message.html])).toEqual([["-100777", "<p>Reply to a card to answer it.</p>"]]);
   });
 
   it("a preconfigured workspace of FLOWEE_CONFIG is served, owned by the instance owner, editable in the menu", async () => {

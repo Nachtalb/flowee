@@ -83,8 +83,10 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
 2. The content must stay in the chat history by its nature: the agents' secrets (a file, or a rich message where
    files are refused), an exported configuration, the envoy's cards and bar (docs/envoy.md).
 3. Another chat: the confirmation in a group (`✅ Tickets of <id> appear here`).
-4. The envoy's notices and statuses as docs/envoy.md specifies them (rows 11, 37 to 41, 44, 48 and 54, and its toasts); these
-   stay plain messages exactly as in the bot the envoy reproduces.
+4. The envoy's notices and statuses as docs/envoy.md specifies them (rows 11, 37 to 41, 44, 48 and 54, and its toasts).
+   They are rich messages like every other screen: one paragraph per line, the digest's items as a one-column
+   table with ▶ Start under it, the filing status edited in place. There is no plain message left: the Chat port
+   has no `text`/`editText`, and `test/chat-style.test.ts` fails if one comes back.
 
 ## Exceptions: reply keyboards
 
