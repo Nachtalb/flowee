@@ -3,7 +3,7 @@
 # only what it loads: the musl loader, libstdc++ and libgcc_s (bun's compiled executables are not fully static) and
 # the CA bundle for HTTPS to Telegram, GitHub and GitLab. Multi-arch: docker buildx build --platform
 # linux/amd64,linux/arm64 -t flowee . (docs/self-hosting.md).
-ARG BUN_VERSION=1.4.4
+ARG BUN_VERSION=1.4.5
 
 FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION}-alpine AS build
 RUN apk add --no-cache git
