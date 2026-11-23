@@ -54,6 +54,8 @@ export interface WorkspaceDoc {
   texts?: Partial<Texts>;
   schedule?: { timezone?: string; digestFrom?: number; digestTo?: number };
   profile?: { photo?: string };
+  /** How Flowee learns of tracker changes: webhooks, a slow reconcile, polling as the fallback (docs/webhooks.md). */
+  sync?: { webhooks?: "auto" | "off" | "required"; reconcileMinutes?: number; pollMinutes?: number };
 }
 
 export interface InstanceDoc {

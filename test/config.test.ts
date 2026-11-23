@@ -39,6 +39,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   files: { url: "https://files.example/", token: "FILES", expire: "30d" },
   texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u" },
   schedule: { timezone: "Europe/Zurich", digestFrom: 8, digestTo: 11 },
+  sync: { webhooks: "auto", reconcileMinutes: 30, pollMinutes: 1 },
   profile: { photo: "https://x.example/p.png" },
 };
 

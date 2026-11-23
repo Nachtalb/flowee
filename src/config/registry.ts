@@ -208,5 +208,6 @@ export function settings(d: WorkspaceDoc): Settings {
     webhook: d.chat?.publicUrl ? { url: `${d.chat.publicUrl}/telegram${d.chat.managed ? `/w/${d.id}` : ""}`, secret: d.chat.webhookSecret } : undefined,
     profile: d.profile,
     ownBot: !!d.chat?.managed,
+    sync: { webhooks: d.sync?.webhooks ?? "auto", reconcileMinutes: d.sync?.reconcileMinutes ?? 30, pollMinutes: d.sync?.pollMinutes ?? 1 },
   };
 }

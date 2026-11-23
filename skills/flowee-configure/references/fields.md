@@ -64,6 +64,10 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `schedule.timezone` | IANA zone | `UTC` | The digest hour and "answered today". |
 | `schedule.digestFrom` | integer 0-23 | `9` | The morning digest is sent from this hour… |
 | `schedule.digestTo` | integer 1-24 | `12` | …until before this hour. |
+| `sync` | object | | How Flowee learns of tracker changes: webhooks first, polling as the fallback. |
+| `sync.webhooks` | `auto`, `off`, `required` | `auto` | `auto`: register the webhook through the tracker token and poll while it is missing or unhealthy; `off`: always poll; `required`: never poll. |
+| `sync.reconcileMinutes` | integer 5-1440 | `30` | Full listing this often while webhooks are healthy (catches missed deliveries). |
+| `sync.pollMinutes` | integer 1-60 | `1` | Full listing this often without webhooks. |
 | `profile` | object | | The bot's profile. |
 | `profile.photo` | `https://…` | | A PNG fetched and set as the bot's photo (once per change). |
 

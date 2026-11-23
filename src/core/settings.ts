@@ -48,4 +48,6 @@ export interface Settings {
   profile?: { photo?: string };
   /** The workspace's own bot (managed mode): its bot-wide settings are the workspace's to set. */
   ownBot?: boolean;
+  /** Webhooks, the reconcile and the polling fallback (docs/webhooks.md). */
+  sync: { webhooks: "auto" | "off" | "required"; reconcileMinutes: number; pollMinutes: number };
 }

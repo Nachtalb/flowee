@@ -114,6 +114,10 @@ valid, 1 a problem, 2 unreadable).
 | `schedule.timezone` | IANA zone | `UTC` | The digest hour and "answered today". |
 | `schedule.digestFrom` | integer 0-23 | `9` | The morning digest is sent from this hour… |
 | `schedule.digestTo` | integer 1-24 | `12` | …until before this hour. |
+| `sync` | object | | How Flowee learns of tracker changes (docs/webhooks.md). |
+| `sync.webhooks` | `auto`, `off`, `required` | `auto` | `auto`: Flowee registers the tracker's webhook itself and polls only while it is missing or unhealthy; `off`: polls as before; `required`: never polls, reports failing webhooks instead. |
+| `sync.reconcileMinutes` | integer 5-1440 | `30` | With healthy webhooks, a full listing this often catches missed deliveries. |
+| `sync.pollMinutes` | integer 1-60 | `1` | Without webhooks, a full listing this often (per repository). |
 | `profile` | object | | The bot's profile. |
 | `profile.photo` | `https://…` | | A PNG fetched and set as the bot's photo (once per change). |
 

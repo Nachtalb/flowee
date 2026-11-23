@@ -145,6 +145,19 @@ export const SCHEMA: S = {
         "Times.",
       ),
       profile: obj({ photo: str("URL of the bot's profile photo (PNG).", { pattern: "^https://" }) }, [], "The bot's profile."),
+      sync: obj(
+        {
+          webhooks: {
+            enum: ["auto", "off", "required"],
+            default: "auto",
+            description: "auto: register the tracker's webhook and poll only while it is missing or unhealthy; off: always poll; required: never poll, say so when webhooks fail.",
+          },
+          reconcileMinutes: { type: "integer", minimum: 5, maximum: 1440, default: 30, description: "With healthy webhooks: minutes between full listings that catch missed deliveries." },
+          pollMinutes: { type: "integer", minimum: 1, maximum: 60, default: 1, description: "Without webhooks: minutes between full listings (the cron runs every minute)." },
+        },
+        [],
+        "How Flowee learns of tracker changes (docs/webhooks.md).",
+      ),
     },
     ["flowee", "id", "flow", "tracker", "roles", "owners"],
     "A Flowee workspace: one flow over a repository, its roles, owners and chat.",
