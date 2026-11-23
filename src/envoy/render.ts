@@ -112,15 +112,33 @@ export function cut(s: string, max: number): string {
   return c.length <= max ? s : `${c.slice(0, max - 1).join("").trimEnd()}…`;
 }
 
-const button = (label: string, data: string): Button => ({ label, data });
-const row = (...buttons: Button[]): Block => ({ buttons });
+// ---- the building blocks of every screen: envoy, wizard and menu (docs/chat-style.md) ----
+
+/** A button pressed back to the bot. */
+export const btn = (label: string, data: string, style?: "primary"): Button => ({ label, data, ...(style ? { style } : {}) });
+/** A button that opens a link. */
+export const linkBtn = (label: string, url: string): Button => ({ label, url });
+/** A button that copies a text. */
+export const copyBtn = (label: string, copy: string): Button => ({ label, copy });
+/** A centred row of buttons. */
+export const row = (...buttons: Button[]): Block => ({ buttons });
+/** The first line of every message: an emoji, the bold name, then facts after ` · ` (a card: kind · #n · age). */
+export const headline = (emoji: string, name: string, ...facts: string[]) => `<p>${emoji} <b>${name}</b>${facts.map((f) => ` · ${f}`).join("")}</p>`;
+export const heading = (emoji: string, name: string, ...facts: string[]): Block => ({ html: headline(emoji, name, ...facts) });
+/** The second line: what the screen asks or shows, bold (a card's title). */
+export const question = (html: string): Block => ({ html: `<p><b>${html}</b></p>` });
+export const text = (html: string): Block => ({ html: `<p>${html}</p>` });
+export const bullets = (items: string[]): Block => ({ html: `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>` });
+/** Help that most readers skip, folded like a card's details. */
+export const details = (summary: string, html: string): Block => ({ html: `<details><summary>${summary}</summary>${html}</details>` });
+/** One sentence under the prompt saying what was wrong with the last answer. */
+export const warning = (sentence: string): Block => ({ html: `<p>⚠️ ${esc(sentence)}</p>` });
 
 /** A card: kind, link and age, the title, the hand-over folded (`open` for the card being worked on). */
 export function card(it: Item, answered: number | null, open: boolean, now: number): string {
   const [e, k] = kind(it);
-  let s = `<p>${e} <b>${k}</b> · ${link(it)}`;
-  s += answered !== null ? ` · ✓ answered ${waited(answered, now)} ago` : ` · ⏳ ${waited(it.since, now)}`;
-  s += `</p><p><b>${esc(it.title)}</b></p>`;
+  let s = headline(e, k, link(it), answered !== null ? `✓ answered ${waited(answered, now)} ago` : `⏳ ${waited(it.since, now)}`);
+  s += `<p><b>${esc(it.title)}</b></p>`;
   const c = it.content;
   let body: string;
   if (c.kind === "none") return `${s}<p><i>Older ticket without a hand-over note: open the issue for the details.</i></p>`;
@@ -140,19 +158,19 @@ export function card(it: Item, answered: number | null, open: boolean, now: numb
   return `${s}<details${open ? " open" : ""}><summary>Details</summary>${body}</details>${version ? `<p>📦 In ${esc(version)} or later</p>` : ""}`;
 }
 
-export const okRow = (): View => [row(button("✅ OK", "k"))];
-export const newBar = (): View => [row(button("✖ Cancel", "X"), button("📨 File ticket", "F"))];
+export const okRow = (): View => [row(btn("✅ OK", "k"))];
+export const newBar = (): View => [row(btn("✖ Cancel", "X"), btn("📨 File ticket", "F"))];
 
 /** The bar at the bottom; under a card it is buttons only. */
 export function nav(current: number | undefined, left: number): View {
   const v: View = [];
   if (left === 0) v.push({ html: "<p>✨ Inbox empty</p>" });
   else if (current === undefined) v.push({ html: `<p>${left} open</p>` });
-  v.push(row(button("➕ New ticket", "t")));
-  const b = [button("◀ Prev", "p")];
-  if (current !== undefined && left > 0) b.push(button("✅ OK", "k"), button("⏭ Skip", "s"));
-  b.push(button("📋 List", "L:0"));
-  if (left > 0) b.push(button("▶ Next", "n"));
+  v.push(row(btn("➕ New ticket", "t")));
+  const b = [btn("◀ Prev", "p")];
+  if (current !== undefined && left > 0) b.push(btn("✅ OK", "k"), btn("⏭ Skip", "s"));
+  b.push(btn("📋 List", "L:0"));
+  if (left > 0) b.push(btn("▶ Next", "n"));
   return [...v, row(...b)];
 }
 
@@ -171,9 +189,9 @@ function table(rows: Item[], open: string, now: number): Block {
 function listButtons(prefix: string, page: number, pages: number, search: boolean): Block {
   const b: Button[] = [];
   if (pages > 1)
-    b.push(button("◀", `${prefix}:${(page + pages - 1) % pages}`), { label: `${page + 1}/${pages}` }, button("▶", `${prefix}:${(page + 1) % pages}`));
-  if (search) b.push(button("🔎 Search", "f"));
-  b.push(button("« Back", "b"));
+    b.push(btn("◀", `${prefix}:${(page + pages - 1) % pages}`), { label: `${page + 1}/${pages}` }, btn("▶", `${prefix}:${(page + 1) % pages}`));
+  if (search) b.push(btn("🔎 Search", "f"));
+  b.push(btn("« Back", "b"));
   return row(...b);
 }
 

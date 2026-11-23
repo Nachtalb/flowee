@@ -1,16 +1,17 @@
-// The setup and management conversation, chat-agnostic: steps, prompts, choices and validation. It talks to the
-// user through the Chat port (views as HTML text with button rows, a reply-keyboard request where the chat has
-// one) and to the instance through `WizardHost`. docs/wizard.md walks through it; docs/adapters.md says what a
-// chat adapter must offer for it.
+// The setup conversation, chat-agnostic: steps, screens, choices and validation. Every screen is a view built from
+// the envoy's blocks (docs/chat-style.md) shown in one living message that each step edits; typed answers are
+// deleted after reading. It reaches the instance through `WizardHost`; docs/managed.md walks through it.
 import type { RepoDoc, WorkspaceDoc } from "../config/document";
-import { esc } from "../envoy/render";
-import type { Button, Chat, ChatRef, ChatRequest } from "../ports/chat";
-import type { RepoReference } from "../ports/tracker";
+import { bullets, btn, copyBtn, details, esc, heading, linkBtn, question, row, text, warning } from "../envoy/render";
+import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
+import type { RepoReference, TokenHelp } from "../ports/tracker";
 
 export const TTL = 24 * 3600e3;
 
-export type Step = "bot" | "repos" | "botCreate" | "flow" | "bind" | "credential" | "roles" | "summary";
-export const STEPS: Step[] = ["bot", "repos", "botCreate", "flow", "bind", "credential", "roles", "summary"];
+export type Step = "repos" | "bot" | "botCreate" | "flow" | "bind" | "credential" | "roles" | "summary";
+export const STEPS: Step[] = ["repos", "bot", "botCreate", "flow", "bind", "credential", "roles", "summary"];
+/** The steps counted in "Step k of n"; creating the bot belongs to the bot step. */
+const COUNTED: Step[] = ["repos", "bot", "flow", "bind", "credential", "roles"];
 
 export interface Draft {
   id?: string;
@@ -47,8 +48,12 @@ export interface Session {
   back: Step[];
   draft: Draft;
   ts: number;
-  /** The message showing the step. */
-  msg?: number;
+  /** The steps this setup asks, for "Step k of n". */
+  plan?: Step[];
+  /** A second screen of the step: the group instructions of the bind step, the flow list over the extras. */
+  sub?: "group" | "presets";
+  /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
+  helper?: number;
   /** Edit one part: the summary follows that step. */
   single?: boolean;
   /** Further imported workspaces, set up one after the other. */
@@ -66,6 +71,8 @@ export interface Preset {
   roles: string[];
   ownerRole: string;
   features: string[];
+  /** Roles that exist only with some features: `samples`, `!samples`, `pullRequests.merger=flow`. */
+  roleFeatures?: Record<string, string[]>;
 }
 
 export interface WizardHost {
@@ -75,6 +82,8 @@ export interface WizardHost {
   freeId(base: string): string;
   /** `owner/name` of a pasted repository link or name (the tracker adapter knows the shapes). */
   parseRepo: RepoReference;
+  /** The token's permissions and a link to the filled-in token form. */
+  tokenHelp: TokenHelp;
   /** Does the shared bot / own bots exist in this chat (managed-bot support)? */
   ownBots: boolean;
   botUsername?: string;
@@ -95,21 +104,85 @@ export interface WizardHost {
   drop(user: string): void;
   /** Where a /bind code is waiting. */
   publicUrl: string;
+  /** The user's living message (docs/chat-style.md). */
+  live(user: string): number | undefined;
+  setLive(user: string, id: number): void;
 }
 
-const b = (label: string, data: string): Button => ({ label, data: `w:${data}` });
-const nav = (s: Session): Button[] => [...(s.back.length ? [b("◀ Back", "back")] : []), b("✖ Cancel", "cancel")];
+const b = (label: string, data: string) => btn(label, `w:${data}`);
 export const aliasOf = (repo: string) => repo.split("/")[1].toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
+const code = (s: string) => `<code>${esc(s)}</code>`;
 
-export interface View {
-  html: string;
-  buttons?: Button[][];
-  request?: ChatRequest;
+const PRESETS: Record<string, [string, string]> = {
+  trunk: ["🌳 Simple", "developers commit to the main branch, testers test each ticket, the board plans and asks you."],
+  "pr-release": ["🧰 Simple with extras", "the same, plus what you switch on next: pull requests, releases, samples and more."],
+};
+const FEATURES: Record<string, [string, string]> = {
+  pullRequests: ["Pull requests", "each ticket on its own branch, merged after the test"],
+  releases: ["Releases", "tests wait until the published build has the change"],
+  samples: ["Samples", "testers ask for sample files to test with"],
+  uiReview: ["UI review", "you look at screen changes before they ship"],
+  dependencyTickets: ["Dependency updates", "update pull requests become tickets"],
+  untrustedReports: ["Outside reports", "reports written by users are checked first"],
+};
+const ROLES: Record<string, [string, string]> = {
+  board: ["🧭 Board", "plans and sorts the tickets"],
+  developer: ["🛠 Developers", "build them"],
+  tester: ["🧪 Testers", "test them"],
+  sampler: ["📎 Samplers", "find sample files"],
+};
+const presetButton = (p: string) => PRESETS[p]?.[0] ?? esc(p);
+export const presetName = (p?: string) => (p ? presetButton(p).replace(/^\S+ /, "") : "from the configuration");
+export const featureName = (f: string) => FEATURES[f]?.[0] ?? esc(f);
+const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
+
+/** The parts of a screen: text blocks, then button rows; a warning goes between them. */
+interface Screen {
+  body: Block[];
+  rows: Block[];
+  keyboard?: ChatRequest;
 }
+
+/** The user's living message: every screen edits it; a typed command shows the screen anew at the bottom. */
+export class Living {
+  constructor(
+    private chat: Chat,
+    private host: Pick<WizardHost, "live" | "setLive">,
+  ) {}
+
+  async show(user: string, at: ChatRef, view: View, bottom = false): Promise<number> {
+    const old = this.host.live(user);
+    const id = await live(this.chat, at, bottom ? undefined : old, view);
+    if (old !== undefined && old !== id) await this.chat.remove(at, old).catch(() => {});
+    this.host.setLive(user, id);
+    return id;
+  }
+
+  /** A button was pressed on `message`: that message lives on; an older living one goes. */
+  async adopt(user: string, at: ChatRef, message?: number) {
+    if (message === undefined) return;
+    const old = this.host.live(user);
+    if (old !== undefined && old !== message) await this.chat.remove(at, old).catch(() => {});
+    this.host.setLive(user, message);
+  }
+}
+
+/** Shown in a group (or topic) the moment it is chosen for a workspace's tickets. */
+export const boundView = (id: string): View => [heading("✅", `Tickets of ${code(id)} appear here`), text("Everyone here can read them; only the workspace's owners answer them.")];
+
+/** Something failed: one sentence, and the way back. */
+export const failedView = (why: string, setup: boolean): View => [
+  heading("⚠️", "That did not work"),
+  text(esc(why)),
+  row(setup ? b("▶ Continue the setup", "resume") : b("🚀 Set up a workspace", "new")),
+];
 
 export function fresh(user: string, at: ChatRef, now: number): Session {
   return { user, at, step: "bot", back: [], draft: { repos: [], features: {}, roles: {} }, ts: now };
 }
+
+/** A chat as its owner knows it, without its title. */
+export const chatLabel = (chat: string, topic?: number) => (!chat.startsWith("-") ? "a private chat" : topic ? "one topic of your group" : "your group");
 
 /** A draft from an existing or imported document. */
 export function fromDoc(d: WorkspaceDoc, presets: Preset[]): Draft {
@@ -124,7 +197,7 @@ export function fromDoc(d: WorkspaceDoc, presets: Preset[]): Draft {
     repos: d.tracker.repos.map((r) => (typeof r === "string" ? r : r.repo)),
     preset,
     features: Object.fromEntries(Object.entries(d.features ?? {}).map(([k, v]) => [k, v !== false])),
-    bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: d.chat.topicId ? `chat ${d.chat.chatId}, topic ${d.chat.topicId}` : `chat ${d.chat.chatId}` } : undefined,
+    bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
     roles,
   };
 }
@@ -189,11 +262,15 @@ export function toDoc(d: Draft, user: string, preset: Preset, shared: { token: s
 }
 
 export class Wizard {
+  readonly living: Living;
+
   constructor(
     private chat: Chat,
     private host: WizardHost,
     private now: () => number,
-  ) {}
+  ) {
+    this.living = new Living(chat, host);
+  }
 
   private preset(d: Draft) {
     const all = this.host.presets();
@@ -204,10 +281,10 @@ export class Wizard {
   private needed(s: Session, step: Step): boolean {
     const d = s.draft;
     switch (step) {
-      case "bot":
-        return !d.bot;
       case "repos":
         return !d.repos.length;
+      case "bot":
+        return !d.bot;
       case "botCreate":
         return d.bot === "own" && !d.botId;
       case "flow":
@@ -223,28 +300,35 @@ export class Wizard {
     }
   }
 
-  /** Starts a new setup, or offers to resume the unfinished one. */
-  async start(user: string, at: ChatRef) {
+  /** Starts a new setup, or offers to resume the unfinished one; `bottom`: asked by a typed command. */
+  async start(user: string, at: ChatRef, bottom = false) {
     const old = this.host.load(user);
     if (old && this.now() - old.ts < TTL)
-      return this.say(at, "<b>Unfinished setup</b>\nYou started a workspace setup earlier.", [[b("▶ Resume", "resume"), b("🆕 Start over", "restart")]]);
+      return this.living.show(
+        user,
+        at,
+        [heading("🆕", "New workspace"), question("Continue the setup you started?"), text("You began setting up a workspace earlier and did not finish it."), row(b("▶ Continue", "resume"), b("🆕 Start over", "restart"))],
+        bottom,
+      );
     const why = this.host.refusal(user);
-    if (why) return this.say(at, esc(why));
+    if (why) return this.living.show(user, at, [heading("⚠️", "You cannot set up a workspace"), text(esc(why)), row(btn("📂 My workspaces", "m:list"))], bottom);
     const s = fresh(user, at, this.now());
     if (!this.host.ownBots) s.draft.bot = "shared";
-    await this.go(s, this.first(s), false);
+    s.plan = COUNTED.filter((x) => this.needed(s, x));
+    await this.go(s, this.first(s), false, { bottom });
   }
 
   /** Opens the wizard over an existing or imported workspace: only the steps still missing are asked. */
-  async over(user: string, at: ChatRef, draft: Draft, only?: Step, queue?: WorkspaceDoc[]) {
+  async over(user: string, at: ChatRef, draft: Draft, only?: Step, queue?: WorkspaceDoc[], o: { lead?: Block[]; bottom?: boolean } = {}) {
     const s: Session = { user, at, step: "summary", back: [], draft, ts: this.now(), ...(queue?.length ? { queue } : {}) };
     if (only) {
       s.single = true;
       if (only === "bind") delete draft.bind;
       if (only === "credential") delete draft.tokenStored;
-      return this.go(s, only, false);
+      return this.go(s, only, false, o);
     }
-    await this.go(s, this.first(s), false);
+    s.plan = COUNTED.filter((x) => this.needed(s, x) || (x === "bot" && this.needed(s, "botCreate")));
+    await this.go(s, this.first(s), false, o);
   }
 
   private first(s: Session): Step {
@@ -257,131 +341,241 @@ export class Wizard {
     return STEPS.slice(i + 1).find((x) => this.needed(s, x)) as Step;
   }
 
-  private async go(s: Session, step: Step, push = true) {
+  private async go(s: Session, step: Step, push = true, o: { note?: string; lead?: Block[]; bottom?: boolean } = {}) {
     if (push && s.step !== step) s.back.push(s.step);
     s.step = step;
+    delete s.sub;
     s.ts = this.now();
-    await this.show(s);
+    const roles = this.agentRoles(s.draft);
+    for (const r of Object.keys(s.draft.roles)) if (!roles.includes(r)) delete s.draft.roles[r];
+    if (step === "roles" && !Object.keys(s.draft.roles).length) for (const r of roles) s.draft.roles[r] = 1;
+    await this.show(s, o);
   }
 
-  private async advance(s: Session) {
-    await this.go(s, this.nextStep(s));
+  private async advance(s: Session, o: { note?: string } = {}) {
+    await this.go(s, this.nextStep(s), true, o);
   }
 
-  private async say(at: ChatRef, html: string, buttons?: Button[][]) {
-    return this.chat.text(at, html, { html: true, ...(buttons ? { buttons } : {}) });
+  /** The roles agents can have with the draft's features. */
+  private agentRoles(d: Draft) {
+    const p = this.preset(d);
+    const holds = (t: string) => !!d.features[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
+    return p.roles.filter((r) => r !== p.ownerRole && (p.roleFeatures?.[r] ?? []).every(holds));
   }
 
-  /** Shows the session's step (a new message; the previous step message loses its buttons). */
-  async show(s: Session, note?: string) {
-    const v = this.view(s);
-    const html = note ? `${v.html}\n\n⚠️ ${esc(note)}` : v.html;
-    if (s.msg !== undefined) await this.chat.dropButtons(s.at, s.msg).catch(() => {});
-    if (v.request && this.chat.request) {
-      s.msg = await this.chat.request(s.at, html, v.request);
-      if (v.buttons) await this.say(s.at, "Or:", v.buttons);
-    } else s.msg = await this.say(s.at, html, v.buttons);
+  /** Shows the session's step in the living message; `note` is one sentence under the prompt. */
+  async show(s: Session, o: { note?: string; lead?: Block[]; bottom?: boolean } = {}) {
+    const v = this.screen(s);
+    const [top, ...body] = v.body;
+    if (!v.keyboard) await this.dropHelper(s);
+    await this.living.show(s.user, s.at, [top, ...(o.lead ?? []), ...body, ...(o.note ? [warning(o.note)] : []), ...v.rows], o.bottom);
+    // the one reply keyboard: the bot can be created only from a keyboard button (docs/telegram.md)
+    if (v.keyboard && s.helper === undefined) s.helper = await this.chat.view(s.at, [text("👇 Tap <b>🤖 Create the bot</b> on the keyboard below.")], { keyboard: v.keyboard });
     this.host.save(s);
   }
 
-  view(s: Session): View {
+  /** Takes the reply keyboard away and deletes the message that carried it. */
+  private async dropHelper(s: Session) {
+    if (s.helper === undefined) return;
+    const gone = await this.chat.view(s.at, [text("👌")], { removeKeyboard: true }).catch(() => undefined);
+    for (const id of [gone, s.helper]) if (id !== undefined) await this.chat.remove(s.at, id).catch(() => {});
+    delete s.helper;
+  }
+
+  private nav(s: Session): Block {
+    return row(...(s.back.length || s.sub ? [b("◀ Back", "back")] : []), b("✖ Cancel", "cancel"));
+  }
+
+  private top(s: Session, last = false): Block {
     const d = s.draft;
-    const n = nav(s);
+    if (s.single || d.replaces) return heading("✏️", `Change ${code(d.replaces ?? d.id ?? "")}`);
+    const plan = s.plan ?? COUNTED;
+    const k = plan.indexOf(s.step === "botCreate" ? "bot" : s.step) + 1;
+    return heading("🆕", "New workspace", ...(last ? ["Last check"] : k ? [`Step ${k} of ${plan.length}`] : []));
+  }
+
+  private botOf(d: Draft) {
+    return d.bot === "own" ? d.botUsername : this.host.botUsername;
+  }
+
+  /** Where the tickets go, in the words of the person setting it up. */
+  private where(s: Session) {
+    const d = s.draft;
+    if (!d.bind) return "nowhere: the workspace is used through its API only";
+    if (d.bind.chat !== s.user) return esc(d.bind.label);
+    return d.bot === "own" ? `your private chat with ${d.botUsername ? `@${esc(d.botUsername)}` : "its bot"}` : "here, in this chat";
+  }
+
+  private screen(s: Session): Screen {
+    const d = s.draft;
+    const nav = this.nav(s);
+    const top = this.top(s);
     switch (s.step) {
-      case "bot":
-        return {
-          html: "<b>New workspace · 1 Bot</b>\nWhich bot talks to you about this workspace?\n\n• <b>Own bot</b>: a new bot just for it, created by you and managed here (its own name, picture and commands).\n• <b>This bot</b>: I serve it myself, next to other workspaces.",
-          buttons: [[b("🤖 Own bot", "bot:own"), b("💬 This bot", "bot:shared")], n],
-        };
       case "repos":
         return {
-          html: `<b>New workspace · 2 Repositories</b>\nSend the repository as <code>owner/name</code>; several, one per line or separated by spaces. With several, tickets are written <code>alias#12</code> (the alias is the repository's name).${d.repos.length ? `\n\nNow: ${d.repos.map((r) => `<code>${esc(r)}</code>`).join(", ")}` : ""}`,
-          buttons: [...(d.repos.length ? [[b("✅ Keep these", "repos:keep")]] : []), n],
+          body: [
+            top,
+            question("Which GitHub repository is this workspace for?"),
+            text(`Paste the repository's link, for example ${code("https://github.com/octo/app")}. Several: one per line.`),
+            ...(d.repos.length ? [text(`Now: ${d.repos.map(code).join(", ")}`)] : []),
+          ],
+          rows: [...(d.repos.length ? [row(b(`✅ Keep ${d.repos.length > 1 ? "these" : esc(d.repos[0])}`, "repos:keep"))] : []), nav],
         };
-      case "botCreate": {
-        const name = `${(d.id ?? "flowee").replace(/-/g, " ")} envoy`.replace(/^\w/, (c) => c.toUpperCase());
-        const username = `${(d.id ?? "flowee").replace(/-/g, "_").slice(0, 20)}_envoy_bot`;
+      case "bot": {
+        const me = this.host.botUsername ? ` (@${esc(this.host.botUsername)})` : "";
         return {
-          html: "<b>New workspace · Own bot</b>\nTap <b>Create the bot</b> below: Telegram asks you for its name and username (suggested from the repository) and hands it to me. I set its picture, texts, commands and settings.",
-          request: { kind: "managedBot", label: "🤖 Create the bot", name, username },
-          buttons: [n],
+          body: [
+            top,
+            question("Which bot should bring you the tickets?"),
+            bullets([`<b>This bot</b>${me}: I bring them myself, next to your other workspaces.`, "<b>A new bot</b>: its own name and picture. You create it with two taps; I set it up."]),
+          ],
+          rows: [row(b("💬 This bot", "bot:shared"), b("🤖 A new bot", "bot:own")), nav],
+        };
+      }
+      case "botCreate": {
+        const base = d.id ?? "flowee";
+        const name = `${base.replace(/-/g, " ")} envoy`.replace(/^\w/, (c) => c.toUpperCase());
+        const username = `${base.replace(/-/g, "_").slice(0, 20)}_envoy_bot`;
+        return {
+          body: [
+            top,
+            question("Create the new bot"),
+            text(`Tap <b>🤖 Create the bot</b> on the keyboard below. Telegram suggests the name <b>${esc(name)}</b> and the username ${code(`@${username}`)}; keep them or change them, then confirm.`),
+          ],
+          rows: [nav],
+          keyboard: { kind: "managedBot", label: "🤖 Create the bot", name, username },
         };
       }
       case "flow": {
         const p = this.preset(d);
         const presets = this.host.presets();
-        const rows: Button[][] = [presets.map((x) => b(`${x.name === d.preset ? "● " : ""}${x.name}`, `flow:${x.name}`))];
-        if (d.preset) for (const f of p.features) rows.push([b(`${d.features[f] ? "✅" : "⬜"} ${f}`, `feat:${f}`)]);
-        if (d.preset) rows.push([b("Next ▶", "flow:done")]);
+        if (!d.preset || !p.features.length || s.sub === "presets")
+          return {
+            body: [top, question("How should the agents work?"), bullets(presets.map((x) => `<b>${presetName(x.name)}</b>: ${PRESETS[x.name]?.[1] ?? ""}`))],
+            rows: [...presets.map((x) => row(b(`${x.name === d.preset ? "● " : ""}${presetButton(x.name)}`, `flow:${x.name}`))), nav],
+          };
         return {
-          html: `<b>New workspace · 3 Flow</b>\nPick the flow preset${d.preset && p.features.length ? ", then switch the features you want" : ""}.\n\n• <b>trunk</b>: developers commit straight to the main branch.\n${presets.some((x) => x.name === "pr-release") ? "• <b>pr-release</b>: branches, pull requests and releases.\n" : ""}`,
-          buttons: [...rows, n],
+          body: [
+            top,
+            question("Which extras should it have?"),
+            text(`For <b>${presetName(d.preset)}</b>: switch on what this project needs. You can change it later.`),
+            bullets(p.features.map((f) => `<b>${featureName(f)}</b>: ${FEATURES[f]?.[1] ?? ""}`)),
+          ],
+          rows: [
+            ...p.features.map((f) => row(b(`${d.features[f] ? "✅" : "⬜"} ${featureName(f)}`, `feat:${f}`))),
+            row(b("🔄 Another way of working", "flow:"), b("▶ Next", "flow:done")),
+            nav,
+          ],
         };
       }
       case "bind": {
-        const bot = d.bot === "own" ? (d.botUsername ? `@${d.botUsername}` : "your new bot") : this.host.botUsername ? `@${this.host.botUsername}` : "this bot";
+        const bot = this.botOf(d);
+        const who = bot ? `@${esc(bot)}` : d.bot === "own" ? "the new bot" : "this bot";
+        if (s.sub === "group")
+          return {
+            body: [
+              top,
+              question("Add the bot to a group"),
+              text(`Tap <b>👥 Choose a group</b> and pick one: Telegram adds ${who} there, and the group is set.`),
+              text(`Only one topic of a forum group? Add ${who} to the group, then send ${code(`/bind ${d.bindCode}`)} inside that topic.`),
+            ],
+            rows: [
+              ...(bot ? [row(linkBtn("👥 Choose a group", `https://t.me/${bot}?startgroup=${d.bindCode}`))] : []),
+              row(copyBtn(`📋 Copy /bind ${d.bindCode}`, `/bind ${d.bindCode}`)),
+              nav,
+            ],
+          };
+        const own = d.bot === "own";
         return {
-          html: `<b>New workspace · 4 Where</b>\nWhere should ${esc(bot)} bring the cards?\n\n• <b>This private chat</b>${d.bot === "own" ? " (open the new bot and press Start first)" : ""}.\n• <b>A group</b>, or <b>one topic</b> of a forum group: add ${esc(bot)} to the group, then send\n<code>/bind ${d.bindCode}</code>\nin the group, inside the topic to bind only that topic.`,
-          ...(d.bot !== "own" ? { request: { kind: "chat", label: "👥 Pick a group" } as ChatRequest } : {}),
-          buttons: [[b("💬 This private chat", "bind:here")], n],
+          body: [
+            top,
+            question("Where should the tickets appear?"),
+            bullets([
+              own ? `<b>In a private chat</b> with ${who}: open it and press <b>Start</b> once, so it may write to you.` : "<b>Here</b>, in this chat with me.",
+              "<b>In a group</b>: everyone there can read them; only you answer them.",
+            ]),
+          ],
+          rows: [
+            ...(own && bot ? [row(linkBtn(`↗ Open ${who}`, `https://t.me/${bot}`))] : []),
+            row(b(own ? "💬 In my private chat" : "💬 Here, in this chat", "bind:here"), b("👥 In a group", "bind:group")),
+            nav,
+          ],
         };
       }
-      case "credential":
+      case "credential": {
+        const on = Object.entries(d.features).filter(([, v]) => v).map(([k]) => k);
+        const help = this.host.tokenHelp(d.repos, `Flowee ${d.id ?? ""}`.trim(), on);
         return {
-          html: `<b>New workspace · 5 GitHub token</b>\nSend a GitHub token for ${d.repos.map((r) => `<code>${esc(r)}</code>`).join(", ")}. <b>I delete your message right after reading it</b>; the token is stored encrypted and never shown again or exported.\n\nA fine-grained token limited to these repositories, with:\n• Issues: read and write\n• Metadata: read\n• Contents: read${d.features.pullRequests ? "\n• Pull requests: read and write, Checks: read, Commit statuses: read, Contents: read and write" : ""}${d.features.releases ? "\n• Contents: read and write (the tested tag)" : ""}`,
-          buttons: [n],
+          body: [
+            top,
+            question(`Send me a GitHub token for ${d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "")}`),
+            text(
+              `${help.url ? "Tap <b>🔑 Create a token</b>: GitHub opens the form with the permissions filled in. " : ""}Under <b>Repository access</b> choose ${d.repos.map(code).join(", ")}, create the token and paste it here.`,
+            ),
+            text("🔒 I delete your message right away and keep the token encrypted; it is never shown again."),
+            details("Permissions it needs", `<ul>${help.permissions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`),
+          ],
+          rows: [...(help.url ? [row(linkBtn("🔑 Create a token", help.url))] : []), nav],
         };
+      }
       case "roles": {
-        const p = this.preset(d);
-        const rows = p.roles
-          .filter((r) => r !== p.ownerRole)
-          .map((r) => [b("−", `role:${r}:-1`), { label: `${r}: ${d.roles[r] ?? 0}` }, b("+", `role:${r}:1`)]);
+        const roles = this.agentRoles(d);
         return {
-          html: "<b>New workspace · 6 Agents</b>\nHow many agents of each role? Each gets its own secret; you get them once at the end, with a ready <code>.flowee.toml</code>.",
-          buttons: [...rows, [b("Next ▶", "roles:done")], n],
+          body: [
+            top,
+            question("How many agents do you want?"),
+            bullets(roles.map((r) => `<b>${roleName(r)}</b> ${ROLES[r]?.[1] ?? ""}`)),
+            text(`Each agent gets its own secret to sign in with. You get them all once at the end, with a ready ${code(".flowee.toml")}.`),
+          ],
+          rows: [...roles.map((r) => row(b("−", `role:${r}:-1`), { label: `${roleName(r)}: ${d.roles[r] ?? 0}` }, b("+", `role:${r}:1`))), row(b("▶ Next", "roles:done")), nav],
         };
       }
-      case "summary":
-        return { html: this.summary(s), buttons: [[b("✅ Create", "confirm")], n] };
+      case "summary": {
+        const edit = !!(s.single || d.replaces);
+        return {
+          body: [this.top(s, true), question(edit ? `Save the changes to ${code(d.id ?? "")}?` : `Create the workspace ${code(d.id ?? "")}?`), bullets(this.facts(s))],
+          rows: [row(b(edit ? "✅ Save the changes" : "✅ Create the workspace", "confirm")), nav],
+        };
+      }
     }
   }
 
-  private summary(s: Session) {
+  private facts(s: Session): string[] {
     const d = s.draft;
     const p = this.preset(d);
-    const on = Object.entries(d.features).filter(([, v]) => v).map(([k]) => k);
-    const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => r.instance);
+    const on = Object.entries(d.features).filter(([, v]) => v).map(([k]) => featureName(k));
+    const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => esc(r.instance));
     return [
-      `<b>${d.replaces ? "Replace" : "Create"} workspace <code>${esc(d.id ?? "")}</code></b>`,
-      `Bot: ${d.bot === "own" ? `own${d.botUsername ? ` (@${esc(d.botUsername)})` : ""}` : "this bot"}`,
-      `Repositories: ${d.repos.map((r) => `<code>${esc(r)}</code>`).join(", ")}`,
-      `Flow: ${esc(d.preset ?? "inline")}${on.length ? ` (${on.map(esc).join(", ")})` : ""}`,
-      `Cards go to: ${esc(d.bind?.label ?? "nowhere (API only)")}`,
-      `GitHub token: ${d.token ? "given, checked" : d.tokenStored ? "kept" : "missing"}`,
-      `Agents: ${agents.map(esc).join(", ") || "none"}; new secrets for all of them`,
-    ].join("\n");
+      `📦 Repositories: ${d.repos.map(code).join(", ")}`,
+      `🤖 Bot: ${d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"}`,
+      `🔀 Way of working: ${presetName(d.preset)}${on.length ? `, with ${on.join(", ")}` : ""}`,
+      `💬 Tickets appear: ${this.where(s)}`,
+      `🔑 GitHub token: ${d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"}`,
+      `👥 Agents: ${agents.join(", ") || "none"}${agents.length ? " (each gets a new secret)" : ""}`,
+    ];
   }
 
   /** One input for the user's open session; false when there is none (the input is not the wizard's). */
   async input(user: string, at: ChatRef, i: Input): Promise<boolean> {
-    const s = this.host.load(user);
-    if (i.kind === "press" && i.data === "w:restart") {
-      this.host.drop(user);
+    if (i.kind === "press" && (i.data === "w:restart" || i.data === "w:new")) {
+      if (i.data === "w:restart") this.host.drop(user);
       await this.start(user, at);
       return true;
     }
+    const s = this.host.load(user);
     if (!s) {
-      if (i.kind === "press" && i.data.startsWith("w:")) await this.say(at, "This setup expired or was finished. /setup starts a new one.");
+      if (i.kind === "press" && i.data.startsWith("w:"))
+        await this.living.show(user, at, [heading("⌛", "This setup is over"), text("It was finished or cancelled."), row(b("🚀 Set up a workspace", "new"))]);
       return i.kind === "press" && i.data.startsWith("w:");
     }
     if (this.now() - s.ts > TTL) {
       this.host.drop(user);
-      await this.say(at, "That setup expired after a day without an answer; nothing was created. /setup starts a new one.");
+      await this.dropHelper(s);
+      await this.living.show(user, at, [heading("⌛", "This setup expired"), text("A day passed without an answer, so nothing was created."), row(b("🚀 Start again", "new"))]);
       return true;
     }
     if (i.kind === "bound") {
       s.draft.bind = { chat: i.chat, topic: i.topic, label: i.label };
-      await this.say(s.at, `Bound to ${esc(i.label)}.`);
       await this.advance(s);
       return true;
     }
@@ -391,7 +585,6 @@ export class Wizard {
       s.draft.botId = i.botId;
       s.draft.botUsername = i.username;
       s.draft.botName = i.name;
-      if (this.chat.dropKeyboard) await this.chat.dropKeyboard(s.at, `🤖 @${i.username ?? i.botId} is yours; I manage it from here.`).catch(() => {});
       await this.advance(s);
       return true;
     }
@@ -407,122 +600,134 @@ export class Wizard {
     switch (k) {
       case "resume":
         return this.show(s);
-      case "cancel":
+      case "cancel": {
         this.host.drop(s.user);
-        if (s.msg !== undefined) await this.chat.dropButtons(s.at, s.msg).catch(() => {});
-        if (this.chat.dropKeyboard) await this.chat.dropKeyboard(s.at, "✖ Cancelled; nothing was changed.").catch(() => {});
-        else await this.say(s.at, "✖ Cancelled; nothing was changed.");
+        await this.dropHelper(s);
+        const edit = !!(s.single || d.replaces);
+        await this.living.show(s.user, s.at, [
+          heading("✖", edit ? "Nothing changed" : "Setup cancelled"),
+          text(edit ? "The workspace stays as it was." : "Nothing was created."),
+          row(...(edit ? [] : [b("🚀 Start again", "new")]), btn("📂 My workspaces", "m:list")),
+        ]);
         return;
+      }
       case "back": {
+        if (s.sub) {
+          delete s.sub;
+          return this.show(s);
+        }
         const prev = s.back.pop();
         if (!prev) return this.show(s);
         if (s.single) s.single = false;
         return this.go(s, prev, false);
       }
       case "bot":
-        if (v === "own" && !this.host.ownBots) return this.show(s, "Own bots are not available on this instance.");
+        if (v === "own" && !this.host.ownBots) return this.show(s, { note: "This Flowee cannot make bots of their own; choose this bot." });
         d.bot = v === "own" ? "own" : "shared";
         return this.advance(s);
       case "repos":
         return this.advance(s);
-      case "flow":
+      case "flow": {
         if (v === "done") return this.advance(s);
-        if (d.preset !== v) d.features = {};
+        if (!v) {
+          s.sub = "presets";
+          return this.show(s);
+        }
+        if (d.preset && d.preset !== v) d.features = {};
         d.preset = v;
+        if (d.preset && !this.preset(d).features.length) return this.advance(s);
         return this.show(s);
+      }
       case "feat":
         d.features[v] = !d.features[v];
         return this.show(s);
       case "bind":
-        d.bind = { chat: s.at.chat, label: "this private chat" };
+        if (v === "group") {
+          s.sub = "group";
+          return this.show(s);
+        }
+        d.bind = { chat: s.at.chat, label: "a private chat" };
         return this.advance(s);
       case "role": {
-        const n = Math.max(0, Math.min(9, (d.roles[v] ?? 0) + Number(w)));
-        d.roles[v] = n;
+        d.roles[v] = Math.max(0, Math.min(9, (d.roles[v] ?? 0) + Number(w)));
         return this.show(s);
       }
       case "roles":
-        if (!Object.values(d.roles).some((x) => x > 0)) return this.show(s, "At least one agent is needed.");
+        if (!Object.values(d.roles).some((x) => x > 0)) return this.show(s, { note: "At least one agent is needed." });
         return this.advance(s);
       case "confirm":
         return this.confirm(s);
     }
   }
 
+  /** A typed answer: deleted after reading (always for the token), the result shown in the living message. */
   private async text(s: Session, text: string, message: number): Promise<boolean> {
     const d = s.draft;
+    if (s.step !== "credential" && s.step !== "repos") return false;
+    // the token never stays in the chat: deleted before anything else happens
+    const kept = await this.chat.remove(s.at, message).then(
+      () => undefined,
+      (e) => `I could not delete your message (${e instanceof Error ? e.message : e}); please delete it yourself.`,
+    );
     if (s.step === "credential") {
-      // the token never stays in the chat: deleted before anything else happens
-      const gone = await this.chat.remove(s.at, message).then(
-        () => "Your message was deleted.",
-        (e) => `I could not delete your message (${e instanceof Error ? e.message : e}); delete it yourself.`,
-      );
       const token = text.trim();
       if (!/^[\w-]{20,255}$/.test(token)) {
-        await this.show(s, `${gone} That does not look like a GitHub token; send just the token.`);
+        await this.show(s, { note: [kept, "That does not look like a GitHub token; paste just the token."].filter(Boolean).join(" ") });
         return true;
       }
       const sealed = await this.host.seal(token);
       const problems = await this.host.checkRepos(sealed, d.repos);
       if (problems.length) {
-        await this.show(s, `${gone} ${problems.join(" ")}`);
+        await this.show(s, { note: [kept, ...problems].filter(Boolean).join(" ") });
         return true;
       }
       d.token = sealed;
-      await this.say(s.at, `🔒 Token checked and stored. ${esc(gone)}`);
-      await this.advance(s);
+      await this.advance(s, { note: kept });
       return true;
     }
-    if (s.step === "repos") {
-      const refs = text.split(/[\s,]+/).filter(Boolean);
-      const bad = refs.filter((r) => !this.host.parseRepo(r));
-      const repos = [...new Set(refs.flatMap((r) => this.host.parseRepo(r) ?? []))];
-      if (!repos.length || bad.length) {
-        await this.show(s, `${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not GitHub repositories" : "is not a GitHub repository"}; send its link, for example https://github.com/octo/app.`);
-        return true;
-      }
-      const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));
-      if (taken) {
-        await this.show(s, `'${taken}' is already in workspace '${this.host.repoTaken(taken, d.replaces)}'; a repository belongs to one workspace only.`);
-        return true;
-      }
-      const aliases = repos.map(aliasOf);
-      const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
-      if (dup) {
-        await this.show(s, `Two repositories would both be '${dup}'; import a document with your own aliases instead.`);
-        return true;
-      }
-      d.repos = repos;
-      if (!d.id) d.id = this.host.freeId(aliasOf(repos[0]));
-      if (!d.bindCode) d.bindCode = d.id;
-      await this.advance(s);
-      return true;
-    }
-    return false;
+    const refs = text.split(/[\s,]+/).filter(Boolean);
+    const bad = refs.filter((r) => !this.host.parseRepo(r));
+    const repos = [...new Set(refs.flatMap((r) => this.host.parseRepo(r) ?? []))];
+    const no = (why: string) => this.show(s, { note: why }).then(() => true);
+    if (!repos.length || bad.length)
+      return no(`${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are not GitHub repositories" : "is not a GitHub repository"}; send its link, for example https://github.com/octo/app.`);
+    const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));
+    if (taken) return no(`'${taken}' is already in your workspace '${this.host.repoTaken(taken, d.replaces)}'; a repository belongs to one workspace only.`);
+    const aliases = repos.map(aliasOf);
+    const dup = aliases.find((a, i) => aliases.indexOf(a) !== i);
+    if (dup) return no(`Two repositories are both called '${dup}'; import a configuration that names them apart instead.`);
+    d.repos = repos;
+    if (!d.id) d.id = this.host.freeId(aliasOf(repos[0]));
+    if (!d.bindCode) d.bindCode = d.id;
+    await this.advance(s);
+    return true;
   }
 
   private async confirm(s: Session) {
     const why = this.host.refusal(s.user, s.draft.replaces);
-    if (why) return this.show(s, why);
+    if (why) return this.show(s, { note: why });
     let r: Awaited<ReturnType<WizardHost["commit"]>>;
     try {
       r = await this.host.commit(s);
     } catch (e) {
-      return this.show(s, e instanceof Error ? e.message : String(e));
+      return this.show(s, { note: e instanceof Error ? e.message : String(e) });
     }
     this.host.drop(s.user);
-    if (s.msg !== undefined) await this.chat.dropButtons(s.at, s.msg).catch(() => {});
+    await this.dropHelper(s);
     const names = Object.keys(r.secrets);
-    await this.say(
-      s.at,
-      `✅ Workspace <code>${esc(r.id)}</code> is ${s.draft.replaces ? "updated" : "ready"}.${r.warning ? ` ⚠️ ${esc(r.warning)}` : ""}${names.length ? " The file below holds each agent's secret: <b>shown this once</b>, only their digests are stored. Put each next to its agent and delete the file." : ""}\n/workspaces manages it.`,
-    );
+    await this.living.show(s.user, s.at, [
+      heading("✅", s.draft.replaces ? "Changes saved" : "Workspace ready", code(r.id)),
+      ...(r.warning ? [warning(r.warning)] : []),
+      ...(names.length ? [text("The file below holds each agent's secret, <b>shown only this once</b>: give each agent its own, then delete the file.")] : []),
+      row(btn("📂 My workspaces", "m:list")),
+    ]);
     if (names.length) await this.handOver(s.at, r.id, r.secrets);
     const [next, ...rest] = s.queue ?? [];
-    if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest);
+    // the secrets file now stands under the living message: the next workspace starts anew below it
+    if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest, { bottom: names.length > 0 });
   }
 
-  /** The agents' secrets with a ready .flowee.toml, once, as a file (or a message without file support). */
+  /** The agents' secrets with a ready .flowee.toml, once, as a file (or a message where files are refused). */
   async handOver(at: ChatRef, id: string, secrets: Record<string, string>) {
     const toml = [
       `url = "${this.host.publicUrl}"`,
@@ -530,11 +735,11 @@ export class Wizard {
       `instance = "${Object.keys(secrets)[0]}"            # each agent its own, or FLOWEE_AS`,
       `secret_file = "~/.secrets/flowee/{workspace}/{instance}"   # or FLOWEE_TOKEN`,
     ].join("\n");
-    const body = `# Flowee workspace ${id}: agent secrets (shown once; only digests are stored)\n${Object.entries(secrets)
+    const body = `# Flowee workspace ${id}: agent secrets (shown once; Flowee keeps only a fingerprint)\n${Object.entries(secrets)
       .map(([k, v]) => `${k} = ${v}`)
       .join("\n")}\n\n# .flowee.toml\n${toml}\n`;
     // shown once: a refused file must not lose them, so they come as a message instead
-    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "Agent secrets: shown once.").then(() => true, () => false))) return;
-    await this.say(at, `<pre>${esc(body)}</pre>`);
+    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "🔑 Agent secrets: shown only this once.").then(() => true, () => false))) return;
+    await this.chat.view(at, [heading("🔑", "Agent secrets", code(id)), { html: `<pre>${esc(body)}</pre>` }]);
   }
 }

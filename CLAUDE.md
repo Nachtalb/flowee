@@ -41,10 +41,12 @@ src/
   ports/      interfaces: tracker.ts (+ optional capabilities), chat.ts (views, events, plain fallback), store.ts,
               clock.ts, secrets.ts, files.ts, bots.ts (managed bots)
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
-              digest, profile), render.ts (views, navigation, search)
+              digest, profile), render.ts (the view building blocks every screen uses, cards, bar, lists,
+              navigation, search)
   api/        http.ts: the agents' HTTP API (auth, idempotency, dispatch)
-  wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps, drafts, the document a
-              draft makes), manage.ts (/workspaces menu, export, import)
+  wizard/     the managed mode's chat conversation, chat-agnostic: wizard.ts (setup steps and their screens, the
+              living message, drafts, the document a draft makes), manage.ts (welcome, /workspaces menu, export,
+              import)
   config/     document.ts (the workspace document), schema.ts (JSON Schema + validator; `problems()` behind
               `bun run validate`; repositories unique per instance), features.ts (the
               features' schema and rules), registry.ts (WorkspaceRegistry, StoredRegistry, settings from a
@@ -128,10 +130,11 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   `plain()`; give the Worker a route for its updates (`index.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods
   the wizard uses (docs/adapters.md, "What the wizard needs") and, for own bots, the `Bots` port.
-- **a wizard step:** add it to `Step` and `STEPS` in `src/wizard/wizard.ts`, then its three parts: `needed()` (does
-  a draft still lack it: imports and edits skip answered steps), `view()` (the prompt and buttons, with `nav`) and
-  the input it takes (`w:` button data in `press()`, typed text in `text()`); write the answer into the `Draft`
-  and the document in `toDoc()`. An editable part goes into `parts` in `src/wizard/manage.ts`. Host calls (sealing,
+- **a wizard step:** add it to `Step` and `STEPS` (and `COUNTED`) in `src/wizard/wizard.ts`, then its three parts:
+  `needed()` (does a draft still lack it: imports and edits skip answered steps), `screen()` (the view, built from
+  the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line
+  of help, button rows, `nav`) and the input it takes (`w:` button data in `press()`, typed text in `text()`, which
+  deletes the message); write the answer into the `Draft` and the document in `toDoc()`. An editable part goes into `parts` in `src/wizard/manage.ts`. Host calls (sealing,
   checks) go through `WizardHost`, implemented in `instance-durable-object.ts`. Test it in `test/managed.test.ts`
   with the fake Telegram (Back, Cancel and resume included).
 - **a configuration field:** `src/config/document.ts` (type), `src/config/schema.ts` (schema + cross-field rules),

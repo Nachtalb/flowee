@@ -49,6 +49,32 @@ No default administrator rights are requested (`setMyDefaultAdministratorRights`
 edits and deletes its own messages and reads commands and replies, none of which needs a right; the one message
 it deletes that is not its own (the GitHub token) is in the private chat.
 
+## Reply keyboards: only to create a bot
+
+Every screen of the wizard and the menu is a rich message with its buttons in the body (`<tg-button>`:
+`callback_data`, `url`, `copy_text`). A rich message button (`RichMessageButton`) can be a URL, callback data, a
+Web App, a login URL, an inline query switch or a copy button; it cannot ask the user to create a bot or pick a
+chat. Those two are `KeyboardButton` fields only:
+
+> `request_managed_bot` | KeyboardButtonRequestManagedBot | Optional. If specified, pressing the button will ask the
+> user to create and share a bot that will be managed by the current bot. … Available in private chats only.
+
+> `request_chat` | KeyboardButtonRequestChat | Optional. If specified, pressing the button will open a list of
+> suitable chats. … Available in private chats only.
+
+- **Create the bot** (wizard step 2, a new bot of its own) has no inline alternative, so it is the one reply
+  keyboard: while that step is on screen a helper rich message under it carries the keyboard (`resize_keyboard`,
+  `one_time_keyboard`), and the screen says what to press. The moment the step is done or left (the bot arrives,
+  ◀ Back, ✖ Cancel), a message with `ReplyKeyboardRemove` takes the keyboard away and both it and the helper are
+  deleted.
+- **Pick a group** needs no keyboard: the URL button `t.me/<bot>?startgroup=<code>` opens Telegram's group picker,
+  adds the bot and makes the user send `/start <code>` there, which binds the group like `/bind <code>`.
+
+Checked against the live Bot API with a chat that does not exist (Telegram validates `reply_markup` before it looks
+the chat up, but parses rich HTML after): the keyboard with `request_managed_bot` and `remove_keyboard` on
+`sendRichMessage` pass validation (`chat not found`), malformed ones are refused (`Field "request_id" must be a
+valid Number`). The rich HTML itself cannot be checked that way.
+
 ## Webhooks
 
 The instance bot: `<publicUrl>/telegram` with `instance.bot.webhookSecret`, updates `message`, `callback_query`,

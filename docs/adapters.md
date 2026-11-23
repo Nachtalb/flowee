@@ -61,9 +61,9 @@ A chat adapter implements `Chat` (`src/ports/chat.ts`):
 - `parse(update)`: a raw update to a `ChatEvent`: a `message` (update id, chat + topic, sender id, message id,
   text, the message it replies to and whether that is the bot's, album id, content: text / files / voice /
   unsupported) or a `press` (update id, sender, query id, button data, the message pressed). Anything else: null.
-- `view(to, view, {forceReply?, replyTo?})`, `editView`: a `View` is a list of blocks: `{html}` (p, b, i, a,
-  code, pre, ul, li, details, summary), `{buttons}` (a centred row), `{table}` (head + rows with one button
-  each). A backend with rich messages renders them (Telegram: `sendRichMessage`, `tg-button`); one without
+- `view(to, view, {forceReply?, replyTo?, keyboard?, removeKeyboard?})`, `editView`: a `View` is a list of blocks:
+  `{html}` (p, b, i, a, code, pre, ul, li, details, summary), `{buttons}` (a centred row), `{table}` (head + rows
+  with one button each). A backend with rich messages renders them (Telegram: `sendRichMessage`, `tg-button`); one without
   renders `plain(view)` (text plus keyboard rows, exported by the port) and fakes `details` by showing it.
 - `text(to, text, {html, quiet, buttons, replyTo, noPreview})`, `editText`, `remove`, `dropButtons`, `react`,
   `answer(query, toast?)`, `setCommands(commands, to?)`, `download(file)` (never put a token in an error).
@@ -74,19 +74,38 @@ The routing of an update to its workspace is the adapter's too (`Telegram.route(
 topic; the Worker looks the binding up in the registry). A Discord adapter would map channels/threads to
 `ChatRef {chat, topic}`, interactions to `press`, and render views with `plain()` and components.
 
+### The living message (every chat adapter)
+
+The screens of the wizard and the menu follow docs/chat-style.md; the adapter's part of that contract:
+
+- `editView(to, id, view)` replaces message `id` with the view, buttons included, and throws when the chat refuses
+  (too old, deleted, another kind of message). An unchanged view is no error. `live(chat, to, id, view)` (in the
+  port) edits, and sends the view as a new message only on that refusal or without `id`; the caller deletes the old
+  one. A backend that cannot edit at all sends every screen new and deletes the previous one.
+- `remove(to, id)` deletes a message, the user's own typed answers included where the chat allows it (Telegram: in
+  private chats; the token is always tried, and a refusal is reported in the screen).
+- `answer(query, toast?)` answers every button press, a failure as its toast.
+- `view(to, view, {keyboard})` is the only way to show a reply keyboard, and `{removeKeyboard: true}` takes it away;
+  only the bot request uses it (docs/telegram.md, "Reply keyboards").
+- Button kinds: `data` (pressed back), `url` (opens a link), `copy` (copies a text), none (a disabled label).
+  Without rich messages, `plain(view)` gives text plus keyboard rows; Telegram never uses it.
+
 ### What the wizard needs from a chat adapter
 
-The wizard and the management menu (`src/wizard/`, docs/managed.md) use `text` with HTML and button rows (button
-data `w:…`, `m:…`), `dropButtons`, `remove` (the credential message is deleted right after reading), `download`
-(an imported `.json` file) and these optional methods: `request(to, html, request)` (a reply-keyboard request:
-`managedBot` with a suggested name and username, or `chat` to pick a group), `dropKeyboard`, `sendFile` (exports
-and the agents' secrets; without it they are sent as a message), `setScopedCommands(commands, scope)` (`default`,
-`private`, `groups` or one chat) and `setSettings` (bot-wide settings, docs/telegram.md). `parse` must also give
-`managed` events (a bot the user created), `chatKind` (private or group) and `shared` (a chat picked with a
-`chat` request), and `/bind <code>` arrives as a plain message. Managed bots themselves are the optional `Bots`
-port (`src/ports/bots.ts`: `token`, `replaceToken`, `access`, `setAccess`; Telegram: `TelegramBots`). A Discord
-adapter would render the same views as messages with components, offer no `managedBot` request (the wizard then
-skips the bot step: only the instance's bot) and bind channels/threads with the same `/bind` command.
+The wizard and the management menu (`src/wizard/`, docs/managed.md) use `view` and `editView` (button data `w:…`,
+`m:…`), `remove`, `answer`, `download` (an imported `.json` file) and these optional methods: `sendFile` (exports
+and the agents' secrets; without it they are sent as a rich message), `setScopedCommands(commands, scope)`
+(`default`, `private`, `groups` or one chat) and `setSettings` (bot-wide settings, docs/telegram.md). `parse` must
+also give `managed` events (a bot the user created), `chatKind` (private or group), `chatTitle` and `service` (a
+note the chat added, deleted by the wizard), and `/bind <code>` or `/start <code>` arrives as a plain message.
+Managed bots themselves are the optional `Bots` port (`src/ports/bots.ts`: `token`, `replaceToken`, `access`,
+`setAccess`; Telegram: `TelegramBots`). A Discord adapter would render the same views as messages with components,
+offer no `managedBot` request (the wizard then skips the bot step: only the instance's bot) and bind
+channels/threads with the same `/bind` command.
+
+The tracker side of the wizard: a `RepoReference` (`src/ports/tracker.ts`) turns what the user pastes into
+`owner/name` (GitHub: `githubRepo`, links, remotes, an Enterprise host), and a `TokenHelp` gives the token's
+permissions for the switched-on features and a link to the filled-in token form (`githubToken`).
 
 ## WorkspaceRegistry
 

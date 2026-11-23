@@ -9,6 +9,9 @@ import { Fail } from "../core/errors";
  */
 export type RepoReference = (ref: string) => string | undefined;
 
+/** How to get a token for these repositories with the switched-on features: the permissions, and a link that opens the form. */
+export type TokenHelp = (repos: string[], name: string, features: string[]) => { permissions: string[]; url?: string };
+
 export interface Issue {
   n: number;
   title: string;

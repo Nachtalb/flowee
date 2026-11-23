@@ -1,7 +1,7 @@
 // The Tracker port over the GitHub REST API (issues, labels, comments, commits, compare) and, for the optional
 // board, a user's Projects (v2) board over GraphQL. Plain fetch, no SDK.
 import { Fail } from "../core/errors";
-import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, RepoReference, Tags, Tracker } from "../ports/tracker";
+import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, RepoReference, Tags, TokenHelp, Tracker } from "../ports/tracker";
 import { GitHubBranches, GitHubChecks, GitHubPulls, GitHubReleases, GitHubTags } from "./tracker-github-code";
 
 interface GhIssue {
@@ -57,6 +57,25 @@ export function githubRepo(api?: string): RepoReference {
     const [owner, name0] = path.split(/[?#]/)[0].split("/");
     const name = (name0 ?? "").replace(/\.git$/i, "");
     return OWNER.test(owner) && NAME.test(name) && !/^\.+$/.test(name) ? `${owner}/${name}` : undefined;
+  };
+}
+
+const PERMISSION: Record<string, string> = { issues: "Issues", contents: "Contents", pull_requests: "Pull requests", checks: "Checks", statuses: "Commit statuses" };
+
+/** A fine-grained token's permissions per feature (docs/adapters.md) and the token form filled in with them. */
+export function githubToken(api?: string): TokenHelp {
+  const web = api && !/^https:\/\/api\.github\.com\/?$/.test(api) ? `https://${new URL(api).host}` : "https://github.com";
+  return (repos, name, features) => {
+    const p: Record<string, "read" | "write"> = { issues: "write", contents: "read" };
+    const on = new Set(features);
+    if (on.has("pullRequests")) Object.assign(p, { pull_requests: "write", checks: "read", statuses: "read", contents: "write" });
+    if (on.has("dependencyTickets")) p.pull_requests ??= "read";
+    const owners = [...new Set(repos.map((r) => r.split("/")[0]))];
+    const q = new URLSearchParams({ name: name.slice(0, 40), description: `Flowee: ${repos.join(", ")}`.slice(0, 1024), ...(owners.length === 1 ? { target_name: owners[0] } : {}), ...p });
+    return {
+      permissions: Object.entries(p).map(([k, v]) => `${PERMISSION[k]}: ${v === "write" ? "read and write" : "read"}`),
+      url: `${web}/settings/personal-access-tokens/new?${q}`,
+    };
   };
 }
 

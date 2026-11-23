@@ -72,8 +72,9 @@ and scheduled runs: `references/project-setup.md`.
    `all_private_chats`) and `getWebhookInfo` (`references/verify.md`).
 5. Check the configuration API (`references/verify.md`, "Managed"): the workspace list empty, a wrong token 401.
 6. Hand over to the user: in a private chat with the bot, `/setup` (or send a document an agent wrote). The wizard
-   asks for the bot, repositories, flow, chat, GitHub token (the message is deleted at once) and agent counts, and
-   sends the agents' secrets once with a ready `.flowee.toml`. That part is the user's; you do not see the secrets.
+   is one message edited step by step: the repository (its link as pasted), the bot, the way of working, where the
+   tickets appear, the GitHub token (the message is deleted at once) and agent counts; then it sends the agents'
+   secrets once as a file with a ready `.flowee.toml`. That part is the user's; you do not see the secrets.
    Do not message the user's chat yourself to test it.
 7. Automation instead of the chat: `PUT /admin/workspaces/<id>` and `PUT /admin/workspaces/<id>/secrets` with
    `Authorization: Bearer <FLOWEE_ADMIN_TOKEN>` (`references/verify.md`).

@@ -203,7 +203,25 @@ export class FakeTelegram {
             ? { message_id: params.message_id ?? ++this.id }
             : true;
     if (result && typeof result === "object" && "message_id" in result) call.id = result.message_id as number;
+    this.track(method, params, call.id);
     return Response.json({ ok: true, result });
+  }
+
+  /** What each chat shows now, by message id: the bot's messages as sent and edited, minus deleted ones. */
+  chats = new Map<string, Map<number, { html?: string; text?: string; markup?: any; file?: string }>>();
+  private track(method: string, p: Record<string, any>, id?: number) {
+    const chat = String(p.chat_id);
+    const c = this.chats.get(chat) ?? new Map();
+    this.chats.set(chat, c);
+    if (method === "deleteMessage") c.delete(Number(p.message_id));
+    else if (method === "editMessageText" && c.has(Number(p.message_id))) Object.assign(c.get(Number(p.message_id)), { html: p.rich_message?.html, text: p.text });
+    else if (method === "sendRichMessage" && id) c.set(id, { html: p.rich_message.html, markup: p.reply_markup });
+    else if (method === "sendMessage" && id) c.set(id, { text: p.text, markup: p.reply_markup });
+    else if (method === "sendDocument" && id) c.set(id, { file: (p.document as File).name });
+  }
+  /** The bot's messages a chat shows now, oldest first. */
+  shown(chat: string) {
+    return [...(this.chats.get(chat) ?? new Map()).entries()].map(([id, m]) => ({ id, ...m }));
   }
 
   /** The sent messages of a method with the id Telegram gave them. */

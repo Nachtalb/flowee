@@ -8,17 +8,18 @@ import { PRESETS } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
 import { repoClashes, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
+import { DEFAULTS } from "../core/features";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
-import type { Button, ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
+import type { ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
 import { Manager, type ManageHost } from "../wizard/manage";
-import { type Draft, fromDoc, type Preset, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
+import { boundView, chatLabel, type Draft, failedView, fromDoc, type Preset, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
 import { Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
 import { envSecrets, SqlStore, WORKSPACE_HEADER } from "./store-durable-object";
-import { GitHub, githubRepo } from "./tracker-github";
+import { GitHub, githubRepo, githubToken } from "./tracker-github";
 import { randomSecret, seal, unseal, vaultKey } from "./vault";
 
 export const PRIVATE_COMMANDS: Command[] = [
@@ -28,9 +29,6 @@ export const PRIVATE_COMMANDS: Command[] = [
   { command: "import", description: "import a configuration" },
   { command: "export", description: "export your configurations" },
 ];
-
-const INTRO =
-  "<b>Flowee</b> runs a ticket flow for AI agent teams over your GitHub repositories: agents take, build and test tickets through its API, and the questions, tests and decisions waiting for you arrive here as cards you answer by replying.\n\nSet up a workspace: pick a bot, the repositories, the flow and where the cards go.";
 
 export type Routed = { forward?: string; status?: number };
 
@@ -115,7 +113,8 @@ export class Instance extends DurableObject<Env> {
       roles: Object.keys(p.options.roles),
       ownerRole: p.options.ownerRole,
       // the switches a preset offers: every feature its chart or options name
-      features: [...new Set([...JSON.stringify(p).matchAll(/"features":(?:"(\w+)"|\[([^\]]*)\])/g)].flatMap((m) => (m[1] ? [m[1]] : m[2].match(/\w+/g) ?? [])))],
+      features: [...new Set([...JSON.stringify(p).matchAll(/"features":(?:"(\w+)"|\[([^\]]*)\])/g)].flatMap((m) => (m[1] ? [m[1]] : m[2].match(/\w+/g) ?? [])))].filter((f) => f in DEFAULTS),
+      roleFeatures: Object.fromEntries(Object.entries(p.options.roles).flatMap(([r, o]) => ((o as { features?: string[] }).features ? [[r, (o as { features: string[] }).features]] : []))),
     }));
   }
 
@@ -136,6 +135,13 @@ export class Instance extends DurableObject<Env> {
       publicUrl: cfg.publicUrl,
       presets: () => presets,
       parseRepo: githubRepo(cfg.trackerApi),
+      tokenHelp: githubToken(cfg.trackerApi),
+      live: (user) => {
+        const v = self.kv(`live:${user}`);
+        return v === undefined ? undefined : Number(v);
+      },
+      setLive: (user, id) => self.setKv(`live:${user}`, String(id)),
+      expectImport: (user, on) => (on ? self.setKv(`import:${user}`, String(Date.now())) : void self.store.exec("DELETE FROM kv WHERE k = ?", `import:${user}`)),
       refusal(user, replacing) {
         const creators = cfg.creators ?? [cfg.owner];
         if (!creators.includes(user) && user !== cfg.owner) return "Only the people this instance allows may set up workspaces; ask its owner.";
@@ -272,9 +278,8 @@ export class Instance extends DurableObject<Env> {
   private tools(tg: Telegram) {
     const host = this.host();
     const wizard = new Wizard(tg, host, () => Date.now());
-    const say = (at: ChatRef, html: string, buttons?: Button[][]) => tg.text(at, html, { html: true, ...(buttons ? { buttons } : {}) });
-    const manager = new Manager(wizard, host, say, (at, name, data, caption) => tg.sendFile(at, name, data, caption));
-    return { host, wizard, manager, say };
+    const manager = new Manager(wizard, host, tg);
+    return { host, wizard, manager };
   }
 
   private seen(bot: string, update: unknown) {
@@ -287,15 +292,17 @@ export class Instance extends DurableObject<Env> {
 
   /** `/bind <code>` sent in a group (or a topic of it) to the bot of a waiting setup. */
   private async bind(m: ChatMessage, tg: Telegram): Promise<boolean> {
-    const c = /^\/bind(?:@\w+)?\s+([a-z0-9-]+)\s*$/.exec(m.text ?? "");
+    // `/start <code>` is what a group link (t.me/<bot>?startgroup=<code>) makes the user send when it adds the bot
+    const c = /^\/(?:bind|start)(?:@\w+)?\s+([a-z0-9-]+)\s*$/.exec(m.text ?? "");
     if (!c || m.chatKind !== "group") return false;
     const s = this.store
       .rows<{ data: string }>("SELECT data FROM sessions")
       .map((r) => JSON.parse(r.data) as Session)
       .find((x) => x.step === "bind" && x.draft.bindCode === c[1] && x.user === m.from);
     if (!s) return false;
-    const label = m.at.topic ? `topic ${m.at.topic} of group ${m.at.chat}` : `group ${m.at.chat}`;
-    await tg.text(m.at, "✅ This chat is bound; the cards of the workspace will come here.").catch(() => {});
+    const t = m.chatTitle;
+    const label = t ? (m.at.topic ? `one topic of “${t}”` : `the group “${t}”`) : chatLabel(m.at.chat, m.at.topic);
+    await tg.view(m.at, boundView(s.draft.id ?? "")).catch(() => {});
     await this.tools(this.main()).wizard.input(s.user, s.at, { kind: "bound", chat: m.at.chat, topic: m.at.topic, label });
     return true;
   }
@@ -320,13 +327,15 @@ export class Instance extends DurableObject<Env> {
   /** A failed update of the wizard or the menu reaches its user as one sentence, never as silence. */
   private async failed(tg: Telegram, e: ChatEvent, err: unknown) {
     console.error("update failed", err);
-    const at = ("at" in e && e.at) || { chat: e.from };
     const why = err instanceof Error ? err.message : String(err);
-    await tg.text(at, `⚠️ ${why}`).catch(() => {});
+    const at = ("at" in e && e.at) || { chat: e.from };
+    if (e.kind === "message" && e.chatKind !== "private") return void (await tg.view(at, failedView(why, false).slice(0, 2)).catch(() => {}));
+    const { wizard, host } = this.tools(this.main());
+    await wizard.living.show(e.from, { chat: e.from }, failedView(why, !!host.load(e.from))).catch(() => {});
   }
 
   private async onMain(tg: Telegram, e: ChatEvent): Promise<Routed> {
-    const { wizard, manager, say } = this.tools(tg);
+    const { wizard, manager, host } = this.tools(tg);
     const dm = (user: string): ChatRef => ({ chat: user });
     if (e.kind === "managed") {
       await wizard.input(e.from, dm(e.from), { kind: "managed", botId: e.bot.id, username: e.bot.username, name: e.bot.name });
@@ -334,31 +343,35 @@ export class Instance extends DurableObject<Env> {
     }
     const bound = e.at && this.registry.byChat(e.at);
     if (e.kind === "press") {
+      if (!/^[wm]:/.test(e.data)) return bound ? this.to(bound.id) : {};
       const at = e.at ?? dm(e.from);
-      if (e.data === "w:new") {
-        await tg.answer(e.query).catch(() => {});
-        await wizard.start(e.from, at);
-        return {};
+      // every press is answered, a failure as its toast (docs/chat-style.md)
+      let toast: string | undefined;
+      try {
+        await wizard.living.adopt(e.from, at, e.message);
+        if (e.data.startsWith("w:")) await wizard.input(e.from, at, { kind: "press", data: e.data, message: e.message });
+        else toast = (await manager.press(e.from, at, e.data)) ?? undefined;
+      } catch (err) {
+        console.error("press failed", err);
+        toast = `⚠️ ${err instanceof Error ? err.message : String(err)}`.slice(0, 190);
       }
-      if ((await wizard.input(e.from, at, { kind: "press", data: e.data, message: e.message })) || (await manager.press(e.from, at, e.data))) {
-        await tg.answer(e.query).catch(() => {});
-        return {};
-      }
-      return bound ? this.to(bound.id) : {};
+      await tg.answer(e.query, toast).catch(() => {});
+      return {};
     }
     if (await this.bind(e, tg)) return {};
     if (e.chatKind !== "private") return bound ? this.to(bound.id) : {};
-    if (e.shared) {
-      await wizard.input(e.from, e.at, { kind: "bound", chat: e.shared, label: `group ${e.shared}` });
+    // the note Telegram adds when a bot was created: the setup already shows it
+    if (e.service) {
+      await tg.remove(e.at, e.id).catch(() => {});
       return {};
     }
     const cmd = /^\/(\w+)(?:@\w+)?(?:\s|$)/.exec(e.text ?? "")?.[1];
     if (cmd === "setup") {
-      await wizard.start(e.from, e.at);
+      await wizard.start(e.from, e.at, true);
       return {};
     }
     if (cmd === "workspaces") {
-      await manager.list(e.from, e.at);
+      await manager.list(e.from, e.at, true);
       return {};
     }
     if (cmd === "export") {
@@ -366,13 +379,12 @@ export class Instance extends DurableObject<Env> {
       return {};
     }
     if (cmd === "import") {
-      this.setKv(`import:${e.from}`, String(Date.now()));
-      await say(e.at, "📥 Send the configuration as a <code>.json</code> file, or paste it as your next message.");
+      await manager.importPrompt(e.from, e.at, true);
       return {};
     }
     const c = e.content;
     if (typeof c === "object" && "files" in c && c.files[0]?.name.endsWith(".json")) {
-      this.store.exec("DELETE FROM kv WHERE k = ?", `import:${e.from}`);
+      host.expectImport(e.from, false);
       const text = new TextDecoder().decode(await tg.download(c.files[0]));
       await manager.importText(e.from, e.at, text);
       return {};
@@ -382,12 +394,12 @@ export class Instance extends DurableObject<Env> {
     // pasted JSON counts only as the answer to /import; a file always does
     const asked = Number(this.kv(`import:${e.from}`) ?? 0) > Date.now() - 24 * 3600e3;
     if (typeof e.text === "string" && asked) {
-      this.store.exec("DELETE FROM kv WHERE k = ?", `import:${e.from}`);
+      await tg.remove(e.at, e.id).catch(() => {});
       await manager.importText(e.from, e.at, e.text);
       return {};
     }
     if (bound) return this.to(bound.id);
-    await say(e.at, INTRO, [[{ label: "🚀 Set up a workspace", data: "w:new" }]]);
+    await manager.welcome(e.from, e.at);
     return {};
   }
 

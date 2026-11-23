@@ -59,7 +59,7 @@ A document imported in the chat gets the workspace's own secret slot names (`W_<
 `W_<ID>_HOOK`, `W_<ID>_<INSTANCE>`), whatever it named; the admin API keeps the names given.
 
 When the chat id or topic id is unknown, leave `chat` out: the workspace runs API-only and the owner binds it later
-in the chat (`/workspaces` → ✏️ Chat, then `/bind <id>` inside the group or topic).
+in the chat (`/workspaces` → the workspace → ✏️ Where tickets appear → 👥 In a group, then 👥 Choose a group, or `/bind <id>` inside the topic).
 
 ## Pitfalls
 

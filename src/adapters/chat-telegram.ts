@@ -9,7 +9,6 @@ import type {
   Chat,
   ChatEvent,
   ChatRef,
-  ChatRequest,
   Command,
   CommandScope,
   Content,
@@ -23,10 +22,9 @@ type User = { id: number };
 type Msg = {
   message_id: number;
   message_thread_id?: number;
-  chat: { id: number; type?: string };
+  chat: { id: number; type?: string; title?: string };
   from?: User;
   is_topic_message?: boolean;
-  chat_shared?: { chat_id: number };
   text?: string;
   caption?: string;
   reply_to_message?: { message_id: number; from?: User };
@@ -35,10 +33,14 @@ type Msg = {
 };
 type Query = { id: string; from: User; data?: string; message?: { message_id: number; message_thread_id?: number; chat: { id: number } } };
 
-const button = (b: Button) =>
-  b.data === undefined
-    ? `<tg-button type="disabled">${b.label}</tg-button>`
-    : `<tg-button type="callback_data"${b.style ? ` style="${b.style}"` : ""} data="${b.data}">${b.label}</tg-button>`;
+const attr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+const button = (b: Button) => {
+  const style = b.style ? ` style="${b.style}"` : "";
+  if (b.data !== undefined) return `<tg-button type="callback_data"${style} data="${attr(b.data)}">${b.label}</tg-button>`;
+  if (b.url !== undefined) return `<tg-button type="url"${style} url="${attr(b.url)}">${b.label}</tg-button>`;
+  if (b.copy !== undefined) return `<tg-button type="copy_text"${style} text="${attr(b.copy)}">${b.label}</tg-button>`;
+  return `<tg-button type="disabled">${b.label}</tg-button>`;
+};
 
 function block(b: Block): string {
   if ("html" in b) return b.html;
@@ -132,7 +134,8 @@ export class Telegram implements Chat {
       from: String(m.from?.id),
       id: m.message_id,
       chatKind: m.chat.type === "private" ? "private" : "group",
-      ...(m.chat_shared ? { shared: String(m.chat_shared.chat_id) } : {}),
+      ...(m.chat.title ? { chatTitle: m.chat.title } : {}),
+      ...(m.managed_bot_created ? { service: true } : {}),
       ...(typeof m.text === "string" ? { text: m.text } : {}),
       ...(r ? { replyTo: { id: r.message_id, fromBot: r.from?.id === this.botId } } : {}),
       ...(m.media_group_id ? { album: m.media_group_id } : {}),
@@ -150,6 +153,13 @@ export class Telegram implements Chat {
     const extra: Record<string, unknown> = {};
     if (o.forceReply) extra.reply_markup = { force_reply: true, input_field_placeholder: o.forceReply };
     if (o.replyTo) extra.reply_parameters = { message_id: o.replyTo, allow_sending_without_reply: true };
+    if (o.keyboard)
+      extra.reply_markup = {
+        keyboard: [[{ text: o.keyboard.label, request_managed_bot: { request_id: 1, suggested_name: o.keyboard.name, suggested_username: o.keyboard.username } }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      };
+    if (o.removeKeyboard) extra.reply_markup = { remove_keyboard: true };
     return (await this.call("sendRichMessage", { ...this.to(at), rich_message: { html: richHtml(view) }, ...extra })).message_id;
   }
 
@@ -235,17 +245,6 @@ export class Telegram implements Chat {
       can_manage_bots: s.manageBots,
       callback_query_mode: "default",
     });
-  }
-  async request(at: ChatRef, html: string, r: ChatRequest): Promise<number> {
-    const button =
-      r.kind === "managedBot"
-        ? { text: r.label, request_managed_bot: { request_id: 1, suggested_name: r.name, suggested_username: r.username } }
-        : { text: r.label, request_chat: { request_id: 2, chat_is_channel: false, ...(r.forum === undefined ? {} : { chat_is_forum: r.forum }), bot_is_member: true } };
-    const p = { ...this.to(at), text: html, parse_mode: "HTML", reply_markup: { keyboard: [[button]], resize_keyboard: true, one_time_keyboard: true } };
-    return (await this.call("sendMessage", p)).message_id;
-  }
-  async dropKeyboard(at: ChatRef, text: string): Promise<number> {
-    return (await this.call("sendMessage", { ...this.to(at), text, reply_markup: { remove_keyboard: true } })).message_id;
   }
   async sendFile(at: ChatRef, name: string, data: string, caption?: string): Promise<number> {
     const form = new FormData();

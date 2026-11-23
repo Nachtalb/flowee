@@ -146,7 +146,7 @@ slots the chat import would give the workspace `game` anyway. Submit it to the i
 ```
 
 Group and topic ids are hard to find by hand. When they are unknown, leave `chat` out, submit, and bind later:
-`/workspaces` → the workspace → ✏️ Chat → `/bind game` sent inside the topic.
+`/workspaces` → the workspace → ✏️ Where tickets appear → 👥 In a group → `/bind game` sent inside the topic.
 
 ## 5. A custom flow
 
