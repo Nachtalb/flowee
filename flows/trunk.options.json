@@ -1,0 +1,217 @@
+{
+  "roles": {
+    "board": {
+      "sign": "Board",
+      "who": "the board"
+    },
+    "developer": {
+      "sign": "Developer",
+      "who": "a developer"
+    },
+    "tester": {
+      "sign": "Tester",
+      "who": "the tester"
+    },
+    "owner": {
+      "sign": "{owner}",
+      "who": "the owner"
+    }
+  },
+  "commands": {
+    "whoami": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "owner"
+      ],
+      "read": true
+    },
+    "queue": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "owner"
+      ],
+      "read": true
+    },
+    "show": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "owner"
+      ],
+      "read": true
+    },
+    "file": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "owner"
+      ]
+    },
+    "next": {
+      "roles": [
+        "board",
+        "developer",
+        "tester"
+      ]
+    },
+    "heartbeat": {
+      "roles": [
+        "board",
+        "developer",
+        "tester"
+      ],
+      "state": false
+    },
+    "release": {
+      "roles": [
+        "board",
+        "developer",
+        "tester"
+      ],
+      "input": {
+        "comment": {
+          "required": [
+            "developer",
+            "tester"
+          ]
+        }
+      }
+    },
+    "handoff": {
+      "roles": [
+        "developer"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "pass": {
+      "roles": [
+        "tester"
+      ],
+      "input": {
+        "comment": "required",
+        "build": "sha",
+        "gates": "gates",
+        "owner_check": "flag"
+      }
+    },
+    "fail": {
+      "roles": [
+        "tester"
+      ],
+      "input": {
+        "comment": "required",
+        "build": "sha"
+      }
+    },
+    "stuck": {
+      "roles": [
+        "developer",
+        "tester"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "triage": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "spec": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "body": "body",
+        "title": "title",
+        "comment": "optional"
+      }
+    },
+    "sendback": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "rework": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "escalate": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "card"
+      }
+    },
+    "approve": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "drop": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "postpone": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "resume": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "answer": {
+      "roles": [
+        "owner"
+      ],
+      "input": {
+        "text": "text"
+      }
+    }
+  },
+  "leaseHours": 3,
+  "reaper": {
+    "event": "expire",
+    "role": "board"
+  },
+  "inboxRoles": [
+    "board",
+    "owner"
+  ],
+  "commitSuffix": " (#{n})",
+  "ownerRole": "owner"
+}
