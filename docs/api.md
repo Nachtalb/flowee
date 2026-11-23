@@ -104,6 +104,36 @@ Leaving `board review` drops the recorded origin; every state change drops the c
 developer/tester claim back in its queue with a `Board:` comment and drops an expired board claim silently.
 `(answered)`: only when an owner answer was recorded after the ticket last entered that state.
 
+## The `pr-release` preset
+
+AnyFile's flow (docs/anyfile-parity.md). Every part beyond `trunk` belongs to a feature of the workspace document
+(docs/configuration.md, "Features"); with every feature off it is `trunk`'s states and commands. The commands and
+states below exist only with their feature; the rest is as in `trunk`, with `sampler` added where it applies.
+
+| State label | Feature | Means | Board | Owner assigned |
+|---|---|---|---|---|
+| `needs samples` | `samples` | specified, no real sample yet; the sampler's queue | Todo | no |
+| `in procurement` | `samples` | the sampler holds it | In progress | no |
+| `samples unobtainable` | `samples` | the owner's inbox: a sample only the owner can provide (only the board puts it here) | Owner | yes |
+| `awaiting release` | `releases` (`hold`) | a test card waits until the published release has the ticket's code | Owner | no |
+
+| Command | Feature | Role | From | To | Body | Checks |
+|---|---|---|---|---|---|---|
+| `triage` | `samples` | board | as `trunk` | `needs samples` with `samples: true`, else `ready` | `{n, comment, samples?, paths?}` | `ready` needs `paths` on main or the not-file-related label |
+| `found` | `samples` | sampler | `in procurement` | `ready` | `{n, paths, comment?}` | claim; paths on main |
+| `unobtainable` | `samples` | sampler | `in procurement` | `board review` (origin `unobtainable`) | `{n, comment}` with a card | claim; card valid |
+| `needsamples` | `samples` | board | `board review`, `human review`, `samples unobtainable`, `needs triage (answered)` | `needs samples` | `{n, comment?}` | |
+| `escalate` | `samples` / `releases` | board | as `trunk` | `samples unobtainable` for an unobtainable ticket (needs `Kind: sample`); `awaiting release` for a test card whose commits the release lacks; else `human review` | `{n, comment}` | card valid |
+| `pr` | `pullRequests` | developer | `in development` | (unchanged) | `{n}` | claim; the branch exists. Answers `pull: {number, url, branch}` |
+| `merge` | `pullRequests` (`merger: developer`), `dependencyTickets` | developer | `in development` | (unchanged) | `{n}` | claim; the pull request open, checks green. Answers `merged` |
+| `handoff` | `pullRequests` / `dependencyTickets` | developer | `in development` | `ready for testing` | `{n, comment}` | claim; `merger: flow`: pull request open + checks green; `merger: developer` or a dependency ticket: merged. `Pull request: …` appended |
+| `pass` | `pullRequests` / `uiReview` | tester | `testing` | closed, or `board review` with `owner_check` or a UI change (then a card is required) | as `trunk` | `merger: flow`: the build contains the pull request's head, which pass merges. Answers `merged`, `tested` |
+| `checked` | `untrustedReports` | board | any open state | (unchanged) | `{n, comment}` | the ticket has the untrusted label, which goes |
+| `released` | `releases` | (cron) | `awaiting release` | `human review`, the card goes out with `📦 In <version> or later` | | the release contains the ticket's commits |
+
+`show` adds `branch` and `pull: {number, url, state, head, checks: green|pending|failed|none, waiting?}` with
+`pullRequests` (and for dependency tickets). The cron also files dependency tickets and moves the tested tag.
+
 ## The owner card
 
 `escalate` and `pass` with `owner_check` need this block in the comment (`texts.cardHeading`, default

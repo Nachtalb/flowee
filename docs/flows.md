@@ -86,13 +86,27 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `buildContainsCommits` | check | | `build` contains every commit of the ticket | 422 `not_in_build` `Build 1a2b3c4 lacks 9f8e7d6 (#12); pull and test again.` |
 | `cardValid` | check | `field` (`comment`) | the field holds a valid owner card (kept for `sendCard`) | 422 `bad_card` `The card has no Check: lines (needed for Kind: test).` |
 | `refuse` | check | `status`, `code`, `message` (`{n}`, `{state}`) | always refuses | as given |
+| `pullRequestOpen` | check | | the ticket's pull request (the one its body names as `Pull request: #p`, else the one from its branch) is open | 422 `no_pull_request` `No open pull request for #12 from flowee/12; push the branch and run pr first.` |
+| `checksGreen` | check | | every required check (`pullRequests.checks`, else all) on the pull request's head completed green | 422 `checks_failed` `Checks failed on 1a2b3c4: build (failure); fix them first.` / 422 `checks_pending` `Checks of 1a2b3c4 are not done yet: build (in progress); wait and try again.` / `No checks reported on 1a2b3c4 yet; wait and try again.` |
+| `merged` | check | | the ticket's pull request is merged (its merge commit counts as the ticket's) | 422 `not_merged` `Pull request #1001 of #12 is not merged yet; merge it first.` |
+| `isDependencyTicket` | selector | | the body names a pull request (`Pull request: #p`, feature `dependencyTickets`) | — |
+| `buildTested` | check | `contains` (`true`) | with the flow merging an open pull request: `build` contains its head (`contains: false`: is on it or on main); otherwise as `buildOnMain` + `buildContainsCommits` (merge commits included) | 422 `not_in_build` `Build 1a2b3c4 lacks the head 5d6e7f8 of pull request #1001; pull and test again.` (and the two above) |
+| `uiChanged` | selector | | the ticket's changes (the open pull request's head, else its commits) match `uiReview` (`paths`, added files under `addedFiles`, added lines matching `addedLines`, minus `ignore`); the reasons go to the comment as `{ui}` | — |
+| `inRelease` | selector | | the published build (`releases.source`) contains every commit of the ticket (none: true); remembers the release for the card's version line | — |
+| `awaitsRelease` | selector | | `releases.hold`, the card is `Kind: test` and the published build lacks a commit of the ticket (nothing published: all) | — |
+| `cardKind` | selector | `kinds` | the card checked by the command's input is of one of these kinds | — |
+| `hasCard` | selector | | the newest comment with a valid owner card (kept for `sendCard`) | — |
+| `samplesGiven` | check | | `paths` are given, start with `samples.root` and exist on the main branch (or a container they point into does), or the ticket has `samples.notNeededLabel`; the paths go to the comment as `{paths}` | 422 `no_samples` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
+| `untrusted` | selector | | the ticket has the `untrustedReports.label` | — |
+| `isUntrusted` | check | | the ticket has the label | 409 `not_untrusted` `#12 has no 'feedback' label.` |
+| `trusted` | selector | | no untrusted label, or the caller is `untrustedReports.role` (in `claimable.when`: other roles never get such a ticket) | — |
 
 ## Actions
 
 | Action | Params | Does |
 |---|---|---|
 | `setStatus` | | sets the board column of the target state (no-op without a board or when the state stays) |
-| `comment` | `field` (`comment`), `text`, `append` | posts the field's text (or `text`) plus `append`, signed with the caller's role; nothing when empty. Templates: `{n}`, `{build}`, `{gates}`, `{commits}`, `{claim}`, `{lease}` |
+| `comment` | `field` (`comment`), `text`, `append` | posts the field's text (or `text`) plus `append`, signed with the caller's role; nothing when empty. Templates: `{n}`, `{build}`, `{gates}`, `{commits}`, `{claim}`, `{lease}`, and from the feature guards `{pull}`, `{merge}`, `{ui}`, `{paths}` (empty when unset) |
 | `setLabel` | `reason` (`completed`) | one tracker write: the target's label instead of any state label, the owner assigned or not, closed (with `reason`) or reopened |
 | `updateBody` | | replaces the body (and the title when given) with the `body`/`title` fields |
 | `claim` | | the caller's instance claims the ticket |
@@ -102,8 +116,12 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `clearOrigin` | | forgets the origin (the trunk's `board review` exit) |
 | `recordHanded` | | stores the commits `commitsOnMain` found; answers `commits` |
 | `recordAnswer` | `field` (`text`) | stores the owner's answer; the chat card says answered |
-| `sendCard` | `field` (`chat`) | the ticket becomes an inbox item and its card goes to the chat; answers `field: "sent" \| "queued"` |
+| `sendCard` | `field` (`chat`) | the ticket becomes an inbox item and its card goes to the chat; answers `field: "sent" \| "queued"`; with `releases.versionLine` a test card carries the published version (`📦 In <version> or later`) |
 | `dropInboxCard` | | the ticket's card leaves the owner's todo list |
+| `openPull` | | opens the ticket's pull request from its branch (title: the ticket's title + the commit suffix, body `Closes #n`) or updates its title; answers `pull: {number, url, branch}`; 422 `no_branch` `Push flowee/12 first; it does not exist on the tracker.` |
+| `mergePull` | | merges the ticket's open pull request (`pullRequests.method`, subject ending with the commit suffix), deletes the branch (`deleteBranch`), records the merge commit; answers `merged`; 409 `not_mergeable` when the tracker refuses; no-op without an open pull request |
+| `moveTag` | | moves `releases.testedTag` (also every cron run); answers `tested` when it moved |
+| `markChecked` | | removes the `untrustedReports.label` |
 
 ## Options
 

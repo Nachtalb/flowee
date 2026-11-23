@@ -200,6 +200,157 @@
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "777"
       }
+    },
+    {
+      "flowee": 1,
+      "id": "anyfile",
+      "flow": {
+        "preset": "pr-release"
+      },
+      "features": {
+        "pullRequests": {
+          "checks": [
+            "build"
+          ],
+          "method": "squash"
+        },
+        "releases": {
+          "testedTag": "tested",
+          "checks": [
+            "build"
+          ]
+        },
+        "samples": {
+          "root": "Samples/"
+        },
+        "uiReview": {
+          "paths": [
+            "**/ui/**"
+          ],
+          "addedLines": [
+            "@Composable"
+          ],
+          "ignore": [
+            "formats/**"
+          ]
+        },
+        "dependencyTickets": {
+          "labels": [
+            "not file related"
+          ]
+        },
+        "untrustedReports": true
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/anyfile"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "ANYFILE_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "ANYFILE_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "ANYFILE_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "ANYFILE_OWNER"
+        },
+        {
+          "instance": "sampler",
+          "role": "sampler",
+          "secret": "ANYFILE_SAMPLER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Nick",
+          "tracker": "Nachtalb",
+          "chat": "888"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "888"
+      },
+      "texts": {
+        "owner": "Nick",
+        "cardHeading": "For Nick"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "anydev",
+      "flow": {
+        "preset": "pr-release"
+      },
+      "features": {
+        "pullRequests": {
+          "merger": "developer"
+        },
+        "dependencyTickets": true
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/anydev"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "ANYDEV_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "ANYDEV_DEV1"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "ANYDEV_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "ANYDEV_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Nick",
+          "tracker": "Nachtalb",
+          "chat": "889"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "889"
+      },
+      "texts": {
+        "owner": "Nick",
+        "cardHeading": "For Nick"
+      }
     }
   ]
 }

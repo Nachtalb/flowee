@@ -8,6 +8,7 @@ import { parseCard } from "./card";
 import { BUILTIN, type Flow, type InputRule } from "./chart";
 import { type Repos, SLOT } from "./repos";
 import { type Caller, type Ctx, check, fire, pick } from "./engine";
+import { codeView, untrustedQueue } from "./code";
 import { housekeeping } from "./housekeeping";
 import { Fail } from "./errors";
 import type { Settings } from "./settings";
@@ -157,7 +158,7 @@ export class Flowee {
         out.push(i);
       }
     }
-    return out;
+    return untrustedQueue(this, c, issues, out);
   }
 
   view(t: Ticket, resumed: boolean) {
@@ -195,7 +196,7 @@ export class Flowee {
       case "required":
       case "card":
         if (!t) throw new Fail(422, "comment_required", "This step needs a comment.");
-        if (rule === "card") data.card = parseCard(t, this.s.texts.cardHeading);
+        if (rule === "card") data.card = parseCard(t, this.s.texts.cardHeading, !!this.s.features.samples);
         return t;
       case "text":
         if (!t) throw new Fail(422, "comment_required", "The answer needs text.");
@@ -293,6 +294,7 @@ export class Flowee {
       commits: await this.commitsOf(t),
       ...(this.flow.meta(t.state).review ? { origin: this.origin(t.n) ?? null } : {}),
       answers: this.answers(t.n),
+      ...(await codeView(this, t)),
     };
   }
 

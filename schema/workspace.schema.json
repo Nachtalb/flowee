@@ -42,7 +42,8 @@
           "properties": {
             "preset": {
               "enum": [
-                "trunk"
+                "trunk",
+                "pr-release"
               ],
               "description": "A preset in flows/."
             }

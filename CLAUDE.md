@@ -28,21 +28,25 @@ profile and webhook. Configuration and secrets: docs/configuration.md.
 src/
   core/       the flow: statechart loader (chart.ts), engine (engine.ts), guards.ts, actions.ts, repos.ts (the
               workspace's repositories as one tracker, ticket ids and alias#n), the service
-              (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts
+              (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts,
+              features.ts (feature switches: defaults, terms, pruning a tagged chart), code.ts (the guards, actions
+              and cron work of the code features: pull requests, checks, releases, tested tag, samples, UI review,
+              dependency and untrusted tickets), housekeeping.ts (what the cron runs for them)
   ports/      interfaces: tracker.ts (+ optional capabilities), chat.ts (views, events, plain fallback), store.ts,
               clock.ts, secrets.ts, files.ts
   envoy/      the owner's inbox in a chat, chat-agnostic: envoy.ts (cards, bar, answers, new tickets, sync,
               digest, profile), render.ts (views, navigation, search)
   api/        http.ts: the agents' HTTP API (auth, idempotency, dispatch)
-  config/     document.ts (the workspace document), schema.ts (JSON Schema + validator), registry.ts
-              (WorkspaceRegistry, settings from a document), presets.ts
-  adapters/   tracker-github.ts, chat-telegram.ts, files-paste.ts, store-durable-object.ts (one Durable Object
+  config/     document.ts (the workspace document), schema.ts (JSON Schema + validator), features.ts (the
+              features' schema and rules), registry.ts (WorkspaceRegistry, settings from a document), presets.ts
+              (presets, flowOf: a workspace's pruned flow)
+  adapters/   tracker-github.ts (+ tracker-github-code.ts: branches, pulls, checks, releases, tags), chat-telegram.ts, files-paste.ts, store-durable-object.ts (one Durable Object
               per workspace; wires a document to its adapters), instance.ts (mode, the instance's registry)
   index.ts    the Worker: resolves each request's workspace, forwards to its Durable Object; cron, /setup
-flows/        presets: <name>.json (XState statechart) + <name>.options.json
+flows/        presets: <name>.json (XState statechart) + <name>.options.json: trunk, pr-release (every feature)
 schema/       workspace.schema.json (generated)
 client/       flowee.py + test_flowee.py
-docs/         api.md, flows.md, adapters.md, configuration.md, parity.md
+docs/         api.md, flows.md, adapters.md, configuration.md, parity.md, anyfile-parity.md
 test/         vitest suites, fakes (fake.ts), fixtures (workspaces.json), e2e/wire.py
 ```
 
@@ -84,7 +88,13 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   docs/flows.md (a test checks); a test. Reach the tracker, store and clock through `c.f` only.
 - **a flow preset:** `flows/<name>.json` + `flows/<name>.options.json`, register in `src/config/presets.ts`,
   `bun run schema`, tests that walk it.
-- **a tracker adapter:** implement `Tracker` (`src/ports/tracker.ts`); optional capabilities as objects or absent;
+- **a feature switch:** its type and default in `src/core/features.ts` (`DEFAULTS`, `NEEDS` capabilities), its schema
+  and rules in `src/config/features.ts`, rows in docs/configuration.md (a test checks); tag the chart's states,
+  transitions and the options' roles/commands/ticks with `meta.features` / `features`; its guards and actions read
+  `c.f.s.features` and pass or do nothing when it is off. Keep `flows/pr-release.json` openable in Stately: only `meta`
+  carries the tags.
+- **a tracker adapter:** implement `Tracker` (`src/ports/tracker.ts`); optional capabilities as objects or absent,
+  and list them in `TRACKER_CAPABILITIES` (`src/config/features.ts`) so workspaces needing more are refused;
   add its `tracker.type` to the schema and to `build()` in `store-durable-object.ts`.
 - **a chat adapter:** implement `Chat` (`src/ports/chat.ts`, docs/adapters.md); render `View`s richly or with
   `plain()`; give the Worker a route for its updates.

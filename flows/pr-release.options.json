@@ -1,0 +1,290 @@
+{
+  "roles": {
+    "board": {
+      "sign": "Board",
+      "who": "the board"
+    },
+    "developer": {
+      "sign": "Developer",
+      "who": "a developer"
+    },
+    "tester": {
+      "sign": "Tester",
+      "who": "the tester"
+    },
+    "owner": {
+      "sign": "{owner}",
+      "who": "the owner"
+    },
+    "sampler": {
+      "sign": "Sampler",
+      "who": "the sampler",
+      "features": [
+        "samples"
+      ]
+    }
+  },
+  "commands": {
+    "whoami": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler",
+        "owner"
+      ],
+      "read": true
+    },
+    "queue": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler",
+        "owner"
+      ],
+      "read": true
+    },
+    "show": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler",
+        "owner"
+      ],
+      "read": true
+    },
+    "file": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler",
+        "owner"
+      ]
+    },
+    "next": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler"
+      ]
+    },
+    "heartbeat": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler"
+      ],
+      "state": false
+    },
+    "release": {
+      "roles": [
+        "board",
+        "developer",
+        "tester",
+        "sampler"
+      ],
+      "input": {
+        "comment": {
+          "required": [
+            "developer",
+            "tester",
+            "sampler"
+          ]
+        }
+      }
+    },
+    "handoff": {
+      "roles": [
+        "developer"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "pass": {
+      "roles": [
+        "tester"
+      ],
+      "input": {
+        "comment": "required",
+        "build": "sha",
+        "gates": "gates",
+        "owner_check": "flag"
+      }
+    },
+    "fail": {
+      "roles": [
+        "tester"
+      ],
+      "input": {
+        "comment": "required",
+        "build": "sha"
+      }
+    },
+    "stuck": {
+      "roles": [
+        "developer",
+        "tester",
+        "sampler"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "triage": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required",
+        "samples": "flag",
+        "paths": "paths"
+      }
+    },
+    "spec": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "body": "body",
+        "title": "title",
+        "comment": "optional"
+      }
+    },
+    "sendback": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "rework": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "escalate": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "card"
+      }
+    },
+    "approve": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "drop": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "postpone": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "resume": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    },
+    "answer": {
+      "roles": [
+        "owner"
+      ],
+      "input": {
+        "text": "text"
+      }
+    },
+    "found": {
+      "roles": [
+        "sampler"
+      ],
+      "input": {
+        "paths": "paths",
+        "comment": "optional"
+      },
+      "features": "samples"
+    },
+    "unobtainable": {
+      "roles": [
+        "sampler"
+      ],
+      "input": {
+        "comment": "card"
+      },
+      "features": "samples"
+    },
+    "needsamples": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      },
+      "features": "samples"
+    },
+    "checked": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      },
+      "features": "untrustedReports"
+    },
+    "pr": {
+      "roles": [
+        "developer"
+      ],
+      "state": false
+    },
+    "merge": {
+      "roles": [
+        "developer"
+      ]
+    }
+  },
+  "leaseHours": 3,
+  "reaper": {
+    "event": "expire",
+    "role": "board"
+  },
+  "inboxRoles": [
+    "board",
+    "owner"
+  ],
+  "commitSuffix": " (#{n})",
+  "ownerRole": "owner",
+  "ticks": [
+    {
+      "event": "released",
+      "role": "board",
+      "features": "releases.hold"
+    }
+  ]
+}

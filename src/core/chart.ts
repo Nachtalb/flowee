@@ -40,6 +40,10 @@ export interface StateMeta {
   parked?: boolean;
   /** The recorded origin (who handed it over, from where) is shown here. */
   review?: boolean;
+  /** A ticket here is not tested yet: the tested tag stops before its commits (feature releases). */
+  untested?: boolean;
+  /** Feature terms that must hold for the state to exist (docs/flows.md, "Features"). */
+  features?: string | string[];
 }
 
 export interface StateNode {

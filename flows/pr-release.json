@@ -1,0 +1,2825 @@
+{
+  "id": "pr-release",
+  "initial": "needs triage",
+  "description": "AnyFile's ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency and untrusted tickets; each part tagged with its feature in meta.features and pruned when switched off.",
+  "states": {
+    "needs triage": {
+      "meta": {
+        "label": "needs triage",
+        "status": "Todo",
+        "holder": "board",
+        "claimable": {
+          "role": "board",
+          "rank": 2
+        }
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "roleIs",
+            "params": {
+              "roles": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ]
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "comment",
+            "releaseClaim"
+          ]
+        },
+        "triage": [
+          {
+            "target": "needs samples",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  {
+                    "type": "flag",
+                    "params": {
+                      "name": "samples"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  "samplesGiven"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "{paths}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "!samples"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "rework": {
+          "target": "back to development",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "answered",
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "roles": [
+                      "tester"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "needsamples": {
+          "target": "needs samples",
+          "guard": "answered",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "samples"
+            ]
+          }
+        },
+        "escalate": [
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "approve": {
+          "target": "closed",
+          "guard": "answered",
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "completed"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "postpone": {
+          "target": "postponed",
+          "guard": "answered",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "needs samples": {
+      "meta": {
+        "label": "needs samples",
+        "status": "Todo",
+        "claimable": {
+          "role": "sampler",
+          "rank": 1,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        },
+        "features": [
+          "samples"
+        ]
+      },
+      "on": {
+        "next": [
+          {
+            "target": "in procurement",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "sampler"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "untrustedReports"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "escalate": [
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "in procurement": {
+      "meta": {
+        "label": "in procurement",
+        "status": "In progress",
+        "holder": "sampler",
+        "features": [
+          "samples"
+        ]
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "target": "needs samples",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "sampler"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "found": {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "holdsClaim",
+                "samplesGiven"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "append": "{paths}"
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "unobtainable": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            {
+              "type": "recordOrigin",
+              "params": {
+                "from": "unobtainable"
+              }
+            }
+          ]
+        },
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "samples unobtainable": {
+      "meta": {
+        "label": "samples unobtainable",
+        "status": "Owner",
+        "assignOwner": true,
+        "inbox": true,
+        "features": [
+          "samples"
+        ]
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "needsamples": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ],
+          "meta": {
+            "features": [
+              "samples"
+            ]
+          }
+        },
+        "postpone": {
+          "target": "postponed",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "ready": {
+      "meta": {
+        "label": "ready",
+        "status": "Todo",
+        "claimable": {
+          "role": "developer",
+          "rank": 2,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        }
+      },
+      "on": {
+        "next": [
+          {
+            "target": "in development",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "developer"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "untrustedReports"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "escalate": [
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "back to development": {
+      "meta": {
+        "label": "back to development",
+        "status": "Todo",
+        "claimable": {
+          "role": "developer",
+          "rank": 1,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        },
+        "untested": true
+      },
+      "on": {
+        "next": [
+          {
+            "target": "in development",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "developer"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "untrustedReports"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "escalate": [
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "in development": {
+      "meta": {
+        "label": "in development",
+        "status": "In progress",
+        "holder": "developer",
+        "untested": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": [
+          {
+            "target": "back to development",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "developer"
+                      ]
+                    }
+                  },
+                  "holdsClaim",
+                  "hasCommits"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "developer"
+                      ]
+                    }
+                  },
+                  "holdsClaim"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          }
+        ],
+        "pr": {
+          "guard": "holdsClaim",
+          "actions": [
+            "openPull"
+          ],
+          "meta": {
+            "features": [
+              "pullRequests"
+            ]
+          }
+        },
+        "merge": [
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "isDependencyTicket",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull"
+            ],
+            "meta": {
+              "features": [
+                "dependencyTickets"
+              ]
+            }
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=developer"
+              ]
+            }
+          }
+        ],
+        "handoff": [
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "isDependencyTicket",
+                  "merged"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "dependencyTickets"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "commitsOnMain"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nCommits: {commits}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              "recordHanded"
+            ],
+            "meta": {
+              "features": [
+                "!pullRequests"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "merged"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=developer"
+              ]
+            }
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "pullRequestOpen",
+                  "checksGreen"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nPull request: {pull}"
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "pullRequests.merger=flow"
+              ]
+            }
+          }
+        ],
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": [
+          {
+            "target": "back to development",
+            "guard": "hasCommits",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "ready",
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+                }
+              },
+              "setLabel",
+              "releaseClaim"
+            ]
+          }
+        ],
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "ready for testing": {
+      "meta": {
+        "label": "ready for testing",
+        "status": "In progress",
+        "claimable": {
+          "role": "tester",
+          "rank": 1,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        },
+        "untested": true
+      },
+      "on": {
+        "next": [
+          {
+            "target": "testing",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "tester"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "untrustedReports"
+              ]
+            }
+          }
+        ],
+        "rework": {
+          "target": "back to development",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "tester"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "testing": {
+      "meta": {
+        "label": "testing",
+        "status": "In progress",
+        "holder": "tester",
+        "untested": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "target": "ready for testing",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "tester"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "pass": [
+          {
+            "target": "board review",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  "buildTested",
+                  "uiChanged",
+                  "cardValid"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "recordOrigin",
+                "params": {
+                  "from": "passed"
+                }
+              },
+              "moveTag"
+            ],
+            "meta": {
+              "features": [
+                "uiReview"
+              ]
+            }
+          },
+          {
+            "target": "board review",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  {
+                    "type": "flag",
+                    "params": {
+                      "name": "owner_check"
+                    }
+                  },
+                  "cardValid",
+                  "buildTested"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "recordOrigin",
+                "params": {
+                  "from": "passed"
+                }
+              },
+              "moveTag"
+            ]
+          },
+          {
+            "target": "closed",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  "holdsClaim",
+                  "gatesMatchBuild",
+                  "buildTested"
+                ]
+              }
+            },
+            "actions": [
+              "mergePull",
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "\n\nTested build: {build}, gates green at {gates}{ui}"
+                }
+              },
+              {
+                "type": "setLabel",
+                "params": {
+                  "reason": "completed"
+                }
+              },
+              "releaseClaim",
+              "moveTag"
+            ]
+          }
+        ],
+        "fail": {
+          "target": "back to development",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "holdsClaim",
+                {
+                  "type": "buildTested",
+                  "params": {
+                    "contains": false
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": {
+          "target": "ready for testing",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "board review": {
+      "meta": {
+        "label": "board review",
+        "status": "Todo",
+        "holder": "board",
+        "review": true,
+        "claimable": {
+          "role": "board",
+          "rank": 1,
+          "sort": "handover"
+        }
+      },
+      "exit": [
+        "clearOrigin"
+      ],
+      "on": {
+        "next": {
+          "guard": {
+            "type": "roleIs",
+            "params": {
+              "roles": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ]
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "comment",
+            "releaseClaim"
+          ]
+        },
+        "triage": [
+          {
+            "target": "needs samples",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  {
+                    "type": "flag",
+                    "params": {
+                      "name": "samples"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  "samplesGiven"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "{paths}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked"
+            ],
+            "meta": {
+              "features": [
+                "!samples"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "sendback": [
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "originIs",
+                    "params": {
+                      "from": "passed"
+                    }
+                  },
+                  {
+                    "type": "refuse",
+                    "params": {
+                      "status": 409,
+                      "code": "wrong_state",
+                      "message": "#{n} was passed by the tester; use escalate, approve or rework."
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "target": "back to development",
+            "guard": {
+              "type": "originIs",
+              "params": {
+                "from": "in development"
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "ready for testing",
+            "guard": {
+              "type": "originIs",
+              "params": {
+                "from": "testing"
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          },
+          {
+            "target": "needs samples",
+            "guard": {
+              "type": "originIs",
+              "params": {
+                "from": "in procurement"
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "needs samples",
+            "guard": {
+              "type": "originIs",
+              "params": {
+                "from": "unobtainable"
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "guard": {
+              "type": "refuse",
+              "params": {
+                "status": 409,
+                "code": "wrong_state",
+                "message": "#{n} has no recorded hand-over from an agent; use rework or triage."
+              }
+            }
+          }
+        ],
+        "rework": {
+          "target": "back to development",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "tester"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "needsamples": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "samples"
+            ]
+          }
+        },
+        "escalate": [
+          {
+            "target": "samples unobtainable",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "originIs",
+                    "params": {
+                      "from": "unobtainable"
+                    }
+                  },
+                  {
+                    "type": "cardKind",
+                    "params": {
+                      "kinds": [
+                        "sample"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "originIs",
+                    "params": {
+                      "from": "unobtainable"
+                    }
+                  },
+                  {
+                    "type": "refuse",
+                    "params": {
+                      "status": 422,
+                      "code": "bad_card",
+                      "message": "#{n} could not get its sample: escalate it only with a complete Kind: sample card."
+                    }
+                  }
+                ]
+              }
+            },
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "approve": {
+          "target": "closed",
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "completed"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "awaiting release": {
+      "meta": {
+        "label": "awaiting release",
+        "status": "Owner",
+        "features": [
+          "releases.hold"
+        ]
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "released": {
+          "target": "human review",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "inRelease",
+                "hasCard"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "setLabel",
+            {
+              "type": "sendCard",
+              "params": {
+                "field": "telegram"
+              }
+            }
+          ]
+        },
+        "rework": {
+          "target": "back to development",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "approve": {
+          "target": "closed",
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "completed"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "human review": {
+      "meta": {
+        "label": "human review",
+        "status": "Owner",
+        "assignOwner": true,
+        "inbox": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "triage": [
+          {
+            "target": "needs samples",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  {
+                    "type": "flag",
+                    "params": {
+                      "name": "samples"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked",
+              "dropInboxCard"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  },
+                  "samplesGiven"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              {
+                "type": "comment",
+                "params": {
+                  "append": "{paths}"
+                }
+              },
+              "setLabel",
+              "releaseClaim",
+              "markChecked",
+              "dropInboxCard"
+            ],
+            "meta": {
+              "features": [
+                "samples"
+              ]
+            }
+          },
+          {
+            "target": "ready",
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "notClaimedBy",
+                    "params": {
+                      "roles": [
+                        "developer",
+                        "tester",
+                        "sampler"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "hasAcceptance",
+                    "params": {
+                      "heading": "Acceptance"
+                    }
+                  }
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              "markChecked",
+              "dropInboxCard"
+            ],
+            "meta": {
+              "features": [
+                "!samples"
+              ]
+            }
+          }
+        ],
+        "rework": {
+          "target": "back to development",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "tester"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "needsamples": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ],
+          "meta": {
+            "features": [
+              "samples"
+            ]
+          }
+        },
+        "approve": {
+          "target": "closed",
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "completed"
+              }
+            },
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "postpone": {
+          "target": "postponed",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "postponed": {
+      "meta": {
+        "label": "postponed",
+        "status": "On hold",
+        "parked": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "roles": [
+                "developer",
+                "tester",
+                "sampler"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "resume": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "untrustedReports"
+            ]
+          }
+        },
+        "answer": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "closed": {
+      "meta": {
+        "status": "Done",
+        "closed": true
+      },
+      "on": {
+        "answer": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    }
+  }
+}

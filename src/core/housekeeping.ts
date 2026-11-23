@@ -1,8 +1,12 @@
-// What the cron does for the flow's features besides the reaper: the chart's ticks (docs/flows.md, "Features").
+// What the cron does for the flow's features besides the reaper: dependency tickets, the tested tag, the chart's
+// ticks (docs/flows.md, "Features").
+import { fileDependencyTickets, moveTestedTag } from "./code";
 import { fire, pick } from "./engine";
 import type { Flowee } from "./service";
 
 export async function housekeeping(f: Flowee) {
+  await fileDependencyTickets(f).catch((e) => console.error("dependency tickets", e));
+  await moveTestedTag(f).catch((e) => console.error("tested tag", e));
   const ticks = f.flow.options.ticks ?? [];
   if (!ticks.length) return;
   const issues = await f.tracker.openIssues();

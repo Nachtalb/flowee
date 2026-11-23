@@ -1,10 +1,12 @@
 // Named actions a chart may use. docs/flows.md describes each one.
 import type { Card } from "./card";
+import { CODE_ACTIONS, published } from "./code";
 import type { Action } from "./engine";
 import type { IssuePatch } from "../ports/tracker";
 import { fill, iso } from "./text";
 
 export const ACTIONS: Record<string, Action> = {
+  ...CODE_ACTIONS,
   async setStatus(c) {
     const status = c.f.flow.meta(c.to).status;
     if (c.to !== c.from && status && c.f.tracker.board) await c.f.tracker.board.setStatus(c.t.issue, status);
@@ -18,10 +20,15 @@ export const ACTIONS: Record<string, Action> = {
       commits: ((c.data.commits as string[]) ?? []).join(" "),
       claim: c.data.claim,
       lease: c.f.flow.options.leaseHours,
+      pull: "",
+      merge: "",
+      ui: "",
+      paths: "",
+      ...(c.data.vars as Record<string, string> | undefined),
     };
     let text = p.text ? fill(String(p.text), vars) : String(c.input[String(p.field ?? "comment")] ?? "");
-    if (!text) return;
     if (p.append) text += fill(String(p.append), vars);
+    if (!text.trim()) return;
     c.data.commentId = await c.f.tracker.comment(c.t.n, c.f.sign(c.caller.role, text));
   },
 
@@ -84,7 +91,9 @@ export const ACTIONS: Record<string, Action> = {
 
   /** The ticket becomes an inbox item and its card goes to the owner's chat; `field` in the response says how. */
   async sendCard(c, p) {
-    const card = c.data.card as Card;
+    const r = c.f.s.features.releases;
+    const rel = r?.versionLine && (c.data.card as Card).kind === "test" ? ((c.data.release as { version: string } | undefined) ?? (await published(c.f, c.f.tracker.at(c.t.n).repo))) : null;
+    const card = { ...(c.data.card as Card), ...(rel ? { version: rel.version } : {}) };
     c.f.db.exec("DELETE FROM claims WHERE n = ?", c.t.n);
     c.f.db.exec(
       "INSERT OR REPLACE INTO inbox (n, comment_id, kind, card, title, url, status, ts) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)",

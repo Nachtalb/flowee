@@ -15,8 +15,15 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   flowee: 1,
   id: "full",
   name: "Full",
-  flow: { preset: "trunk" },
-  features: { pullRequests: false, releases: false, samples: false, uiReview: false, dependencyTickets: false, untrustedReports: false },
+  flow: { preset: "pr-release" },
+  features: {
+    pullRequests: { branch: "t/{n}", checks: ["build"], method: "squash", merger: "developer", deleteBranch: false },
+    releases: { source: "tag", tag: "stable", testedTag: "tested", checks: ["build"], skip: ["docs"], hold: true, versionLine: false },
+    samples: { root: "Samples/", notNeededLabel: "no sample" },
+    uiReview: { paths: ["ui/**"], addedFiles: ["views/**"], addedLines: ["@Composable"], ignore: ["test/**"] },
+    dependencyTickets: { authors: ["dependabot[bot]"], labels: ["deps"] },
+    untrustedReports: { label: "feedback", role: "board" },
+  },
   tracker: { type: "github", repos: ["acme/app"], mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 } },
   roles: [
     { instance: "board", role: "board", secret: "T_BOARD" },
@@ -31,12 +38,12 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
 };
 
 const paths = (o: unknown, p = "$"): string[] =>
-  Array.isArray(o) ? paths(o[0], `${p}[]`) : o && typeof o === "object" ? Object.entries(o).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "features" || k === "flow" ? [] : paths(v, `${p}.${k}`))]) : [];
+  Array.isArray(o) ? paths(o[0], `${p}[]`) : o && typeof o === "object" ? Object.entries(o).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "flow" ? [] : paths(v, `${p}.${k}`))]) : [];
 const schemaPaths = (s: Record<string, any>, p = "$"): string[] =>
   s.type === "array"
     ? schemaPaths(s.items, `${p}[]`)
     : s.properties
-      ? Object.entries(s.properties as Record<string, any>).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "features" || k === "flow" ? [] : schemaPaths(v, `${p}.${k}`))])
+      ? Object.entries(s.properties as Record<string, any>).flatMap(([k, v]) => [`${p}.${k}`, ...(k === "flow" ? [] : schemaPaths(v.oneOf ? v.oneOf[0] : v, `${p}.${k}`))])
       : [];
 
 const secrets = (names: Record<string, string>) => ({ get: (n: string) => names[n] });
@@ -75,7 +82,7 @@ describe("the schema", () => {
         "$.tracker.token: is required.",
         "$.roles[0].role: must be a string.",
         "$.color: is not a known field.",
-        '$.flow.preset: must be one of "trunk".',
+        '$.flow.preset: must be one of "trunk", "pr-release".',
         "$.schedule.digestTo: must be at most 24.",
       ].sort(),
     );
@@ -83,13 +90,13 @@ describe("the schema", () => {
 
   it("checks what the schema cannot: roles of the flow, unique instances, combinations", () => {
     const bad = JSON.parse(JSON.stringify(FULL));
-    bad.roles.push({ instance: "board", role: "sampler", secret: "T_X" });
+    bad.roles.push({ instance: "board", role: "qa", secret: "T_X" });
     bad.roles = bad.roles.filter((r: { role: string }) => r.role !== "owner");
     delete bad.owners[0].chat;
     bad.schedule = { timezone: "Mars/Olympus", digestFrom: 12, digestTo: 9 };
     delete bad.chat.publicUrl;
     expect(validate(bad)).toEqual([
-      "$.roles[1].role: 'sampler' is no role of the flow (board, developer, tester, owner).",
+      "$.roles[1].role: 'qa' is no role of the flow (board, developer, tester, owner, sampler).",
       "$.roles[1].instance: 'board' is used twice.",
       "$.roles: no instance has the owner role 'owner', so the owner cannot answer through the API.",
       "$.owners: with a chat, at least one owner needs a chat user id.",
@@ -128,9 +135,9 @@ describe("export and import", () => {
     expect(r.export("livedu")).toEqual(livedu);
     const clash = { ...(workspaces.workspaces[1] as unknown as WorkspaceDoc), id: "third" };
     expect(() => r.import(clash)).toThrow("another workspace is bound to the same chat and topic");
-    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi"]);
+    expect(r.list().map((w) => w.id)).toEqual(["livedu", "other", "multi", "anyfile", "anydev"]);
     expect(() => r.importAll({ flowee: 1, workspaces: [livedu, livedu] })).toThrow("$.workspaces[1].id: 'livedu' is used twice.");
-    expect(r.list()).toHaveLength(3);
+    expect(r.list()).toHaveLength(workspaces.workspaces.length);
   });
 
   it("an import needs no secret to validate and names the missing ones", () => {

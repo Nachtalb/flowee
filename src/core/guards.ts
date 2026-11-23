@@ -3,6 +3,7 @@ import { parseCard } from "./card";
 import type { Ref } from "./chart";
 import type { Ctx, Guard, Params } from "./engine";
 import { check } from "./engine";
+import { CODE_GUARDS } from "./code";
 import { Fail } from "./errors";
 import { fill } from "./text";
 
@@ -10,6 +11,7 @@ const s7 = (s: string) => s.slice(0, 7);
 const build = (c: Ctx) => String(c.input.build);
 
 export const GUARDS: Record<string, Guard> = {
+  ...CODE_GUARDS,
   all: {
     kind: "selector",
     async run(c, p) {
@@ -98,7 +100,7 @@ export const GUARDS: Record<string, Guard> = {
   cardValid: {
     kind: "check",
     run(c, p) {
-      c.data.card = parseCard(String(c.input[String(p.field ?? "comment")] ?? ""), c.f.s.texts.cardHeading);
+      c.data.card = parseCard(String(c.input[String(p.field ?? "comment")] ?? ""), c.f.s.texts.cardHeading, !!c.f.s.features.samples);
       return true;
     },
   },

@@ -21,6 +21,8 @@ export default defineConfig({
           ...Object.fromEntries(who.map((w) => [`OTHER_${w.toUpperCase()}`, hash(`o-${w}`)])),
           ...Object.fromEntries(who.map((w) => [`MULTI_${w.toUpperCase()}`, hash(`m-${w}`)])),
           LIB_TOKEN: "gh-lib",
+          ...Object.fromEntries([...who, "sampler"].map((w) => [`ANYFILE_${w.toUpperCase()}`, hash(`p-${w}`)])),
+          ...Object.fromEntries(who.map((w) => [`ANYDEV_${w.toUpperCase()}`, hash(`q-${w}`)])),
         },
       },
     }),
