@@ -57,7 +57,8 @@ function lines(s: string): string {
     if (item !== undefined && !list) out += "<ul>";
     if (item === undefined && list) out += "</ul>";
     list = item !== undefined;
-    out += item !== undefined ? `<li>${inline(item)}</li>` : `<p>${inline(l)}</p>`;
+    const h = /^#{1,6}\s+(.*)$/.exec(l);
+    out += item !== undefined ? `<li>${inline(item)}</li>` : h ? `<p><b>${inline(h[1])}</b></p>` : `<p>${inline(l)}</p>`;
   }
   return list ? `${out}</ul>` : out;
 }
@@ -69,14 +70,21 @@ function inline(s: string): string {
     const after = rest.slice(a + 1);
     const b = after.indexOf("`");
     if (b > 0) {
-      out += `${esc(rest.slice(0, a))}<code>${esc(after.slice(0, b))}</code>`;
+      out += `${plain(rest.slice(0, a))}<code>${esc(after.slice(0, b))}</code>`;
       rest = after.slice(b + 1);
     } else {
-      out += esc(rest.slice(0, a + 1));
+      out += plain(rest.slice(0, a + 1));
       rest = after;
     }
   }
-  return out + esc(rest);
+  return out + plain(rest);
+}
+
+/** Text outside code spans: `**bold**` and `[text](https://…)`. */
+function plain(s: string): string {
+  return esc(s)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>');
 }
 
 export function kind(it: Item): [string, string] {

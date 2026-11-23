@@ -38,7 +38,10 @@ function copyProblems(f: Record<string, string>, kind: string): string[] {
 export function parseCard(body: string, heading: string, samples = false): Card {
   const lines = body.replace(/\r\n/g, "\n").split("\n");
   const head = new RegExp(`^#{2,4}\\s*${reEsc(heading)}\\s*$`);
-  const start = lines.findIndex((l) => head.test(l));
+  // agents address the card to a person by name whatever the workspace's heading says: such a card with a Kind: line counts too
+  const named = (l: string, i: number) => /^#{2,4}\s*For\s+\S.*$/.test(l) && /^Kind:/.test(lines.slice(i + 1).find((x) => x.trim()) ?? "");
+  let start = lines.findIndex((l) => head.test(l));
+  if (start < 0) start = lines.findIndex(named);
   if (start < 0) throw new Fail(422, "bad_card", `The comment has no ### ${heading} card.`);
   const f: Record<string, string> = {};
   let key: string | undefined;

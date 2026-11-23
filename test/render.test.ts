@@ -78,6 +78,7 @@ describe("cards", () => {
       '<p>Tester: run <code>cargo test &lt;x&gt;</code> then:</p><pre><code class="language-sh">ls -la &amp;&amp; echo &quot;&lt;ok&gt;&quot;</code></pre><p>and</p><pre>plain</pre><p>done</p>',
     );
     expect(md("a ` b")).toBe("<p>a ` b</p>");
+    expect(md("### Notes\nA **bold** [link](https://example.com/a) and `**code**`")).toBe('<p><b>Notes</b></p><p>A <b>bold</b> <a href="https://example.com/a">link</a> and <code>**code**</code></p>');
     expect(md("```\nopen")).toBe("<p>```</p><p>open</p>");
   });
 

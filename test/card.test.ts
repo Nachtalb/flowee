@@ -11,6 +11,10 @@ describe("parseCard", () => {
     expect(c).toEqual({ kind: "test", changed: "lessons\nload faster", check: "- open a lesson\n- it shows", question: undefined });
     expect(parseCard("#### For Ann\nKind: decision\nQuestion: A or B?\n### Notes\nCheck: x").check).toBeUndefined();
   });
+  it("reads a card addressed to a person by name when the workspace's heading is another", () => {
+    expect(parse("Board: ok\n### For Bea\nKind: question\nQuestion: A or B?", "For the owner").question).toBe("A or B?");
+    expect(() => parse("### For later\nsome notes", "For the owner")).toThrow("no ### For the owner card");
+  });
   it("refuses with a message naming what is missing", () => {
     const msg = (b: string) => {
       try {
