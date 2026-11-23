@@ -893,17 +893,8 @@ export class Wizard {
       }
       return [option(esc(i.name), `${esc(i.ask)} Now: ${x === undefined || x === "" ? "none" : code(String(x))}.`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ None", `clear:${i.key}`)] : []))];
     });
-    const typing = spec.inputs.find((i) => i.key === s.typing);
     return {
-      body: [
-        this.top(s),
-        question(esc(spec.question)),
-        text(
-          typing
-            ? `Type ${esc(typing.name.toLowerCase())} as your next message${typing.type === "list" ? ", one per line" : ""}.`
-            : "Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.",
-        ),
-      ],
+      body: [this.top(s), question(esc(spec.question))],
       rows: [options(...rows), row(b("◀ Back", "back"), b("✅ Apply", "apply"), b("✖ Cancel", "cancel"))],
     };
   }

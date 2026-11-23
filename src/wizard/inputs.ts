@@ -94,7 +94,7 @@ export function problem(spec: OptionSpec, v: Values): string | undefined {
   for (const i of shown(spec, v)) {
     const x = v[i.key];
     const empty = x === undefined || x === "" || (Array.isArray(x) && !x.length);
-    if (i.required && empty) return i.type === "list" ? `${i.name}: pick at least one, type your own or send a file.` : `${i.name}: pick one or type your own.`;
+    if (i.required && empty) return i.type === "list" ? `${i.name}: add at least one.` : `${i.name}: choose one.`;
     const why = !empty && i.check?.(x, v);
     if (why) return why;
   }

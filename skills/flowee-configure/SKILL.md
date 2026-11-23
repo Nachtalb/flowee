@@ -82,6 +82,12 @@ both). For the terminal each person runs `flowee-tui --new-key` and gives you th
 `tui.people` entry each (`id`, `name`, `role` member or manager, `key` the digest; never the key itself). More than
 one person makes a team inbox. A terminal-only workspace needs no bot and no Telegram secret.
 
+Values for one option while the user is in the setup chat: when an option's values screen is open (⚙️ Configure
+beside it), a file sent to the bot fills it. Write a JSON object by the option's keys (`features.<option>` in
+`references/features.md`: `{"paths": ["src/ui/**"]}` for UI review, `{"branch": "ticket-{n}", "method": "squash"}` for
+feature branches), or plain lines for a list (one entry per line). The screen shows the values; ✅ Apply keeps them.
+The screen itself never mentions files: tell the user to send it there.
+
 When the chat id or topic id is unknown, leave `chat` out: the workspace runs API-only and the owner binds it later
 in the chat (`/workspaces` → the workspace → ✏️ Where tickets appear → 👥 In a group, then 👥 Choose a group, or `/bind <id>` inside the topic).
 

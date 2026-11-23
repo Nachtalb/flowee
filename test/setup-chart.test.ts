@@ -9,6 +9,7 @@ import type { Block, Chat, ChatRef, View } from "../src/ports/chat";
 import { ACTIONS, GUARDS, mermaid, SETUP, STATES, transitions } from "../src/wizard/chart";
 import { fromDoc, type Input, type Session, Wizard, type WizardHost } from "../src/wizard/wizard";
 import docs from "../docs/managed.md?raw";
+import { wording } from "./wording";
 
 const TOKEN = `github_pat_${"a".repeat(40)}`;
 const WIDE = `github_pat_wide${"b".repeat(30)}`;
@@ -125,9 +126,11 @@ function detours(h: H, r: () => number): (() => Promise<unknown>)[] {
     });
 }
 
-/** Every event a button on screen raises is one the chart handles in that state. */
+/** Every event a button on screen raises is one the chart handles in that state; the screen's words keep the rules. */
 function handled(h: H) {
   const s = h.state() as string;
+  for (const b of h.view()) if ("html" in b) wording(b.html);
+  for (const b of h.view()) if ("table" in b) for (const r of b.table.rows) wording(r.cells.join(" "));
   for (const b of buttons(h.view())) {
     if (!b.data?.startsWith("w:")) continue;
     const ev = b.data.slice(2).split(":")[0];

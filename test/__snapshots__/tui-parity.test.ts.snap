@@ -1306,7 +1306,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 📥 Import a configuration                                                    ┃
-┃ Send the .json file, or paste the configuration as your next message.        ┃
+┃ Send the .json file, or paste the configuration.                             ┃
 ┃                                                                              ┃
 ┃                                 [ ✖ Cancel ]                                 ┃
 ┃                                                                              ┃
@@ -3391,7 +3391,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 📥 Import a configuration                                                              ┃
-│                                                │┃ Send the .json file, or paste the configuration as your next message.                  ┃
+│                                                │┃ Send the .json file, or paste the configuration.                                       ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                      [ ✖ Cancel ]                                      ┃
 │                                                │┃                                                                                        ┃

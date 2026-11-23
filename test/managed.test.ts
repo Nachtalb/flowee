@@ -9,6 +9,7 @@ import type { Instance } from "../src/runtime/cloudflare/worker";
 import worker from "../src/index";
 import type { FakeGitHub, FakeTelegram } from "./fake";
 import { setup } from "./helpers";
+import { wording } from "./wording";
 import workspaces from "./workspaces.json";
 import security from "./fixtures/security-review.json";
 
@@ -248,7 +249,10 @@ function layout(html: string) {
 afterEach(() => {
   for (const c of tg.calls) {
     const html = c.params?.rich_message?.html;
-    if (typeof html === "string") layout(html);
+    if (typeof html === "string") {
+      layout(html);
+      wording(html);
+    }
     if (c.method === "sendMessage") expect(ENVOY_NOTICES.some((n) => n.test(c.params.text)), `plain message: ${c.params.text}`).toBe(true);
     const kb = c.params.reply_markup?.keyboard;
     if (kb) expect(kb.flat().every((k: any) => k.request_managed_bot), "a reply keyboard other than the bot request").toBe(true);
@@ -498,12 +502,10 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(OPTIONS("Feature branches"));
     // an option that needs details asks for them in the same message; ✅ Apply with the defaults switches it on
     await tap(100, "w:configure:releases");
-    const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ✅ Apply keeps what is shown.</p>";
     expect(screen()).toBe(
       [
         "<p>🆕 <b>New workspace</b> · Versioning</p>",
         "<p><b>How should versioning work?</b></p>",
-        HINT,
         TABLE(
           OPT("Release source", "What counts as published: the latest release, or the commit a tag points at.", CB("● Latest release", "w:set:source:release"), CB("A tag", "w:set:source:tag")),
           OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:set:testedTag:tested"), CB("✏️ Type", "w:type:testedTag")),
@@ -516,18 +518,18 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:set:source:tag");
     expect(screen()).toContain(OPT("Release tag", "The tag that marks the published build. Now: none.", CB("stable", "w:set:tag:stable"), CB("latest", "w:set:tag:latest"), CB("✏️ Type", "w:type:tag")));
     await tap(100, "w:apply");
-    expect(screen()).toContain("<p>⚠️ Release tag: pick one or type your own.</p>");
+    expect(screen()).toContain("<p>⚠️ Release tag: choose one.</p>");
     await tap(100, "w:set:source:release");
     await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true }));
     // UI review: suggested paths as rows, typed ones, a sent file; on only once it has one
     await tap(100, "w:configure:uiReview");
     await tap(100, "w:apply");
-    expect(screen()).toContain("<p>⚠️ UI paths: pick at least one, type your own or send a file.</p>");
+    expect(screen()).toContain("<p>⚠️ UI paths: add at least one.</p>");
     expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "suggested", CB("Add", "w:tog:paths:0")));
     await tap(100, "w:tog:paths:0");
     await tap(100, "w:type:paths");
-    expect(screen()).toContain("<p>Type ui paths as your next message, one per line.</p>");
+    expect(screen()).toContain(CB("✏️ Typing…", "w:type:paths"));
     await dm(100, "app/ui/**\n- web/views/**");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     files["paths-0"] = JSON.stringify({ paths: ["src/components/**", "app/ui/**", "web/views/**", "**/*.css"] });
@@ -1325,7 +1327,7 @@ describe("groups, topics and preconfigured workspaces", () => {
 });
 
 describe("export and import", () => {
-  const PROMPT = ["<p>📥 <b>Import a configuration</b></p>", "<p>Send the <code>.json</code> file, or paste the configuration as your next message.</p>", ROW(CB("✖ Cancel", "m:noimport"))].join("");
+  const PROMPT = ["<p>📥 <b>Import a configuration</b></p>", "<p>Send the <code>.json</code> file, or paste the configuration.</p>", ROW(CB("✖ Cancel", "m:noimport"))].join("");
 
   it("managers the creator names in the document manage the workspace too; the creator stays its creator", async () => {
     await sharedSetup(100);

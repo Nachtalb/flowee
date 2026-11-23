@@ -99,7 +99,7 @@ export class Manager {
     return this.show(
       user,
       at,
-      [heading("📥", "Import a configuration"), text(`Send the ${code(".json")} file, or paste the configuration as your next message.`), row(b("✖ Cancel", "noimport"))],
+      [heading("📥", "Import a configuration"), text(`Send the ${code(".json")} file, or paste the configuration.`), row(b("✖ Cancel", "noimport"))],
       bottom,
     );
   }

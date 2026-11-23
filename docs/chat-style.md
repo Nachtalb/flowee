@@ -62,6 +62,14 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
   the chat the user is in, the group picker link, the token form with its permissions, ✅ Keep the current value).
   Typed input accepts what people naturally paste (a repository's link in any form).
 - Errors: one sentence that says what to do, with an example where it helps.
+- **Never explain how to use the interface on the interface.** A settings screen explains itself: one row per
+  setting with its current value and its buttons (`● Latest release`, `✏️ Type`, `Switch on`), the bottom row with
+  `◀ Back`, `✅ Apply`, `✖ Cancel`. No sentence like "Tap a value, ✏️ Type your own, or send a file … ✅ Apply keeps
+  what is shown". What the interface also accepts without a button (a `.json` or text file with an option's values)
+  is documented here, in docs/managed.md and in the flowee-configure skill, never on the screen. The exceptions are
+  the inputs that have no button: the screen that asks for a pasted link, token or configuration says what to
+  send, and the bot-creation step points at the reply keyboard. `test/wording.ts` (`INSTRUCTIONS`) fails a test on
+  every screen with such a sentence; add a pattern when one slips through.
 - **A switch is never a dead end; an option asks for what it needs.** Switching on an option that needs values opens
   its follow-up screen in the same living message (one screen per option, one row per value: the default marked,
   suggestions as buttons, ✏️ Type, a sent file); the option is on only when its values are usable, ✅ Apply works
