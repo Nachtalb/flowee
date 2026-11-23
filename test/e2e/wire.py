@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Wire check: a ticket's whole walk through real clients against the Worker in `wrangler dev`.
 
-Starts a stand-in GitHub (stdlib HTTP, in memory) and `wrangler dev` with two trunk workspaces whose tracker API
-is that stand-in, then walks a ticket from filing to closed with each client given:
+Starts a stand-in GitHub and a stand-in GitLab (stdlib HTTP, in memory) and `wrangler dev` with trunk workspaces whose
+tracker API is that stand-in, then walks a ticket from filing to closed with each client given:
 
   python3 test/e2e/wire.py [--flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]]
 
@@ -11,7 +11,9 @@ same wire contract, run unchanged (workspace w1, plain /v1 paths resolved by its
 wire-compatible with it. It reads `<PREFIX>_URL`, `<PREFIX>_AS` and `<PREFIX>_TOKEN`, and writes owner cards under
 `### <TEXT>`.
 Then flowee.py walks a `pr-release` ticket (workspace w3: pull requests with a required check, releases with a held
-card and the tested tag) through a branch pushed to a scratch bare repository the stand-in GitHub reads.
+card and the tested tag) through a branch pushed to a scratch bare repository the stand-in GitHub reads, and the same
+two walks run on GitLab (workspaces g2 and g3, a nested `acme/team/<id>` project): issues, notes, a merge request,
+its pipeline, the release and the tag through the GitLab adapter.
 Everything lives in a scratch directory that is removed at the end; wrangler is stopped at the end.
 """
 import argparse, hashlib, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
@@ -44,7 +46,7 @@ class GitHub:
                 self.end_headers()
                 self.wfile.write(data)
 
-            do_GET = do_POST = do_PATCH = do_PUT = do_DELETE = go
+            do_GET = do_POST = do_PATCH = do_PUT = do_DELETE = do_HEAD = go
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
@@ -152,9 +154,145 @@ class GitHub:
         return 501, {"message": f"no route {method} {path}"}
 
 
-def workspace(id, heading, gh, preset="trunk", features=None):
+class GitLab(GitHub):
+    """The same in-memory repositories as GitHub keeps (so the walks read them alike), served as GitLab's REST API v4."""
+
+    USERS = {"owner": 1, "dev": 2}
+
+    def handle(self, method, path, body):
+        url, _, query = path.partition("?")
+        q = {}
+        for x in query.split("&"):
+            if "=" in x:
+                k, v = x.split("=", 1)
+                q.setdefault(urllib.parse.unquote(k), []).append(urllib.parse.unquote(v))
+        one = lambda k, d=None: q.get(k, [d])[0]
+        if url == "/api/v4/users":
+            u = one("username", "")
+            return 200, [{"id": self.USERS.get(u, 99), "username": u}]
+        m = re.match(r"^/api/v4/projects/([^/]+)(/.*)?$", url)
+        if not m:
+            return 501, {"message": f"no route {method} {path}"}
+        name, rest = urllib.parse.unquote(m.group(1)), urllib.parse.unquote(m.group(2) or "")
+        r = self.repo(name)
+        git = lambda *a: subprocess.run(["git", "-C", str(r["bare"]), *a], capture_output=True, text=True) if r["bare"] else None
+        head = lambda b: ((git("rev-parse", "-q", "--verify", f"refs/heads/{b}").stdout.strip() or None) if r["bare"] else None)
+        main_idx = lambda s: len(r["main"]) - 1 if s == "main" else next((k for k, (x, _) in enumerate(r["main"]) if x == s), -1)
+        resolve = lambda s: (r["main"][-1][0] if r["main"] else None) if s == "main" else s if main_idx(s) >= 0 else head(s) or (s if r["bare"] and git("cat-file", "-e", s).returncode == 0 else None)
+        user = lambda login: {"id": self.USERS.get(login, 99), "username": login}
+        issue = lambda i: {"id": 1000 + i["number"], "iid": i["number"], "title": i["title"], "description": i["body"], "state": "opened" if i["state"] == "open" else "closed",
+                           "labels": [x["name"] for x in i["labels"]], "assignees": [{"username": a["login"]} for a in i["assignees"]], "created_at": i["created_at"],
+                           "updated_at": i["updated_at"], "web_url": f"https://gitlab.test/{name}/-/issues/{i['number']}", "issue_type": "issue"}
+
+        def mr(p):
+            sha = head(p["head"]["ref"]) if p["state"] == "open" else p["head"]["sha"]
+            return {"iid": p["number"], "title": p["title"], "description": p["body"], "web_url": p["html_url"], "source_branch": p["head"]["ref"], "target_branch": p["base"]["ref"],
+                    "sha": sha or p["head"]["sha"], "state": "merged" if p["merged_at"] else "opened" if p["state"] == "open" else "closed",
+                    "merge_commit_sha": p["merge_commit_sha"], "squash_commit_sha": None, "author": {"username": p["user"]["login"]}}
+
+        def status(c):
+            if c["status"] != "completed":
+                return "running"
+            return {"success": "success", "skipped": "skipped", "cancelled": "canceled"}.get(c["conclusion"], "failed")
+
+        if rest == "" and method == "GET":
+            return 200, {"id": 1, "path_with_namespace": name}
+        if rest == "/issues" and method == "GET":
+            return 200, [issue(i) for i in r["issues"].values() if (i["state"] == "open") == (one("state") == "opened")]
+        if rest == "/issues" and method == "POST":
+            n = len(r["issues"]) + 1
+            labels = [x for x in body.get("labels", "").split(",") if x]
+            r["issues"][n] = {"number": n, "title": body["title"], "body": body.get("description"), "state": "open", "labels": [{"name": x} for x in labels], "assignees": [],
+                              "created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-02T00:00:00Z", "comments": []}
+            return 201, issue(r["issues"][n])
+        if mm := re.match(r"^/issues/(\d+)$", rest):
+            i = r["issues"].get(int(mm.group(1)))
+            if not i:
+                return 404, {"message": "404 Not found"}
+            if method == "PUT":
+                if "labels" in body:
+                    i["labels"] = [{"name": x} for x in body["labels"].split(",") if x]
+                if "assignee_ids" in body:
+                    i["assignees"] = [{"login": k} for k, v in self.USERS.items() if v in body["assignee_ids"]]
+                if body.get("state_event"):
+                    i["state"] = "closed" if body["state_event"] == "close" else "open"
+                i.update({k: body[v] for k, v in (("title", "title"), ("body", "description")) if v in body})
+            return 200, issue(i)
+        if mm := re.match(r"^/issues/(\d+)/notes$", rest):
+            i = r["issues"][int(mm.group(1))]
+            if method == "POST":
+                r["comments"] += 1
+                i["comments"].append({"id": r["comments"], "body": body["body"]})
+                return 201, {**i["comments"][-1], "system": False}
+            return 200, [{**c, "system": False} for c in i["comments"]]
+        if rest == "/repository/commits":
+            return 200, [{"id": s, "message": msg} for s, msg in reversed(r["main"])]
+        if mm := re.match(r"^/repository/commits/([^/]+)/statuses$", rest):
+            return 200, [{"id": k, "name": c["name"], "status": status(c), "allow_failure": False} for k, c in enumerate(r["checks"].get(mm.group(1), []))]
+        if mm := re.match(r"^/repository/commits/([^/]+)$", rest):
+            s = resolve(mm.group(1))
+            return (200, {"id": s}) if s else (404, {"message": "404 Commit Not Found"})
+        if rest == "/repository/merge_base":
+            a, b = (resolve(x) for x in q.get("refs[]", []))
+            if not a or not b:
+                return 404, {"message": "404 Not found"}
+            if main_idx(a) >= 0 and main_idx(b) >= 0:
+                return 200, {"id": r["main"][min(main_idx(a), main_idx(b))][0]}
+            mb = git("merge-base", a, b)
+            return (200, {"id": mb.stdout.strip()}) if mb and mb.returncode == 0 else (404, {"message": "404 Not found"})
+        if mm := re.match(r"^/repository/branches/(.+)$", rest):
+            sha = head(mm.group(1))
+            if method == "DELETE":
+                return 204, {}
+            return (200, {"name": mm.group(1), "commit": {"id": sha}}) if sha else (404, {"message": "404 Branch Not Found"})
+        if rest == "/merge_requests" and method == "GET":
+            want, st = one("source_branch"), one("state")
+            return 200, [mr(p) for p in r["pulls"] if (not want or p["head"]["ref"] == want) and (st == "all" or mr(p)["state"] == st)]
+        if rest == "/merge_requests" and method == "POST":
+            n = 100 + len(r["pulls"]) + 1
+            r["pulls"].append({"number": n, "title": body["title"], "body": body["description"], "html_url": f"https://gitlab.test/{name}/-/merge_requests/{n}",
+                               "head": {"ref": body["source_branch"], "sha": head(body["source_branch"])}, "base": {"ref": body["target_branch"]}, "state": "open",
+                               "merged_at": None, "merge_commit_sha": None, "user": {"login": "dev"}})
+            return 201, mr(r["pulls"][-1])
+        if mm := re.match(r"^/merge_requests/(\d+)(/merge)?$", rest):
+            p = next((x for x in r["pulls"] if x["number"] == int(mm.group(1))), None)
+            if not p:
+                return 404, {"message": "404 Not found"}
+            if mm.group(2) and method == "PUT":
+                if p["state"] != "open" or body.get("sha") != head(p["head"]["ref"]):
+                    return 409, {"message": "SHA does not match HEAD of source branch"}
+                sha = hashlib.sha1(f"merge {p['number']}".encode()).hexdigest()
+                r["main"].append((sha, body.get("squash_commit_message") or body.get("merge_commit_message") or p["title"]))
+                p.update(state="closed", merged_at="2026-11-21T00:00:00Z", merge_commit_sha=sha, head={**p["head"], "sha": head(p["head"]["ref"])})
+                return 200, mr(p)
+            if method == "PUT":
+                p.update({k: body[v] for k, v in (("title", "title"), ("body", "description")) if v in body})
+            return 200, mr(p)
+        if rest == "/pipelines":
+            cs = r["checks"].get(one("sha"), [])
+            return 200, [{"id": 1, "status": "success" if all(status(c) == "success" for c in cs) else "running"}] if cs else []
+        if rest == "/releases":
+            x = r["release"]
+            return 200, [{"tag_name": x["tag_name"], "name": x["name"], "description": x["body"], "released_at": x["published_at"], "_links": {"self": x["html_url"]}}] if x else []
+        if mm := re.match(r"^/repository/tags/(.+)$", rest):
+            t = r["tags"].get(mm.group(1))
+            if not t:
+                return 404, {"message": "404 Tag Not Found"}
+            if method == "DELETE":
+                del r["tags"][mm.group(1)]
+                return 204, {}
+            return 200, {"name": mm.group(1), "commit": {"id": t}}
+        if rest == "/repository/tags" and method == "POST":
+            r["tags"][body["tag_name"]] = resolve(body["ref"]) or body["ref"]
+            return 201, {"name": body["tag_name"]}
+        return 501, {"message": f"no route {method} {path}"}
+
+
+def workspace(id, heading, gh, preset="trunk", features=None, gitlab=False):
+    tracker = ({"type": "gitlab", "repos": [f"acme/team/{id}"], "api": f"{gh.url}/api/v4", "token": "GITLAB_TOKEN"} if gitlab
+               else {"type": "github", "repos": [f"acme/{id}"], "api": gh.url, "token": "GITHUB_TOKEN"})
     return {"flowee": 1, "id": id, "flow": {"preset": preset}, **({"features": features} if features else {}),
-            "tracker": {"type": "github", "repos": [f"acme/{id}"], "api": gh.url, "token": "GITHUB_TOKEN"},
+            "tracker": tracker,
             "roles": [{"instance": w, "role": ROLE[w], "secret": f"{id.upper()}_{w.upper()}"} for w in WHO],
             "owners": [{"name": "Owner", "tracker": "owner"}], "texts": {"cardHeading": heading}}
 
@@ -165,13 +303,16 @@ def free_port():
         return s.getsockname()[1]
 
 
-def start_worker(scratch, gh, heading1):
+def start_worker(scratch, gh, gl, heading1):
     port = free_port()
-    w3 = workspace("w3", "For the owner", gh, "pr-release", {"pullRequests": {"checks": ["build"]}, "releases": {"testedTag": "tested", "checks": ["build"]}})
-    config = {"flowee": 1, "workspaces": [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3]}
+    rel = {"pullRequests": {"checks": ["build"]}, "releases": {"testedTag": "tested", "checks": ["build"]}}
+    w3 = workspace("w3", "For the owner", gh, "pr-release", rel)
+    g3 = workspace("g3", "For the owner", gl, "pr-release", rel, gitlab=True)
+    config = {"flowee": 1, "workspaces": [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3]}
     args = ["npx", "wrangler", "dev", "--ip", "127.0.0.1", "--port", str(port), "--persist-to", str(scratch / "state"),
-            "--show-interactive-dev-session=false", "--test-scheduled", "--var", f"FLOWEE_CONFIG:{json.dumps(config)}", "--var", "GITHUB_TOKEN:gh-test"]
-    for ws in ("w1", "w2", "w3"):
+            "--show-interactive-dev-session=false", "--test-scheduled", "--var", f"FLOWEE_CONFIG:{json.dumps(config)}", "--var", "GITHUB_TOKEN:gh-test",
+            "--var", "GITLAB_TOKEN:gl-test"]
+    for ws in ("w1", "w2", "w3", "g2", "g3"):
         for w in WHO:
             args += ["--var", f"{ws.upper()}_{w.upper()}:{hashlib.sha256(f'{ws}-{w}'.encode()).hexdigest()}"]
     p = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, NO_COLOR="1"))
@@ -321,7 +462,8 @@ def main():
     a = ap.parse_args()
     scratch = Path(tempfile.mkdtemp(prefix="flowee-wire-"))
     gh = GitHub()
-    worker, url = start_worker(scratch, gh, a.flow_heading)
+    gl = GitLab()
+    worker, url = start_worker(scratch, gh, gl, a.flow_heading)
     results = {}
     try:
         def repo(name):
@@ -346,26 +488,41 @@ def main():
                    "flowee-gates.json", r2)
         print(f"{c.name} -> {url}/w/w2/v1")
         results[c.name] = walk(c, gh, "acme/w2", "For the owner")
-        # pr-release: a signing key, a bare origin the stand-in GitHub reads branches from, a clone pushing to it
+        # pr-release: a signing key, a bare origin the stand-in tracker reads branches from, a clone pushing to it
         gnupg = scratch / "gnupg"
         gnupg.mkdir(mode=0o700)
         subprocess.run(["gpg", "--homedir", str(gnupg), "--batch", "--passphrase", "", "--quick-gen-key", "T <t@example.org>", "ed25519", "sign", "never"], check=True, capture_output=True)
-        bare = scratch / "w3-origin.git"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
-        r3 = repo("w3-client")
-        subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=r3, check=True)
-        subprocess.run(["git", "config", "user.signingkey", "t@example.org"], cwd=r3, check=True)
-        subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=r3, check=True)
-        gh.repo("acme/w3")["bare"] = bare
-        c = Client("flowee.py pr-release", [sys.executable, str(ROOT / "client/flowee.py")],
-                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w3", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w3-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml"), "GNUPGHOME": str(gnupg)},
-                   "flowee-gates.json", r3)
+
+        def pr_client(ws, tracker, project):
+            bare = scratch / f"{ws}-origin.git"
+            subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+            d = repo(f"{ws}-client")
+            subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=d, check=True)
+            subprocess.run(["git", "config", "user.signingkey", "t@example.org"], cwd=d, check=True)
+            subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=d, check=True)
+            tracker.repo(project)["bare"] = bare
+            return Client(f"flowee.py pr-release ({ws})", [sys.executable, str(ROOT / "client/flowee.py")],
+                          lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": ws, "FLOWEE_AS": who, "FLOWEE_TOKEN": f"{ws}-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml"), "GNUPGHOME": str(gnupg)},
+                          "flowee-gates.json", d)
+
+        c = pr_client("w3", gh, "acme/w3")
         print(f"{c.name} -> {url}/w/w3/v1")
         results[c.name] = walk_pr(c, gh, url, "acme/w3")
+        # GitLab: the same walks through the GitLab adapter, a nested project
+        rg = repo("g2-client")
+        c = Client("flowee.py on GitLab", [sys.executable, str(ROOT / "client/flowee.py")],
+                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "g2", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"g2-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                   "flowee-gates.json", rg)
+        print(f"{c.name} -> {url}/w/g2/v1")
+        results[c.name] = walk(c, gl, "acme/team/g2", "For the owner")
+        c = pr_client("g3", gl, "acme/team/g3")
+        print(f"{c.name} -> {url}/w/g3/v1")
+        results[c.name] = walk_pr(c, gl, url, "acme/team/g3")
     finally:
         worker.terminate()
         worker.wait(timeout=30)
         gh.srv.shutdown()
+        gl.srv.shutdown()
         shutil.rmtree(scratch, ignore_errors=True)
     print("wire check:", ", ".join(f"{k} {'passed' if v else 'FAILED'}" for k, v in results.items()))
     return 0 if all(results.values()) else 1

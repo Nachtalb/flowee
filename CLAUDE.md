@@ -13,7 +13,7 @@ bun run test                      # vitest in workerd (@cloudflare/vitest-plugin
 bun run test:client               # python3 client/test_flowee.py (scratch git repos + a throwaway gpg key)
 bun run schema                    # regenerate schema/*.schema.json after changing src/config/schema.ts or a preset
 bun run validate <file>…          # a workspace or instance document through the Worker's validator (exit 0/1/2)
-python3 test/e2e/wire.py          # flowee.py against `wrangler dev` and a stand-in GitHub, trunk and pr-release
+python3 test/e2e/wire.py          # flowee.py against `wrangler dev` and a stand-in GitHub and GitLab, trunk and pr-release
 #   --flow-py PATH [--flow-env PREFIX] [--flow-heading TEXT]: also an external client with the same wire contract
 bun run dev                       # wrangler dev; local secrets and FLOWEE_CONFIG in .dev.vars (git-ignored)
 ```
