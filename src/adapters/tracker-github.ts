@@ -83,7 +83,7 @@ export class GitHub implements Tracker {
     if (c.project) this.board = new ProjectBoard(this, c.project);
   }
 
-  async req<T>(method: string, path: string, what: string, body?: unknown): Promise<T> {
+  async req<T>(method: string, path: string, what: string, body?: unknown, retried = false): Promise<T> {
     if (!this.c.token) throw new Fail(502, "github", `GitHub is not connected yet (the secret ${this.c.tokenName} is missing); nothing was changed.`);
     const res = await fetch((this.c.api ?? "https://api.github.com") + path, {
       method,
@@ -96,6 +96,16 @@ export class GitHub implements Tracker {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    // a rate limit: 429, or 403 with no requests left (docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api)
+    if (res.status === 429 || (res.status === 403 && (res.headers.get("retry-after") || res.headers.get("x-ratelimit-remaining") === "0"))) {
+      const reset = Number(res.headers.get("x-ratelimit-reset") ?? 0);
+      const wait = Number(res.headers.get("retry-after") ?? (reset ? Math.max(0, Math.ceil(reset - Date.now() / 1000)) : 60));
+      if (!retried && wait <= 2) {
+        await new Promise((r) => setTimeout(r, wait * 1000));
+        return this.req(method, path, what, body, true);
+      }
+      throw new Fail(503, "rate_limited", `GitHub is rate-limiting this token for ${what}; try again in ${Number.isFinite(wait) ? wait : 60} seconds.`);
+    }
     if (!res.ok) {
       const err: GhFail = new Fail(502, "github", `GitHub answered ${res.status} for ${what}.`);
       err.gh = res.status;
