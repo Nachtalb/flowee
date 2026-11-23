@@ -46,6 +46,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `chat.topicId` | integer ≥ 1 | | Bind only this forum topic of the chat (without it, the whole chat). |
 | `chat.publicUrl` | `https://…` | | The instance's public URL: `GET /setup` sets the webhook (`<url>/telegram`) and the bot profile from this workspace. Give it in one workspace only. |
 | `chat.managed` | boolean | `false` | Managed mode: the workspace's own bot, created through the instance bot; its webhook is `<publicUrl>/telegram/w/<id>` and its profile and settings come from this workspace. Without it the workspace uses the instance's bot. |
+| `chat.transport` | `webhook`, `polling` | `webhook`; self-hosted without a public URL: `polling` | `polling`: the self-hosted runtime fetches the bot's updates (getUpdates), no public address needed; `webhook`: needs `chat.publicUrl`. Cloudflare supports only `webhook`. |
 | `files` | object | | Where files the owner sends are uploaded; without it files are refused. |
 | `files.url` | URL | required | A rustypaste-compatible endpoint (multipart `file`, `Authorization`, `expire` headers; answers the link). |
 | `files.token` | secret name | required | The upload token. |
@@ -113,6 +114,7 @@ required in the managed mode (`FLOWEE_MODE = "managed"`) and ignored in the stan
 | `instance.bot.webhookSecret` | secret name | required | Its webhook secret (any random string). |
 | `instance.bot.username` | string | | Its username, shown in the wizard. |
 | `instance.publicUrl` | `https://…` | required | The Worker's URL; webhooks `<url>/telegram` and `<url>/telegram/w/<workspace>`. |
+| `instance.transport` | `webhook`, `polling` | `webhook` | `polling` only self-hosted: the instance bot and the own bots by getUpdates. |
 | `instance.owner` | chat user id | required | The instance owner. |
 | `instance.creators` | array of chat user ids | `[owner]` | Who may create workspaces (wizard and imports). |
 | `instance.limits` | object | | Limits. |

@@ -129,6 +129,26 @@ async function routes(req: Request, p: Platform): Promise<Response> {
   return notFound();
 }
 
+/**
+ * A Telegram update the runtime fetched itself (polling), routed as the webhook's would be, without its secret check:
+ * `which` is "main" (the standalone bot, the managed instance's bot) or a workspace id (its own bot, managed).
+ */
+export async function polled(p: Platform, which: string, update: unknown): Promise<void> {
+  const req = () => new Request("https://flowee/telegram", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(update) });
+  const env = p.env;
+  let to: string | undefined;
+  if (mode(env) === "managed") {
+    const doc = instanceDoc(env);
+    const r = which === "main" ? await p.instance().mainUpdate(doc, update) : await p.instance().ownUpdate(doc, which, true, update);
+    to = r.forward;
+  } else {
+    const b = bot(env);
+    const at = b && new Telegram(envSecrets(env).get(b.token), b.token).route(update);
+    to = (at && registry(env).byChat(at))?.id;
+  }
+  if (to) await (await forward(p, to, req())).arrayBuffer();
+}
+
 /** One HTTP request on any runtime; a `Fail` becomes its JSON answer. */
 export async function route(req: Request, p: Platform): Promise<Response> {
   try {

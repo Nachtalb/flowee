@@ -49,6 +49,8 @@ export interface WorkspaceDoc {
     publicUrl?: string;
     /** The workspace's own bot, created and managed through the instance's bot (managed mode). */
     managed?: boolean;
+    /** How the bot's updates arrive; polling only in the self-hosted runtime (docs/self-hosting.md). */
+    transport?: "webhook" | "polling";
   };
   files?: { url: string; token: string; expire?: string };
   texts?: Partial<Texts>;
@@ -79,4 +81,6 @@ export interface InstanceConfig {
   profile?: { name?: string; description?: string; shortDescription?: string; photo?: string };
   /** The tracker API base URL for workspaces made in the wizard (default https://api.github.com). */
   trackerApi?: string;
+  /** How the bots' updates arrive; polling only in the self-hosted runtime. */
+  transport?: "webhook" | "polling";
 }

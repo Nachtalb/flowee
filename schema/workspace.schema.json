@@ -590,6 +590,13 @@
         "managed": {
           "type": "boolean",
           "description": "The workspace's own bot, created and managed through the instance's bot (managed mode)."
+        },
+        "transport": {
+          "enum": [
+            "webhook",
+            "polling"
+          ],
+          "description": "How the bot's updates arrive: webhook (needs publicUrl; the only one on Cloudflare) or polling (getUpdates; the self-hosted runtime's default without a public URL)."
         }
       }
     },

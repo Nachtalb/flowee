@@ -2,6 +2,8 @@
 // instance are the hosts' rooms (SQLite storage, alarm); the every-minute cron trigger is the tick.
 import { DurableObject } from "cloudflare:workers";
 import type { WorkspaceDoc, InstanceDoc } from "../../config/document";
+import committed from "../../../flowee.config.json";
+import { webhookOnly } from "../../config/schema";
 import { InstanceHost } from "../../adapters/instance-host";
 import type { Env } from "../../adapters/instance";
 import { WorkspaceHost } from "../../adapters/workspace-host";
@@ -93,8 +95,24 @@ export class Instance extends DurableObject<CloudflareEnv> {
   }
 }
 
+const refused = new Map<string, string[]>();
+/** A document asking for Telegram by polling is refused with one sentence: the Worker has webhooks only. */
+function polling(env: CloudflareEnv) {
+  const text = env.FLOWEE_CONFIG ?? JSON.stringify(committed);
+  let errs = refused.get(text);
+  if (!errs) {
+    try {
+      errs = webhookOnly(JSON.parse(text));
+    } catch {
+      errs = []; // not JSON: the router answers bad_config
+    }
+    refused.set(text, errs);
+  }
+  return errs.length ? Response.json({ ok: false, error: "bad_config", message: errs.join(" ") }, { status: 500 }) : undefined;
+}
+
 export default {
-  fetch: (req: Request, env: CloudflareEnv) => route(req, platform(env)),
+  fetch: (req: Request, env: CloudflareEnv) => polling(env) ?? route(req, platform(env)),
   scheduled(_c: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
     ctx.waitUntil(tick(platform(env)));
   },

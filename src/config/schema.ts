@@ -125,6 +125,10 @@ export const SCHEMA: S = {
           topicId: { type: "integer", minimum: 1, description: "A forum topic in the chat." },
           publicUrl: str("The instance's public base URL (webhook and profile are set from it).", { pattern: "^https://" }),
           managed: { type: "boolean", description: "The workspace's own bot, created and managed through the instance's bot (managed mode)." },
+          transport: {
+            enum: ["webhook", "polling"],
+            description: "How the bot's updates arrive: webhook (needs publicUrl; the only one on Cloudflare) or polling (getUpdates; the self-hosted runtime's default without a public URL).",
+          },
         },
         ["type", "token", "webhookSecret", "chatId"],
         "The owner's chat (the envoy).",
@@ -194,6 +198,7 @@ export const INSTANCE: S = {
             "The instance bot's profile.",
           ),
           trackerApi: str("Tracker API base URL for new workspaces.", { pattern: "^https?://" }),
+          transport: { enum: ["webhook", "polling"], description: "How the bots' updates arrive: webhook (the only one on Cloudflare) or polling (self-hosted)." },
         },
         ["bot", "publicUrl", "owner"],
         "The instance itself (managed mode).",
@@ -288,7 +293,7 @@ export function validate(doc: unknown): string[] {
     errs.push(`$.roles: no instance has the owner role '${flow.options.ownerRole}', so the owner cannot answer through the API.`);
   if (d.chat && !d.owners.some((o) => o.chat)) errs.push("$.owners: with a chat, at least one owner needs a chat user id.");
   if (d.files && !d.chat) errs.push("$.files: files come from the chat, so they need $.chat.");
-  if (d.profile && !d.chat?.publicUrl) errs.push("$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.");
+  if (d.profile && !d.chat?.publicUrl && d.chat?.transport !== "polling") errs.push("$.profile: the profile is set with the webhook, so it needs $.chat.publicUrl.");
   const sc = d.schedule;
   if (sc && (sc.digestFrom ?? 9) >= (sc.digestTo ?? 12)) errs.push("$.schedule: digestFrom must be before digestTo.");
   if (sc?.timezone) {
@@ -371,4 +376,16 @@ export function secretNames(d: WorkspaceDoc): string[] {
 /** Problems of a workspace document or of an instance document (`{"flowee": 1, "workspaces": [...]}`). */
 export function problems(doc: unknown): string[] {
   return kind(doc) === "object" && "workspaces" in (doc as object) ? validateInstance(doc) : validate(doc);
+}
+
+/** What the Worker refuses: it receives Telegram updates by webhook only (polling is the self-hosted runtime's). */
+export function webhookOnly(doc: unknown): string[] {
+  const d = doc as { instance?: { transport?: string }; chat?: { transport?: string }; workspaces?: { id?: string; chat?: { transport?: string } }[] };
+  const errs: string[] = [];
+  if (d?.instance?.transport === "polling") errs.push("$.instance.transport: polling needs the self-hosted runtime (docs/self-hosting.md); a Worker receives Telegram updates by webhook only.");
+  if (d?.chat?.transport === "polling") errs.push("$.chat.transport: polling needs the self-hosted runtime (docs/self-hosting.md); a Worker receives Telegram updates by webhook only.");
+  (d?.workspaces ?? []).forEach((w, i) => {
+    if (w?.chat?.transport === "polling") errs.push(`$.workspaces[${i}].chat.transport: polling needs the self-hosted runtime (docs/self-hosting.md); a Worker receives Telegram updates by webhook only.`);
+  });
+  return errs;
 }

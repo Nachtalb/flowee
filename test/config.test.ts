@@ -35,7 +35,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
     { instance: "owner", role: "owner", secret: "T_OWNER" },
   ],
   owners: [{ name: "Ann", tracker: "ann", chat: "42" }],
-  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true },
+  chat: { type: "telegram", token: "BOT", webhookSecret: "HOOK", username: "AcmeBot", chatId: "-100", topicId: 7, publicUrl: "https://x.example", managed: true, transport: "webhook" },
   files: { url: "https://files.example/", token: "FILES", expire: "30d" },
   texts: { owner: "Ann", cardHeading: "For Ann", botName: "Acme", project: "acme", welcome: "w", about: "a", shortAbout: "s", filedBody: "f", untitled: "u" },
   schedule: { timezone: "Europe/Zurich", digestFrom: 8, digestTo: 11 },
@@ -242,6 +242,10 @@ describe("bun run deploy", () => {
       args: ["bunx", "wrangler", "deploy", "--var", "FLOWEE_MODE:standalone"],
     });
     expect(plan("{", true)).toMatchObject({ problems: [expect.stringMatching(/^\$: is not JSON/)] });
+    const polling = { ...workspaces, workspaces: workspaces.workspaces.map((w, i) => (i === 0 && w.chat ? { ...w, chat: { ...w.chat, transport: "polling" } } : w)) };
+    expect(plan(JSON.stringify(polling), false)).toEqual({
+      problems: ["$.workspaces[0].chat.transport: polling needs the self-hosted runtime (docs/self-hosting.md); a Worker receives Telegram updates by webhook only."],
+    });
     expect(plan(JSON.stringify({ flowee: 1, workspaces: [], instance: { ...inst, owner: 1 } }), true)).toMatchObject({ problems: [expect.stringContaining("$.instance.owner")] });
   });
 });

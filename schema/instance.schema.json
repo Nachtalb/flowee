@@ -130,6 +130,13 @@
           "minLength": 1,
           "description": "Tracker API base URL for new workspaces.",
           "pattern": "^https?://"
+        },
+        "transport": {
+          "enum": [
+            "webhook",
+            "polling"
+          ],
+          "description": "How the bots' updates arrive: webhook (the only one on Cloudflare) or polling (self-hosted)."
         }
       }
     }

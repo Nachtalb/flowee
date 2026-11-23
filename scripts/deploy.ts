@@ -2,7 +2,7 @@
 // (GET /setup). The configuration is flowee.config.local.json when it exists (git-ignored: this deployment's own,
 // uploaded as the FLOWEE_CONFIG secret with the version), else the committed flowee.config.json. The mode follows
 // the document: managed when it has an `instance` section.
-import { problems } from "../src/config/schema";
+import { problems, webhookOnly } from "../src/config/schema";
 
 declare const Bun: {
   file(path: string): { exists(): Promise<boolean>; text(): Promise<string> };
@@ -22,7 +22,7 @@ export function plan(text: string, local: boolean): { problems: string[] } | { m
   } catch (e) {
     return { problems: [`$: is not JSON (${(e as Error).message}).`] };
   }
-  const errs = problems(doc);
+  const errs = [...problems(doc), ...webhookOnly(doc)];
   if (errs.length) return { problems: errs };
   const mode = doc.instance ? "managed" : "standalone";
   const url = doc.instance?.publicUrl ?? [doc, ...(doc.workspaces ?? [])].find((w) => w.chat?.publicUrl)?.chat?.publicUrl;

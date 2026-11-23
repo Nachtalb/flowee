@@ -205,7 +205,8 @@ export function settings(d: WorkspaceDoc): Settings {
     timezone: s.timezone ?? "UTC",
     digest: { from: s.digestFrom ?? 9, to: s.digestTo ?? 12 },
     // an own bot of the managed mode has its own path; the standalone bot is the instance's /telegram
-    webhook: d.chat?.publicUrl ? { url: `${d.chat.publicUrl}/telegram${d.chat.managed ? `/w/${d.id}` : ""}`, secret: d.chat.webhookSecret } : undefined,
+    polling: d.chat?.transport === "polling",
+    webhook: d.chat?.publicUrl && d.chat.transport !== "polling" ? { url: `${d.chat.publicUrl}/telegram${d.chat.managed ? `/w/${d.id}` : ""}`, secret: d.chat.webhookSecret } : undefined,
     profile: d.profile,
     ownBot: !!d.chat?.managed,
     sync: { webhooks: d.sync?.webhooks ?? "auto", reconcileMinutes: d.sync?.reconcileMinutes ?? 30, pollMinutes: d.sync?.pollMinutes ?? 1 },

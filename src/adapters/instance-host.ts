@@ -17,7 +17,7 @@ import type { Store } from "../ports/store";
 import type { InstanceApi, Platform, Room, Routed } from "../runtime/platform";
 import { Manager, type ManageHost } from "../wizard/manage";
 import { boundView, chatLabel, type Draft, failedView, fromDoc, type FlowInfo, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
-import { Telegram, TelegramBots } from "./chat-telegram";
+import { INSTANCE_UPDATES, Telegram, TelegramBots } from "./chat-telegram";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
 import { envSecrets, WORKSPACE_HEADER } from "./workspace-host";
@@ -173,11 +173,13 @@ export class InstanceHost implements InstanceApi {
         const hook = randomSecret();
         s.draft.botToken = await seal(await key(), token);
         s.draft.hook = await seal(await key(), hook);
-        await new Telegram(token, "the new bot's token").setWebhook(`${cfg.publicUrl}/telegram/w/${s.draft.id}`, hook);
+        // polling (self-hosted): the runtime fetches the new bot's updates itself
+        if (cfg.transport !== "polling") await new Telegram(token, "the new bot's token").setWebhook(`${cfg.publicUrl}/telegram/w/${s.draft.id}`, hook);
       },
       async commit(s) {
         const d = s.draft;
         const doc = toDoc(d, s.user, flow, cfg.bot, cfg.publicUrl, cfg.trackerApi);
+        if (cfg.transport === "polling" && doc.chat) doc.chat.transport = "polling";
         const before = d.replaces ? reg.get(d.replaces) : undefined;
         const errs = validate(doc);
         if (errs.length) throw new Error(errs.join(" "));
@@ -257,7 +259,7 @@ export class InstanceHost implements InstanceApi {
         const token = await bots.replaceToken(botId);
         await self.put(doc.chat.token, id, token);
         const hook = self.secrets.get(doc.chat.webhookSecret) ?? "";
-        await new Telegram(token, doc.chat.token).setWebhook(`${cfg.publicUrl}/telegram/w/${id}`, hook);
+        if (cfg.transport !== "polling") await new Telegram(token, doc.chat.token).setWebhook(`${cfg.publicUrl}/telegram/w/${id}`, hook);
         await self.push(id);
       },
       access: (id) => bots.access(botOf(id) ?? ""),
@@ -410,7 +412,7 @@ export class InstanceHost implements InstanceApi {
   }
 
   /** An update of a workspace's own bot, on its own webhook path with its own secret. */
-  async ownUpdate(doc: InstanceDoc, id: string, secret: string, update: unknown): Promise<Routed> {
+  async ownUpdate(doc: InstanceDoc, id: string, secret: string | true, update: unknown): Promise<Routed> {
     await this.ready(doc);
     const ws = this.registry.get(id);
     let want = ws?.chat ? this.secrets.get(ws.chat.webhookSecret) : undefined;
@@ -424,7 +426,7 @@ export class InstanceHost implements InstanceApi {
         token = await unseal(k, s.draft.botToken as string);
       }
     }
-    if (!want || !secret || !(await same(secret, want))) return { status: 403 };
+    if (secret !== true && (!want || !secret || !(await same(secret, want)))) return { status: 403 };
     if (this.seen(`w:${id}`, update)) return {};
     const tg = new Telegram(token, "the workspace bot's token");
     const e = tg.parse(update);
@@ -435,6 +437,17 @@ export class InstanceHost implements InstanceApi {
       return {};
     }
     return ws ? this.to(id) : {};
+  }
+
+  /** The bots a polling runtime fetches updates for: the instance's, every workspace's own, setups waiting for /bind. */
+  async bots(doc: InstanceDoc): Promise<{ id: string; token: string }[]> {
+    await this.ready(doc);
+    const out = [{ id: "main", token: this.secrets.get(this.cfg.bot.token) ?? "" }];
+    for (const w of this.registry.list()) if (w.chat?.managed && this.secrets.get(w.chat.token)) out.push({ id: w.id, token: this.secrets.get(w.chat.token) as string });
+    const k = await this.key();
+    for (const s of this.store.rows<{ data: string }>("SELECT data FROM sessions").map((r) => JSON.parse(r.data) as Session))
+      if (s.draft.id && s.draft.botToken && !out.some((b) => b.id === s.draft.id)) out.push({ id: s.draft.id, token: await unseal(k, s.draft.botToken) });
+    return out.filter((b) => b.token);
   }
 
   /** The workspace an API token or id names (null: none). */
@@ -546,10 +559,10 @@ export class InstanceHost implements InstanceApi {
     await step("settings", settings, () => tg.setSettings(settings));
     const png = p.photo ? await (await fetch(p.photo)).arrayBuffer() : Uint8Array.from(atob(PHOTO), (c) => c.charCodeAt(0)).buffer;
     await step("photo", hex(await sha256(png)), () => tg.setPhoto(png));
-    if (secret) {
+    if (secret && this.cfg.transport !== "polling") {
       const url = `${this.cfg.publicUrl}/telegram`;
       await step("webhook", { url, secret: hex(await sha256(secret)) }, () =>
-        tg.call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query", "managed_bot"] }),
+        tg.call("setWebhook", { url, secret_token: secret, allowed_updates: INSTANCE_UPDATES }),
       );
     }
     // wizard sessions older than a day are gone; the wizard says so when one is touched again

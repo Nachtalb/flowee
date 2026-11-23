@@ -45,6 +45,8 @@ export interface Settings {
   digest: { from: number; to: number };
   /** The webhook URL and the secret name for its token (the bot profile is set from here when given). */
   webhook?: { url: string; secret: string };
+  /** The bot's updates are fetched by the runtime (getUpdates): the profile is set without a webhook. */
+  polling?: boolean;
   profile?: { photo?: string };
   /** The workspace's own bot (managed mode): its bot-wide settings are the workspace's to set. */
   ownBot?: boolean;

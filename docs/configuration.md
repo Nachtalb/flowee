@@ -20,6 +20,7 @@ The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "insta
 | `instance.bot.token`, `instance.bot.webhookSecret` | secret names | required | The instance bot (Telegram: `@FloweeAgent`) with bot management enabled. |
 | `instance.bot.username` | string | | Its username, shown in the wizard. |
 | `instance.publicUrl` | `https://…` | required | The Worker's URL; webhooks: `<url>/telegram` (instance bot), `<url>/telegram/w/<workspace>` (own bots). |
+| `instance.transport` | `webhook`, `polling` | `webhook` | How the instance bot's and the own bots' updates arrive; `polling` only self-hosted (docs/self-hosting.md), the Worker refuses it. |
 | `instance.owner` | chat user id | required | The instance owner; owns the preconfigured workspaces. |
 | `instance.creators` | chat user ids | `[owner]` | Who may create workspaces (the wizard and imports). Everyone else gets one sentence saying so. |
 | `instance.limits.workspacesPerUser` | integer ≥ 1 | `5` | Workspaces one user may own. |
@@ -96,6 +97,7 @@ valid, 1 a problem, 2 unreadable).
 | `chat.topicId` | integer ≥ 1 | | Bind only this forum topic of the chat (without it, the whole chat). |
 | `chat.publicUrl` | `https://…` | | The instance's public URL: `GET /setup` sets the webhook (`<url>/telegram`) and the bot profile from this workspace. Give it in one workspace only. |
 | `chat.managed` | boolean | `false` | Managed mode: the workspace's own bot, created through the instance bot; its webhook is `<publicUrl>/telegram/w/<id>` and its profile and settings come from this workspace. Without it the workspace uses the instance's bot. |
+| `chat.transport` | `webhook`, `polling` | `webhook`; self-hosted: `polling` when no public URL is configured | How the bot's updates arrive. `webhook`: Telegram POSTs to `<publicUrl>/telegram` (needs `chat.publicUrl`). `polling`: the self-hosted runtime fetches them with getUpdates and needs no public address (docs/self-hosting.md); the profile is set at start. The Worker supports only `webhook` and refuses `polling`. |
 | `files` | object | | Where files the owner sends are uploaded; without it files are refused. |
 | `files.url` | URL | required | A rustypaste-compatible endpoint (multipart `file`, `Authorization`, `expire` headers; answers the link). |
 | `files.token` | secret name | required | The upload token. |
@@ -190,7 +192,7 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
   `tracker.type` without its own `token`; `tracker.project` (a GitHub board) without any GitHub repository.
 - No instance with the flow's owner role (`trunk`: `owner`): the owner could not answer through the API.
 - `chat` without any `owners[].chat`.
-- `files` without `chat`; `profile` without `chat.publicUrl`.
+- `files` without `chat`; `profile` without `chat.publicUrl` (unless `chat.transport` is `polling`).
 - `schedule.digestFrom` not before `schedule.digestTo`; a `schedule.timezone` that is no IANA zone.
 - An inline `flow` that does not load (every problem of docs/flows.md's checks).
 - A feature the flow has no states for, or that the tracker cannot do (`$.features.samples: the inline flow has no

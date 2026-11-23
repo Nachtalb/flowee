@@ -30,11 +30,14 @@ export type Routed = { forward?: string; status?: number };
 /** The managed instance's host as the router reaches it. */
 export interface InstanceApi {
   mainUpdate(doc: InstanceDoc, update: unknown): Promise<Routed>;
-  ownUpdate(doc: InstanceDoc, id: string, secret: string, update: unknown): Promise<Routed>;
+  /** `secret` is the update's webhook secret token; `true` when the runtime fetched the update itself (polling). */
+  ownUpdate(doc: InstanceDoc, id: string, secret: string | true, update: unknown): Promise<Routed>;
   resolve(doc: InstanceDoc, q: { digest?: string; id?: string }): Promise<{ id: string; paused: boolean } | null>;
   active(doc: InstanceDoc): Promise<string[]>;
   admin(doc: InstanceDoc, method: string, path: string, body: unknown): Promise<{ status: number; json: string }>;
   setup(doc: InstanceDoc): Promise<Record<string, string>>;
+  /** The bots whose updates a polling runtime fetches (the instance's "main" and workspace ids), with their tokens. */
+  bots(doc: InstanceDoc): Promise<{ id: string; token: string }[]>;
 }
 
 export interface Platform {

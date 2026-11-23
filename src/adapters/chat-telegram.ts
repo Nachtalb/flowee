@@ -74,6 +74,14 @@ export function classify(m: Msg): Content {
   return file ? { caption, files: [file] } : "unsupported";
 }
 
+/** The Bot API's base URL; a self-hosted runtime may point it at a local Bot API server or a test stand-in. */
+let API = "https://api.telegram.org";
+export const setTelegramApi = (url: string) => void (API = url.replace(/\/+$/, ""));
+
+/** The updates a workspace's bot takes, by webhook or by polling; the managed instance's bot adds `managed_bot`. */
+export const ALLOWED_UPDATES = ["message", "callback_query"];
+export const INSTANCE_UPDATES = [...ALLOWED_UPDATES, "managed_bot"];
+
 const ref = (chat: { id: number }, topic?: number): ChatRef => (topic ? { chat: String(chat.id), topic } : { chat: String(chat.id) });
 
 export class Telegram implements Chat {
@@ -89,7 +97,7 @@ export class Telegram implements Chat {
   async call<R = { message_id: number }>(method: string, params: Record<string, unknown> | FormData): Promise<R> {
     if (!this.token) throw new Fail(502, "telegram", `Telegram is not connected (the secret ${this.tokenName} is missing).`);
     const form = params instanceof FormData;
-    const res = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
+    const res = await fetch(`${API}/bot${this.token}/${method}`, {
       method: "POST",
       headers: form ? {} : { "content-type": "application/json" },
       body: form ? params : JSON.stringify(params),
@@ -203,7 +211,7 @@ export class Telegram implements Chat {
   async download(file: FileRef): Promise<ArrayBuffer> {
     const { file_path } = await this.call<{ file_path: string }>("getFile", { file_id: file.id });
     // never let an error carry the download URL: it holds the bot token
-    const dl = await fetch(`https://api.telegram.org/file/bot${this.token}/${file_path}`).catch(() => null);
+    const dl = await fetch(`${API}/file/bot${this.token}/${file_path}`).catch(() => null);
     if (!dl?.ok) throw new Error(`download failed: ${dl?.status ?? "no answer"}`);
     return dl.arrayBuffer();
   }
@@ -254,7 +262,32 @@ export class Telegram implements Chat {
     return (await this.call("sendDocument", form)).message_id;
   }
   async setWebhook(url: string, secret: string) {
-    await this.call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query"] });
+    await this.call("setWebhook", { url, secret_token: secret, allowed_updates: ALLOWED_UPDATES });
+  }
+  /** Polling instead of a webhook: Telegram delivers by getUpdates only while no webhook is set. */
+  async deleteWebhook() {
+    await this.call("deleteWebhook", { drop_pending_updates: false });
+  }
+  /**
+   * The updates after `offset` (long polling, up to `timeout` s); `conflict` when another consumer holds the bot
+   * (Telegram's 409: a second getUpdates loop, or a webhook set again).
+   */
+  async updates(offset: number, timeout: number, allowed: string[], signal?: AbortSignal): Promise<{ ok: true; updates: { update_id: number }[] } | { ok: false; conflict: boolean; error: string }> {
+    if (!this.token) return { ok: false, conflict: false, error: `the secret ${this.tokenName} is missing` };
+    try {
+      const res = await fetch(`${API}/bot${this.token}/getUpdates`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ offset, timeout, allowed_updates: allowed }),
+        signal,
+      });
+      const d = await res.json<{ ok: boolean; result?: { update_id: number }[]; error_code?: number; description?: string }>().catch(() => null);
+      if (d?.ok && Array.isArray(d.result)) return { ok: true, updates: d.result };
+      return { ok: false, conflict: (d?.error_code ?? res.status) === 409, error: d?.description ?? `HTTP ${res.status}` };
+    } catch (e) {
+      // never let an error carry the URL: it holds the bot token
+      return { ok: false, conflict: false, error: e instanceof Error && e.name === "AbortError" ? "aborted" : "no answer" };
+    }
   }
   async webhookUrl() {
     return (await this.call<{ url: string }>("getWebhookInfo", {})).url;

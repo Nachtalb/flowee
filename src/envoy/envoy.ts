@@ -922,7 +922,7 @@ export class Envoy implements Inbox {
     const s = this.f.s;
     const hook = s.webhook;
     const secret = hook && this.f.secrets.get(hook.secret);
-    if (hook && secret) {
+    if ((hook && secret) || s.polling) {
       const t = s.texts;
       await step("name", t.botName, () => this.chat.setName(t.botName));
       await step("description", t.about, () => this.chat.setDescription(t.about));
@@ -933,8 +933,8 @@ export class Envoy implements Inbox {
       if (s.ownBot && set) await step("settings", OWN_BOT, () => set.call(this.chat, OWN_BOT));
       const png = await this.photo?.();
       if (png) await step("photo", hex(await sha256(png)), () => this.chat.setPhoto(png));
-      const url = hook.url;
-      await step(
+      const url = hook?.url;
+      if (hook && secret && url) await step(
         "webhook",
         { url, secret: hex(await sha256(secret)), ALLOWED_UPDATES: ["message", "callback_query"] },
         () => this.chat.setWebhook(url, secret),
