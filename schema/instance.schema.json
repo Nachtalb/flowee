@@ -131,6 +131,20 @@
           "description": "Tracker API base URL for new workspaces.",
           "pattern": "^https?://"
         },
+        "tokenDays": {
+          "description": "Days a new tracker token lives: the token link asks for this lifetime (GitHub: 1 to 366, or none; GitLab caps it at 365).",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 366
+            },
+            {
+              "const": "none"
+            }
+          ],
+          "default": 366
+        },
         "transport": {
           "enum": [
             "webhook",

@@ -171,13 +171,14 @@ const WHERE_GROUP = (bot: string, id: string) =>
     NAV,
   ].join("");
 const TOKEN_URL = (id: string, repo: string) =>
-  `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&issues=write&contents=read&repository_hooks=write`;
+  `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&expires_in=366&issues=write&contents=read&repository_hooks=write`;
 const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 6", lead = "") =>
   [
     `<p>🆕 <b>New workspace</b> · ${step}</p>`,
     lead,
     `<p><b>Send me a GitHub token for <code>${repo}</code></b></p>`,
-    `<p>Tap <b>🔑 Create a token</b>: GitHub opens the form with the permissions filled in. Under <b>Repository access</b> choose <code>${repo}</code>, create the token and paste it here.</p>`,
+    "<p>Tap <b>🔑 Create a token</b>: GitHub opens the form with the name, the owner, the permissions and an expiry of 366 days filled in. Create the token and paste it here.</p>",
+    TABLE(FACT(`👉 GitHub cannot preselect the repository from a link: under Repository access choose Only select repositories and pick <code>${repo}</code>.`)),
     "<p>🔒 I delete your message right away and keep the token encrypted; it is never shown again.</p>",
     "<p><b>Permissions it needs</b></p>",
     TABLE(FACT("Issues: read and write"), FACT("Contents: read"), FACT("Webhooks: read and write")),
@@ -493,7 +494,7 @@ describe("the setup wizard: one living message", () => {
       ),
     );
     expect(screen()).toContain(
-      URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&issues=write&contents=write&pull_requests=write&checks=read&statuses=read&repository_hooks=write"),
+      URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&expires_in=366&issues=write&contents=write&pull_requests=write&checks=read&statuses=read&repository_hooks=write"),
     );
     await dm(100, TOKEN);
     await tap(100, "w:roles:done");
@@ -501,6 +502,40 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
     expect(doc).toMatchObject({ flow: { preset: "pr-release" }, features: { pullRequests: true, releases: true } });
+  });
+
+  it("a token that reaches other repositories: one sentence, use it anyway or make a narrower one", async () => {
+    const fake = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      const u = new URL(new Request(i, init).url);
+      if (u.pathname === "/user/repos") return Response.json([{ full_name: "acme/app" }, { full_name: "acme/secret" }, { full_name: "acme/other" }]);
+      return fake(i, init);
+    }) as typeof fetch;
+    await dm(100, "/setup");
+    await dm(100, "acme/app");
+    await tap(100, "w:bot:shared");
+    await tap(100, "w:branch:single");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:bind:here");
+    await dm(100, TOKEN);
+    expect(screen()).toBe(
+      [
+        "<p>🆕 <b>New workspace</b> · Step 5 of 6</p>",
+        "<p><b>This token reaches more than it needs</b></p>",
+        "<p>Besides <code>acme/app</code> it can also reach <code>acme/secret</code>, <code>acme/other</code>; a narrower token limits what a leak could do.</p>",
+        TABLE(
+          OPT("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", CB("✅ Use it", "w:wide:keep")),
+          OPT("🔑 Make a narrower one", "A token for <code>acme/app</code> only: paste it here when you have it.", CB("🔑 Narrower", "w:wide:new")),
+        ),
+        NAV,
+      ].join(""),
+    );
+    await tap(100, "w:wide:new");
+    expect(screen()).toBe(CREDENTIAL("app", "acme/app"));
+    await dm(100, TOKEN);
+    await tap(100, "w:wide:keep");
+    expect(screen()).toContain("<p><b>How many agents do you want?</b></p>");
+    globalThis.fetch = fake;
   });
 
   it("every choice screen: each option's name, description and own button in one table row", async () => {
@@ -543,9 +578,16 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:flow:done");
     await tap(100, "w:bind:here");
     expect(screen()).toContain("<p><b>Send me a GitLab token for <code>acme/backend/api</code></b></p>");
-    expect(screen()).toContain("<p>Tap <b>🔑 Create a token</b>: GitLab opens the form with the permissions filled in. Create the token and paste it here.</p>");
+    expect(screen()).toContain("<p>Tap <b>🔑 Create a token</b>: GitLab opens the project&#39;s access token page. Create the token and paste it here.</p>".replace("&#39;", "'"));
+    expect(screen()).toContain(TABLE(FACT("👉 GitLab cannot fill in a project token from a link: name it Flowee api, choose the role Developer, the scope api and an expiry date 365 days ahead.")));
     expect(screen()).toContain(TABLE(FACT("Scope: api"), FACT("Role in each project: Developer (Maintainer to merge into a protected main branch)"), FACT("Webhooks: Maintainer, else Flowee checks the tracker every minute")));
-    expect(screen()).toContain(URL_("🔑 Create a token", "https://gitlab.com/-/user_settings/personal_access_tokens?name=Flowee+api&scopes=api"));
+    // one project: its project access token page first, a prefilled personal token as the alternative row
+    expect(screen()).toContain(
+      TABLE(
+        OPT("🔑 Project token", "Reaches this project only.", URL_("🔑 Create a token", "https://gitlab.com/acme/backend/api/-/settings/access_tokens")),
+        OPT("🔑 A personal token instead", "On GitLab.com a project token needs Premium; a personal token works everywhere but reaches every project you can reach.", URL_("↗ Open", "https://gitlab.com/-/user_settings/personal_access_tokens?name=Flowee+api&description=Flowee%3A+acme%2Fbackend%2Fapi&scopes=api")),
+      ),
+    );
     expect(screen()).not.toContain("GitHub");
     await dm(100, GL);
     await tap(100, "w:roles:done");

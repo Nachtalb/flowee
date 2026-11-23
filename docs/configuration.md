@@ -27,6 +27,7 @@ The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "insta
 | `instance.limits.workspacesPerUser` | integer ≥ 1 | `5` | Workspaces one user may own. |
 | `instance.profile` | `{name, description, shortDescription, photo}` | Flowee's own texts, the bundled photo | The instance bot's profile (docs/telegram.md). |
 | `instance.trackerApi` | URL | `https://api.github.com` | The tracker API of workspaces made in the wizard. |
+| `instance.tokenDays` | integer 1 to 366, or `"none"` | `366` | The token lifetime the wizard asks for when a workspace's `tracker.tokenDays` names none. |
 
 Workspace ids must be unique, no two workspaces may bind the same chat and topic, and a repository belongs to one
 workspace only. In standalone mode every workspace with a chat must name the
@@ -81,6 +82,7 @@ valid, 1 a problem, 2 unreadable).
 | `tracker.project` | `{owner, number}` | | A user's GitHub Projects (v2) board whose Status follows the state (needs a classic token). |
 | `tracker.project.owner` | string | required | The user login owning the project. |
 | `tracker.project.number` | integer ≥ 1 | required | The project number. |
+| `tracker.tokenDays` | integer 1 to 366, or `"none"` | `366` (else `instance.tokenDays`) | The lifetime the wizard's token link asks for: GitHub's `expires_in` (1 to 366 days, or `none` for no expiry; an organisation's lifetime policy may still cap it); GitLab's form takes no expiry in the link, so the screen asks for a date that many days ahead (GitLab caps it at 365). |
 | `tracker.notPlannedLabel` | string | `not planned` | GitLab stores no close reason: a ticket the flow closes as not planned (`drop`) gets this label, taken off again when it reopens. GitHub uses its own `not_planned` reason. |
 | `roles` | array, ≥ 1 | required | The callers of the API. |
 | `roles[].instance` | string `^[a-z0-9][a-z0-9-]*$` | required | Instance name (claims belong to it), unique. |

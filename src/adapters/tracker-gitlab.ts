@@ -21,7 +21,7 @@
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
 import { GitLabHooks } from "./hooks-gitlab";
-import { MAX_COMMITS, RECENT_RELEASES, type TokenHelp, tooManyCommits } from "../ports/tracker";
+import { MAX_COMMITS, RECENT_RELEASES, TOKEN_DAYS, type TokenHelp, tooManyCommits } from "../ports/tracker";
 import type {
   Branches,
   Change,
@@ -154,13 +154,23 @@ export function gitlabRepo(api?: string): RepoReference {
 /** A token's scope and the project role the switched-on features need (docs/gitlab.md), and the token form filled in. */
 export function gitlabToken(api?: string): TokenHelp {
   const web = api ? `https://${new URL(api).host}` : "https://gitlab.com";
-  return (_repos, name, features) => {
+  return (repos, name, features, days = TOKEN_DAYS) => {
     const on = new Set(features);
     const role = on.has("pullRequests") ? "Developer (Maintainer to merge into a protected main branch)" : on.has("releases") ? "Planner (Developer to move a tested tag)" : "Planner";
-    return {
-      permissions: ["Scope: api", `Role in each project: ${role}`, "Webhooks: Maintainer, else Flowee checks the tracker every minute"],
-      url: `${web}/-/user_settings/personal_access_tokens?${new URLSearchParams({ name: name.slice(0, 40), scopes: "api" })}`,
-    };
+    // GitLab's link fills in name, description and scopes of a personal token only; an expiry date is typed, at most a year ahead
+    const expiry = days === "none" ? "the latest expiry date it allows" : `an expiry date ${Math.min(days, 365)} days ahead`;
+    const personal = `${web}/-/user_settings/personal_access_tokens?${new URLSearchParams({ name: name.slice(0, 40), description: `Flowee: ${repos.join(", ")}`.slice(0, 1024), scopes: "api" })}`;
+    const permissions = ["Scope: api", `Role in each project: ${role}`, "Webhooks: Maintainer, else Flowee checks the tracker every minute"];
+    // one project: a project access token reaches that project only; it needs Premium on GitLab.com
+    if (repos.length === 1)
+      return {
+        permissions,
+        url: `${web}/${repos[0]}/-/settings/access_tokens`,
+        filled: "GitLab opens the project's access token page.",
+        steps: [`GitLab cannot fill in a project token from a link: name it ${name}, choose the role ${role.split(" ")[0]}, the scope api and ${expiry}.`],
+        alt: { label: "🔑 A personal token instead", url: personal, why: "On GitLab.com a project token needs Premium; a personal token works everywhere but reaches every project you can reach." },
+      };
+    return { permissions, url: personal, filled: "GitLab opens the form with the name, the description and the scope filled in.", steps: [`Choose ${expiry}; a personal token reaches every project you can reach.`] };
   };
 }
 
@@ -236,6 +246,11 @@ export class GitLab implements Tracker {
       page = next;
     }
     return out;
+  }
+
+  /** The projects the token reaches (first page): a check that it is not wider than needed. */
+  async reach(): Promise<string[]> {
+    return (await this.req<{ path_with_namespace: string }[]>("GET", "/projects?membership=true&simple=true&per_page=100", "listing the token's projects")).map((p) => p.path_with_namespace);
   }
 
   /** The HTTP status of reading the project (200: the token reaches it). */

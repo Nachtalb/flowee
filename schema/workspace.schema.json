@@ -476,6 +476,20 @@
           "minLength": 1,
           "description": "GitLab: the label a ticket closed as not planned gets, since GitLab stores no close reason.",
           "default": "not planned"
+        },
+        "tokenDays": {
+          "description": "Days a new tracker token lives: the token link asks for this lifetime (GitHub: 1 to 366, or none; GitLab caps it at 365).",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 366
+            },
+            {
+              "const": "none"
+            }
+          ],
+          "default": 366
         }
       }
     },

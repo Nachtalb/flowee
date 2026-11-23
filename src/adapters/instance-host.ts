@@ -171,6 +171,14 @@ export class InstanceHost implements InstanceApi {
         }
         return out;
       },
+      async wider(sealed, repos, t) {
+        const token = await unseal(await key(), sealed);
+        const api = t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined);
+        const want = new Set(repos.map((r) => r.toLowerCase()));
+        const seen = await TRACKERS[t.kind].make({ repo: repos[0], api, token, tokenName: "the token" }).reach();
+        return seen.filter((r) => !want.has(r.toLowerCase()));
+      },
+      tokenDays: cfg.tokenDays,
       repoTaken: (repo, except, t) => {
         const ident = repoIdent(t.kind, t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined) ?? TRACKER_KINDS[t.kind].api, repo);
         return reg.list().find((w) => w.id !== except && repoList(w).some((r) => r.ident === ident))?.id;

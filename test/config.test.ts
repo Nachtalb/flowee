@@ -29,7 +29,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   tracker: {
     type: "github",
     repos: ["acme/app", { repo: "acme/tools/lib", alias: "lib", token: "GL", mainBranch: "master", type: "gitlab", api: "https://gitlab.acme.example/api/v4" }],
-    mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 }, notPlannedLabel: "wontfix" },
+    mainBranch: "main", api: "https://ghe.example/api/v3", token: "GH", project: { owner: "acme", number: 1 }, notPlannedLabel: "wontfix", tokenDays: 90 },
   roles: [
     { instance: "board", role: "board", secret: "T_BOARD" },
     { instance: "owner", role: "owner", secret: "T_OWNER" },

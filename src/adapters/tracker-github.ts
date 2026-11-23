@@ -2,7 +2,7 @@
 // board, a user's Projects (v2) board over GraphQL. Plain fetch, no SDK.
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
-import { MAX_COMMITS, tooManyCommits } from "../ports/tracker";
+import { MAX_COMMITS, TOKEN_DAYS, tooManyCommits } from "../ports/tracker";
 import type { Board, Branches, Checks, Comment, Commit, Issue, IssuePatch, PullRequests, Releases, RepoReference, Tags, TokenHelp, Tracker } from "../ports/tracker";
 import { GitHubHooks } from "./hooks-github";
 import { GitHubBranches, GitHubChecks, GitHubPulls, GitHubReleases, GitHubTags } from "./tracker-github-code";
@@ -68,7 +68,7 @@ const PERMISSION: Record<string, string> = { issues: "Issues", contents: "Conten
 /** A fine-grained token's permissions per feature (docs/adapters.md) and the token form filled in with them. */
 export function githubToken(api?: string): TokenHelp {
   const web = api && !/^https:\/\/api\.github\.com\/?$/.test(api) ? `https://${new URL(api).host}` : "https://github.com";
-  return (repos, name, features) => {
+  return (repos, name, features, days = TOKEN_DAYS) => {
     const p: Record<string, "read" | "write"> = { issues: "write", contents: "read" };
     const on = new Set(features);
     if (on.has("pullRequests")) Object.assign(p, { pull_requests: "write", checks: "read", statuses: "read", contents: "write" });
@@ -76,10 +76,13 @@ export function githubToken(api?: string): TokenHelp {
     // lets Flowee register its webhook itself (docs/webhooks.md); without it the workspace polls
     p.repository_hooks = "write";
     const owners = [...new Set(repos.map((r) => r.split("/")[0]))];
-    const q = new URLSearchParams({ name: name.slice(0, 40), description: `Flowee: ${repos.join(", ")}`.slice(0, 1024), ...(owners.length === 1 ? { target_name: owners[0] } : {}), ...p });
+    const q = new URLSearchParams({ name: name.slice(0, 40), description: `Flowee: ${repos.join(", ")}`.slice(0, 1024), ...(owners.length === 1 ? { target_name: owners[0] } : {}), expires_in: String(days), ...p });
     return {
       permissions: Object.entries(p).map(([k, v]) => `${PERMISSION[k]}: ${v === "write" ? "read and write" : "read"}`),
       url: `${web}/settings/personal-access-tokens/new?${q}`,
+      filled: `GitHub opens the form with the name, the owner, the permissions and ${days === "none" ? "no expiry" : `an expiry of ${days} days`} filled in.`,
+      // the form's link parameters are name, description, target_name, expires_in and the permissions: no repositories
+      steps: [`GitHub cannot preselect the repository from a link: under Repository access choose Only select repositories and pick ${repos.map((r) => `\`${r}\``).join(", ")}.`],
     };
   };
 }
@@ -152,6 +155,11 @@ export class GitHub implements Tracker {
 
   get r() {
     return `/repos/${this.c.repo}`;
+  }
+
+  /** The repositories the token reaches (first page, most recently updated first): a check that it is not wider than needed. */
+  async reach(): Promise<string[]> {
+    return (await this.req<{ full_name: string }[]>("GET", "/user/repos?per_page=100&sort=updated", "listing the token's repositories")).map((r) => r.full_name);
   }
 
   /** The HTTP status of reading the repository (200: the token reaches it). */

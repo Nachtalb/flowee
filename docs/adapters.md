@@ -121,7 +121,9 @@ channels/threads with the same `/bind` command.
 
 The tracker side of the wizard: a `RepoReference` (`src/ports/tracker.ts`) turns what the user pastes into
 `owner/name` (GitHub: `githubRepo`, links, remotes, an Enterprise host), and a `TokenHelp` gives the token's
-permissions for the switched-on features and a link to the filled-in token form (`githubToken`).
+permissions for the switched-on features, a link to the token form with what its link can fill in, the steps it
+cannot (`steps`, shown as highlighted rows) and an alternative kind of token (`alt`); `reach()` lists what a token
+can see, so the wizard can say when it is wider than the workspace needs.
 
 ## WorkspaceRegistry
 

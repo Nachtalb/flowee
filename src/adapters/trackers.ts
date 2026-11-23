@@ -20,7 +20,7 @@ export interface TrackerConfig {
 }
 
 export interface TrackerAdapter {
-  make(c: TrackerConfig): Tracker & { probe(): Promise<number> };
+  make(c: TrackerConfig): Tracker & { probe(): Promise<number>; reach(): Promise<string[]> };
   /** Reads a pasted repository reference (link, path, git remote) for this kind and API. */
   parseRepo(api?: string): RepoReference;
   /** The token's minimal permissions per feature and a link to the token form. */

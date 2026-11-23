@@ -36,6 +36,8 @@ export interface WorkspaceDoc {
     project?: { owner: string; number: number };
     /** GitLab stores no close reason: a ticket closed as not planned gets this label (default `not planned`). */
     notPlannedLabel?: string;
+    /** Days a new tracker token lives, asked for by the token link (default 366, GitHub's longest; `none`: no expiry). */
+    tokenDays?: number | "none";
   };
   roles: { instance: string; role: string; secret: string }[];
   owners: { name?: string; tracker?: string; chat?: string }[];
@@ -99,6 +101,8 @@ export interface InstanceConfig {
   profile?: { name?: string; description?: string; shortDescription?: string; photo?: string };
   /** The tracker API base URL for workspaces made in the wizard (default https://api.github.com). */
   trackerApi?: string;
+  /** Days a new tracker token lives, for workspaces whose document names none (default 366). */
+  tokenDays?: number | "none";
   /** How the bots' updates arrive; polling only in the self-hosted runtime. */
   transport?: "webhook" | "polling";
 }

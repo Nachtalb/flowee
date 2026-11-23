@@ -10,8 +10,23 @@ import type { Hooks } from "./hooks";
  */
 export type RepoReference = (ref: string) => string | undefined;
 
-/** How to get a token for these repositories with the switched-on features: the permissions, and a link that opens the form. */
-export type TokenHelp = (repos: string[], name: string, features: string[]) => { permissions: string[]; url?: string };
+/** How to get a token: its permissions, a link to the form with what the link can fill in, the rest as steps. */
+export interface TokenGuide {
+  permissions: string[];
+  url?: string;
+  /** What the link fills in, one sentence (`GitHub opens the form with … filled in.`). */
+  filled?: string;
+  /** What the link cannot fill in, one sentence each (`owner/name` in backticks); each a highlighted row. */
+  steps?: string[];
+  /** Another kind of token for the same repositories, when the first may not be available. */
+  alt?: { label: string; url: string; why: string };
+}
+
+/** Days a new token lives by default: the longest GitHub's form accepts (`expires_in`, 1 to 366 or none). */
+export const TOKEN_DAYS = 366;
+
+/** How to get a token for these repositories with the switched-on features; `days`: its lifetime (`none`: no expiry). */
+export type TokenHelp = (repos: string[], name: string, features: string[], days?: number | "none") => TokenGuide;
 
 export interface Issue {
   n: number;

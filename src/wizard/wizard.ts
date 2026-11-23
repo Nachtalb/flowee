@@ -5,7 +5,7 @@ import type { RepoDoc, WorkspaceDoc } from "../config/document";
 import type { TrackerKind } from "../config/trackers";
 import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
-import type { TokenHelp } from "../ports/tracker";
+import { TOKEN_DAYS, type TokenHelp } from "../ports/tracker";
 
 /** A workspace's tracker: its kind and, when not the default one, its API (GitHub Enterprise, a self-managed GitLab). */
 export interface TrackerRef {
@@ -66,8 +66,10 @@ export interface Session {
   ts: number;
   /** The steps this setup asks, for "Step k of n". */
   plan?: Step[];
-  /** A second screen of the step: the group instructions of the bind step, the options after the branching. */
-  sub?: "group" | "options";
+  /** A second screen of the step: the group instructions of the bind step, the options after the branching, a token wider than needed. */
+  sub?: "group" | "options" | "wide";
+  /** The repositories a pasted token reaches besides the workspace's (sub `wide`). */
+  wide?: string[];
   /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
   helper?: number;
   /** Edit one part: the summary follows that step. */
@@ -108,6 +110,10 @@ export interface WizardHost {
   seal(value: string): Promise<string>;
   /** Problems of the sealed token with the repositories on that tracker, one sentence each (none: usable). */
   checkRepos(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
+  /** Repositories besides `repos` the sealed token reaches (none, or unknown: empty). */
+  wider?(sealed: string, repos: string[], t: TrackerRef): Promise<string[]>;
+  /** Days a new tracker token lives when the document names none (`tracker.tokenDays`). */
+  tokenDays?: number | "none";
   /** The workspace other than `except` that already has this repository. */
   repoTaken(repo: string, except: string | undefined, t: TrackerRef): string | undefined;
   /** The managed bot just created: its token stored for the draft, its webhook set. */
@@ -302,6 +308,11 @@ export class Wizard {
     private now: () => number,
   ) {
     this.living = new Living(chat, host);
+  }
+
+  /** The lifetime a new token is asked for: the document's, else the instance's, else the longest GitHub allows. */
+  private tokenDays(d: Draft): number | "none" {
+    return d.base?.tracker?.tokenDays ?? this.host.tokenDays ?? TOKEN_DAYS;
   }
 
   /** Every switch of the draft, the branching included. */
@@ -547,22 +558,42 @@ export class Wizard {
         };
       }
       case "credential": {
-        const on = Object.entries(this.switches(d)).filter(([, v]) => v).map(([k]) => k);
-        const help = this.host.tokenHelp(d.tracker ?? { kind: "github" })(d.repos, `Flowee ${d.id ?? ""}`.trim(), on);
         const name = this.host.trackerName(d.tracker?.kind);
-        const github = (d.tracker?.kind ?? "github") === "github";
+        const what = d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "");
+        if (s.sub === "wide") {
+          const more = s.wide ?? [];
+          return {
+            body: [
+              top,
+              question("This token reaches more than it needs"),
+              text(`Besides ${what} it can also reach ${more.slice(0, 3).map(code).join(", ")}${more.length > 3 ? ` and ${more.length - 3} more` : ""}; a narrower token limits what a leak could do.`),
+            ],
+            rows: [
+              options(
+                option("✅ Use it anyway", "Keep this token; you can replace it later in the workspace's menu.", b("✅ Use it", "wide:keep")),
+                option("🔑 Make a narrower one", `A token for ${what} only: paste it here when you have it.`, b("🔑 Narrower", "wide:new")),
+              ),
+              nav,
+            ],
+          };
+        }
+        const on = Object.entries(this.switches(d)).filter(([, v]) => v).map(([k]) => k);
+        const help = this.host.tokenHelp(d.tracker ?? { kind: "github" })(d.repos, `Flowee ${d.id ?? ""}`.trim(), on, this.tokenDays(d));
+        const step = (x: string) => esc(x).replace(/`([^`]+)`/g, "<code>$1</code>");
+        const create = help.url ? [linkBtn("🔑 Create a token", help.url)] : [];
         return {
           body: [
             top,
-            question(`Send me a ${name} token for ${d.repos.length > 1 ? "these repositories" : code(d.repos[0] ?? "")}`),
-            text(
-              `${help.url ? `Tap <b>🔑 Create a token</b>: ${name} opens the form with the permissions filled in. ` : ""}${github ? `Under <b>Repository access</b> choose ${d.repos.map(code).join(", ")}, create the token and paste it here.` : "Create the token and paste it here."}`,
-            ),
+            question(`Send me a ${name} token for ${what}`),
+            text(`${help.url ? `Tap <b>🔑 Create a token</b>: ${esc(help.filled ?? `${name} opens the form.`)} ` : ""}Create the token and paste it here.`),
+            ...(help.steps?.length ? [facts(help.steps.map((x) => [`👉 ${step(x)}`]))] : []),
             text("🔒 I delete your message right away and keep the token encrypted; it is never shown again."),
             text("<b>Permissions it needs</b>"),
             facts(help.permissions.map((x) => [esc(x)])),
           ],
-          rows: [...(help.url ? [row(linkBtn("🔑 Create a token", help.url))] : []), nav],
+          rows: help.alt
+            ? [options(option("🔑 Project token", "Reaches this project only.", ...create), option(help.alt.label, esc(help.alt.why), linkBtn("↗ Open", help.alt.url))), nav]
+            : [...(create.length ? [row(...create)] : []), nav],
         };
       }
       case "roles": {
@@ -658,6 +689,7 @@ export class Wizard {
         return;
       }
       case "back": {
+        if (s.sub === "wide") delete d.token;
         if (s.sub) {
           delete s.sub;
           return this.show(s);
@@ -700,6 +732,11 @@ export class Wizard {
       case "roles":
         if (!Object.values(d.roles).some((x) => x > 0)) return this.show(s, { note: "At least one agent is needed." });
         return this.advance(s);
+      case "wide":
+        if (v === "keep" && d.token) return this.advance(s);
+        delete d.token;
+        delete s.sub;
+        return this.show(s);
       case "confirm":
         return this.confirm(s);
     }
@@ -723,10 +760,18 @@ export class Wizard {
       const sealed = await this.host.seal(token);
       const problems = await this.host.checkRepos(sealed, d.repos, d.tracker ?? { kind: "github" });
       if (problems.length) {
+        delete s.sub;
         await this.show(s, { note: [kept, ...problems].filter(Boolean).join(" ") });
         return true;
       }
       d.token = sealed;
+      const wide = (await this.host.wider?.(sealed, d.repos, d.tracker ?? { kind: "github" }).catch(() => [])) ?? [];
+      if (wide.length) {
+        s.sub = "wide";
+        s.wide = wide;
+        await this.show(s, { note: kept });
+        return true;
+      }
       await this.advance(s, { note: kept });
       return true;
     }

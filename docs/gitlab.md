@@ -68,8 +68,10 @@ Endpoints the adapter calls (all under `/api/v4`): `GET/POST /projects/:id/issue
 
 ## Token: scopes and role per feature
 
-A project access token (one project, its own bot user; Premium on gitlab.com, any self-managed tier) or a
-personal access token, sent as `Authorization: Bearer` (GitLab accepts personal, project and group tokens that way
+A project access token (one project, its own bot user; Premium on gitlab.com, any self-managed tier; the wizard
+points to the project's token page first, since GitLab's link cannot prefill it) or a personal access token (the
+wizard's link fills in name, description and `scopes`, the only parameters GitLab's form reads; the expiry is
+typed, at most 365 days ahead), sent as `Authorization: Bearer` (GitLab accepts personal, project and group tokens that way
 as well as in `PRIVATE-TOKEN`). Flowee writes issues, so the token needs the **`api`** scope: `read_api` is read-only
 and there is no narrower write scope. What the scope may do is then limited by the token's **role** in the
 project (https://docs.gitlab.com/user/permissions/):
