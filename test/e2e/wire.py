@@ -14,9 +14,11 @@ Then flowee.py walks a `pr-release` ticket (workspace w3: pull requests with a r
 card and the tested tag) through a branch pushed to a scratch bare repository the stand-in GitHub reads, and the same
 two walks run on GitLab (workspaces g2 and g3, a nested `acme/team/<id>` project): issues, notes, a merge request,
 its pipeline, the release and the tag through the GitLab adapter.
+Last, a webhook walk (workspace w4): after the deploy's /setup the cron registers the repository's webhook in the
+stand-in GitHub, which then POSTs signed deliveries; `queue` answers from the webhook-fed mirror without a listing.
 Everything lives in a scratch directory that is removed at the end; wrangler is stopped at the end.
 """
-import argparse, hashlib, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
+import argparse, hashlib, hmac, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -30,6 +32,7 @@ class GitHub:
 
     def __init__(self):
         self.repos = {}
+        self.calls = []  # (method, path) of every request
         me = self
 
         class H(BaseHTTPRequestHandler):
@@ -53,7 +56,22 @@ class GitHub:
         self.url = f"http://127.0.0.1:{self.srv.server_port}"
 
     def repo(self, name):
-        return self.repos.setdefault(name, {"issues": {}, "main": [], "comments": 0, "pulls": [], "checks": {}, "release": None, "tags": {}, "bare": None})
+        return self.repos.setdefault(name, {"issues": {}, "main": [], "comments": 0, "pulls": [], "checks": {}, "release": None, "tags": {}, "bare": None, "hooks": []})
+
+    def deliver(self, name, event, payload, delivery, secret=None):
+        """POSTs a delivery to the repository's webhook the way GitHub does (X-Hub-Signature-256 over the raw body)."""
+        import urllib.request, urllib.error
+        h = self.repo(name)["hooks"][0]
+        body = json.dumps({**payload, "repository": {"full_name": name}}).encode()
+        sig = hmac.new((secret or h["config"]["secret"]).encode(), body, hashlib.sha256).hexdigest()
+        req = urllib.request.Request(h["config"]["url"], data=body, method="POST", headers={
+            "content-type": "application/json", "user-agent": "GitHub-Hookshot/wire", "x-github-event": event,
+            "x-github-delivery": delivery, "x-hub-signature-256": f"sha256={sig}"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
 
     def code(self, r, method, rest, q, body):
         """Branches (read from the scratch bare repository), pull requests, checks, releases, tags."""
@@ -109,6 +127,12 @@ class GitHub:
         if not m:
             return 501, {"message": f"no route {method} {path}"}
         r, rest = self.repo(m.group(1)), m.group(2)
+        self.calls.append((method, url))
+        if rest == "/hooks" and method == "GET" and r["hooks"] is not None:
+            return 200, [{k: v for k, v in h.items() if k != "config"} | {"config": {"url": h["config"]["url"]}} for h in r["hooks"]]
+        if rest == "/hooks" and method == "POST":
+            r["hooks"].append({"id": len(r["hooks"]) + 1, "active": True, "events": body["events"], "config": body["config"], "last_response": {"code": None, "status": "unused", "message": None}})
+            return 201, r["hooks"][-1]
         if (x := self.code(r, method, rest, q, body)) is not None:
             return x
         view = lambda i: {k: v for k, v in i.items() if k != "comments"}
@@ -308,11 +332,12 @@ def start_worker(scratch, gh, gl, heading1):
     rel = {"pullRequests": {"checks": ["build"]}, "releases": {"testedTag": "tested", "checks": ["build"]}}
     w3 = workspace("w3", "For the owner", gh, "pr-release", rel)
     g3 = workspace("g3", "For the owner", gl, "pr-release", rel, gitlab=True)
-    config = {"flowee": 1, "workspaces": [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3]}
+    w4 = {**workspace("w4", "For the owner", gh), "sync": {"webhooks": "auto"}}
+    config = {"flowee": 1, "workspaces": [workspace("w1", heading1, gh), workspace("w2", "For the owner", gh), w3, workspace("g2", "For the owner", gl, gitlab=True), g3, w4]}
     args = ["npx", "wrangler", "dev", "--ip", "127.0.0.1", "--port", str(port), "--persist-to", str(scratch / "state"),
             "--show-interactive-dev-session=false", "--test-scheduled", "--var", f"FLOWEE_CONFIG:{json.dumps(config)}", "--var", "GITHUB_TOKEN:gh-test",
-            "--var", "GITLAB_TOKEN:gl-test"]
-    for ws in ("w1", "w2", "w3", "g2", "g3"):
+            "--var", "GITLAB_TOKEN:gl-test", "--var", "FLOWEE_KEY:wire-key"]
+    for ws in ("w1", "w2", "w3", "g2", "g3", "w4"):
         for w in WHO:
             args += ["--var", f"{ws.upper()}_{w.upper()}:{hashlib.sha256(f'{ws}-{w}'.encode()).hexdigest()}"]
     p = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, NO_COLOR="1"))
@@ -454,6 +479,51 @@ def walk_pr(c, gh, url, repo_name):
     return all(steps)
 
 
+def walk_hooks(c, gh, url, repo_name):
+    """Webhooks: registered by the cron after /setup, signed deliveries, `queue` from the mirror without a listing."""
+    import urllib.request
+    steps = []
+    r = gh.repo(repo_name)
+
+    def check(what, ok):
+        steps.append(ok)
+        print(f"  {'ok  ' if ok else 'FAIL'} {what}")
+
+    def get(path):
+        return json.loads(urllib.request.urlopen(urllib.request.Request(f"{url}{path}", headers={"User-Agent": "wire"}), timeout=60).read())
+
+    def until(cond):
+        for _ in range(50):
+            if cond():
+                return True
+            time.sleep(0.2)
+        return cond()
+
+    def queue():
+        rc, out, err = c("board", "queue")
+        return out if rc == 0 else {}
+
+    get("/setup")  # what the deploy calls: the workspace learns its public URL
+    urllib.request.urlopen(urllib.request.Request(f"{url}/__scheduled?cron=*", headers={"User-Agent": "wire"}), timeout=60).read()
+    check("the cron registered the webhook", until(lambda: bool(r["hooks"])))
+    if not r["hooks"]:
+        return False
+    h = r["hooks"][0]
+    check(f"its address is {url}/hooks/w4/w4, signed, json", h["config"].get("url") == f"{url}/hooks/w4/w4" and len(h["config"].get("secret", "")) == 64 and h["config"].get("content_type") == "json")
+    check("ping accepted", r["hooks"] and gh.deliver(repo_name, "ping", {"zen": "Speak like a human.", "hook_id": 1}, "d-ping") == 200)
+    check("queue answers from the mirror", until(lambda: queue().get("source") == "mirror"))
+    rc, out, err = c("board", "file", "Webhooks", "walk", stdin="## Acceptance\n- it works")
+    check("a ticket filed", rc == 0)
+    listings = lambda: sum(1 for m, p in gh.calls if m == "GET" and p == f"/repos/{repo_name}/issues")
+    before = listings()
+    check("the issues event is accepted", gh.deliver(repo_name, "issues", {"action": "opened", "issue": {"number": 1}}, "d-1") == 200)
+    check("a redelivery is accepted and changes nothing", gh.deliver(repo_name, "issues", {"action": "opened", "issue": {"number": 1}}, "d-1") == 200)
+    check("a wrong signature is refused", gh.deliver(repo_name, "issues", {"action": "opened", "issue": {"number": 1}}, "d-2", secret="wrong") == 401)
+    check("queue shows the new ticket from the mirror", until(lambda: queue().get("queue") == [1] and queue().get("source") == "mirror"))
+    check("no listing of the tracker for it", listings() == before)
+    return all(steps)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flow-py", help="an external client with the same wire contract, run unchanged against workspace w1")
@@ -518,6 +588,12 @@ def main():
         c = pr_client("g3", gl, "acme/team/g3")
         print(f"{c.name} -> {url}/w/g3/v1")
         results[c.name] = walk_pr(c, gl, url, "acme/team/g3")
+        rw = repo("w4-client")
+        c = Client("flowee.py webhooks", [sys.executable, str(ROOT / "client/flowee.py")],
+                   lambda who: {"FLOWEE_URL": url, "FLOWEE_WORKSPACE": "w4", "FLOWEE_AS": who, "FLOWEE_TOKEN": f"w4-{who}", "FLOWEE_CONFIG": str(scratch / "none.toml")},
+                   "flowee-gates.json", rw)
+        print(f"{c.name} -> {url}/hooks/w4/w4")
+        results[c.name] = walk_hooks(c, gh, url, "acme/w4")
     finally:
         worker.terminate()
         worker.wait(timeout=30)
