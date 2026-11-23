@@ -200,7 +200,7 @@ export class GitLab implements Tracker {
 
   async req<T>(method: string, path: string, what: string, body?: unknown): Promise<T> {
     const res = await this.send(method, path, what, body);
-    return (res.status === 204 || method === "HEAD" ? null : await res.json()) as T;
+    return (res.status === 204 ? null : await res.json()) as T;
   }
 
   /** Every page of a list (`x-next-page` names the next one; empty on the last). */
@@ -321,7 +321,7 @@ class GitLabBranches implements Branches {
 
   async exists(ref: string, path: string) {
     const what = `${path} on ${ref}`;
-    if ((await orNull(this.gl.req("HEAD", `${this.gl.p}/repository/files/${enc(path)}?ref=${enc(ref)}`, what))) !== null) return true;
+    if ((await orNull(this.gl.send("HEAD", `${this.gl.p}/repository/files/${enc(path)}?ref=${enc(ref)}`, what))) !== null) return true;
     // a directory: its tree lists something (git keeps no empty directories)
     const tree = await orNull(this.gl.req<unknown[]>("GET", `${this.gl.p}/repository/tree?path=${enc(path)}&ref=${enc(ref)}&per_page=1`, what));
     return !!tree?.length;
