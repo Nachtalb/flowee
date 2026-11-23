@@ -9,6 +9,7 @@ import { BUILTIN, type Flow, type InputRule } from "./chart";
 import { type Repos, SLOT } from "./repos";
 import { type Caller, type Ctx, check, fire, pick } from "./engine";
 import { codeView, untrustedQueue } from "./code";
+import { Webhooks } from "./events";
 import { housekeeping } from "./housekeeping";
 import { Fail } from "./errors";
 import type { Settings } from "./settings";
@@ -28,6 +29,8 @@ export interface Inbox {
   closeCards(n: number): Promise<void>;
   tick(): Promise<void>;
   setup(): Promise<Record<string, string>>;
+  /** A one-line note to the owner (webhooks off or back on). */
+  notice?(text: string): Promise<void>;
 }
 
 export type Body = Record<string, unknown>;
@@ -37,6 +40,8 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 export class Flowee {
   envoy?: Inbox;
   readonly flow: Flow;
+  /** Webhooks, the mirror of open tickets and the listings' schedule (src/core/events.ts). */
+  readonly events = new Webhooks(this);
   readonly strip: (text: string) => string;
 
   constructor(
@@ -255,7 +260,7 @@ export class Flowee {
   }
 
   async queue(c: Caller) {
-    const issues = await this.tracker.openIssues();
+    const { issues, source } = await this.events.forQueue();
     const mine = this.rows<{ n: number; since: number; touched: number }>("SELECT n, since, touched FROM claims WHERE instance = ? ORDER BY since", c.instance)[0];
     const out: Record<string, unknown> = {
       role: c.role,
@@ -263,6 +268,7 @@ export class Flowee {
       claim: mine ? { n: this.ref(mine.n), since: iso(mine.since), touched: iso(mine.touched) } : null,
     };
     if (this.flow.options.inboxRoles.includes(c.role)) out.inbox = this.inbox(issues).sort(byNumber).map((i) => this.ref(i.n));
+    out.source = source;
     return out;
   }
 
@@ -362,14 +368,30 @@ export class Flowee {
     }
   }
 
-  async cron() {
+  /**
+   * The scheduled work: the reaper, queued webhook events, the listings that are due (polling, or the reconcile
+   * of a webhook repository) with the housekeeping of the repositories listed, the envoy's minute, pruning. The
+   * cron runs it with `force` (polled repositories are listed on every call, as before); the workspace's alarm
+   * without, at the time `wakeAt()` names, so a webhook workspace makes no tracker call until something is due.
+   */
+  async cron(force = true) {
     const now = this.clock.now();
     await this.reap();
-    await housekeeping(this).catch((e) => console.error("housekeeping", e));
+    await this.events.drain();
+    const due = await this.events.scheduled(force);
+    if (due.length) await housekeeping(this, due).catch((e) => console.error("housekeeping", e));
     if (this.envoy) await this.envoy.tick().catch((e) => console.error("envoy tick", e));
     this.db.exec("DELETE FROM idem WHERE ts < ?", now - 24 * 3600e3);
     this.db.exec("DELETE FROM updates WHERE ts < ?", now - 7 * 24 * 3600e3);
     if (this.envoy) await this.envoy.setup().catch((e) => console.error("setup", e));
+  }
+
+  /** When the alarm runs `cron(false)` next: queued events, the earliest lease expiry, a reconcile, the next hour (digest, pruning). */
+  wakeAt(): number {
+    const now = this.clock.now();
+    const lease = this.rows<{ t: number | null }>("SELECT MIN(touched) AS t FROM claims")[0]?.t;
+    const at = [Math.floor(now / 3600e3 + 1) * 3600e3, this.events.next(), lease == null ? undefined : lease + this.flow.options.leaseHours * 3600e3 + 1000];
+    return Math.max(now, Math.min(...at.filter((x): x is number => x !== undefined)));
   }
 }
 

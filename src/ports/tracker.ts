@@ -2,6 +2,7 @@
 // capabilities below are what richer flows (branches, pull requests, CI, releases) use. An adapter that cannot
 // offer one leaves it undefined, and `capability()` turns that into a clear 501 refusal.
 import { Fail } from "../core/errors";
+import type { Hooks } from "./hooks";
 
 /**
  * What a user pastes for a repository (a link, `owner/name`, a git remote) as `owner/name`; undefined when it names
@@ -69,6 +70,8 @@ export interface Tracker {
   checks?: Checks;
   releases?: Releases;
   tags?: Tags;
+  /** Webhooks: deliveries instead of polling (src/ports/hooks.ts). */
+  hooks?: Hooks;
 }
 
 /** A project board column per state (GitHub Projects v2 "Status"). */

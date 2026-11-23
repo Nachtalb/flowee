@@ -806,7 +806,7 @@ export class Envoy implements Inbox {
    */
   async sync() {
     const f = this.f;
-    const issues = await f.tracker.openIssues();
+    const issues = await f.events.openIssues();
     const seeding = this.get(KV.seeded) === undefined;
     const inbox = f.inbox(issues);
     const heading = f.s.texts.cardHeading;
@@ -860,6 +860,11 @@ export class Envoy implements Inbox {
     this.set(KV.digest, z.day);
     const n = this.openCount();
     if (n) await this.sendTodo(`☀️ <b>Good morning: ${n} open</b>`, true);
+  }
+
+  /** A one-line note to the owner, quietly (the sync state: webhooks off or back on). */
+  async notice(text: string) {
+    await this.send(esc(text), undefined, true);
   }
 
   /** The poller's minute: inbox sync, new item notes, the menu counts, the digest. */

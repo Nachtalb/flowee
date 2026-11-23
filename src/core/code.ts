@@ -330,7 +330,7 @@ export function untrustedQueue(f: Flowee, c: Caller, issues: Issue[], out: Issue
  * that belongs to a ticket still in an untested state; it lands on the newest such commit that is not of a skipped
  * type and (with `releases.checks`) has those checks green. The shas it moved to.
  */
-export async function moveTestedTag(f: Flowee): Promise<string[]> {
+export async function moveTestedTag(f: Flowee, repos: Repo[] = f.tracker.list): Promise<string[]> {
   const r = f.s.features.releases;
   if (!r?.testedTag) return [];
   const moved: string[] = [];
@@ -340,7 +340,7 @@ export async function moveTestedTag(f: Flowee): Promise<string[]> {
       .replace("\\{n\\}", "(\\d+)")}\\s*$`,
   );
   const skip = new RegExp(`^(${r.skip.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") || "(?!)"})(\\([^)]*\\))?!?:`);
-  for (const repo of f.tracker.list) {
+  for (const repo of repos) {
     const tags = capability(repo.tracker, "tags");
     const base = await tags.get(r.testedTag);
     const all = await repo.tracker.commits(repo.branch, new Date(f.clock.now() - 365 * 864e5).toISOString());
@@ -381,22 +381,25 @@ export async function moveTestedTag(f: Flowee): Promise<string[]> {
 }
 
 /** One ticket per open pull request of the configured authors (feature dependencyTickets), filed once. */
-export async function fileDependencyTickets(f: Flowee) {
-  const d = f.s.features.dependencyTickets;
-  if (!d) return;
-  const m = f.flow.meta(f.flow.initial);
-  for (const repo of f.tracker.list) {
+export async function fileDependencyTickets(f: Flowee, repos: Repo[] = f.tracker.list) {
+  if (!f.s.features.dependencyTickets) return;
+  for (const repo of repos) {
     const pulls = repo.tracker.pulls;
     if (!pulls) continue;
-    for (const p of await pulls.open()) {
-      const key = `deps:${repo.repo}#${p.number}`;
-      if (!d.authors.includes(p.author) || f.rows("SELECT 1 FROM meta WHERE k = ?", key).length) continue;
-      const title = `deps: ${p.title}`.slice(0, 100) + ` (PR #${p.number})`;
-      const body = `Pull request: #${p.number}\n\n${p.url}\n\n## Acceptance\n- the pull request is merged with its checks green\n- the app still works with the new version`;
-      const i = await f.tracker.createIn(repo, title, body, [...(m.label ? [m.label] : []), ...d.labels]);
-      f.entered(i.n, f.flow.initial);
-      if (m.status && f.tracker.board) await f.tracker.board.setStatus(i, m.status);
-      f.db.exec("INSERT OR REPLACE INTO meta VALUES (?, ?)", key, String(i.n));
-    }
+    for (const p of await pulls.open()) await fileDependencyTicket(f, repo, p);
   }
+}
+
+/** The dependency ticket of one pull request, when its author is configured and it has none yet. */
+export async function fileDependencyTicket(f: Flowee, repo: Repo, p: PullRequest) {
+  const d = f.s.features.dependencyTickets;
+  const key = `deps:${repo.repo}#${p.number}`;
+  if (!d || p.state !== "open" || !d.authors.includes(p.author) || f.rows("SELECT 1 FROM meta WHERE k = ?", key).length) return;
+  const m = f.flow.meta(f.flow.initial);
+  const title = `deps: ${p.title}`.slice(0, 100) + ` (PR #${p.number})`;
+  const body = `Pull request: #${p.number}\n\n${p.url}\n\n## Acceptance\n- the pull request is merged with its checks green\n- the app still works with the new version`;
+  const i = await f.tracker.createIn(repo, title, body, [...(m.label ? [m.label] : []), ...d.labels]);
+  f.entered(i.n, f.flow.initial);
+  if (m.status && f.tracker.board) await f.tracker.board.setStatus(i, m.status);
+  f.db.exec("INSERT OR REPLACE INTO meta VALUES (?, ?)", key, String(i.n));
 }

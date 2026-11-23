@@ -14,9 +14,12 @@ CREATE TABLE updates (update_id INTEGER PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 CREATE TABLE postponed (n INTEGER PRIMARY KEY, comment_id INTEGER, card TEXT NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, since INTEGER NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE albums (group_id TEXT NOT NULL, msg TEXT NOT NULL, ts INTEGER NOT NULL);`,
+  `CREATE TABLE mirror (n INTEGER PRIMARY KEY, issue TEXT NOT NULL);
+CREATE TABLE deliveries (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
+CREATE TABLE hook_events (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL, event TEXT NOT NULL);`,
 ];
 
-export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums"];
+export const TABLES = ["claims", "origins", "handed", "answers", "entered", "inbox", "messages", "idem", "updates", "meta", "postponed", "albums", "mirror", "deliveries", "hook_events"];
 
 export function migrate(db: Store) {
   db.exec("CREATE TABLE IF NOT EXISTS _migrations (v INTEGER NOT NULL)");

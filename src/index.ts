@@ -34,6 +34,9 @@ const unauthorized = () => json({ ok: false, error: "unauthorized", message: "Un
 const notFound = () => json({ ok: false, error: "not_found", message: "No such endpoint." }, 404);
 const paused = (id: string) => json({ ok: false, error: "paused", message: `The workspace '${id}' is paused; its owner resumes it with /workspaces.` }, 503);
 const bearer = (req: Request) => /^Bearer (.+)$/.exec(req.headers.get("authorization") ?? "")?.[1];
+/** A tracker's webhook delivery: unauthenticated here, verified by the workspace's object against its secret. */
+const HOOK = /^\/hooks\/([a-z0-9-]+)\/([a-z0-9][a-z0-9-]{0,31})$/;
+const refused = () => new Response(null, { status: 401 });
 const ABOUT = "Flowee: the ticket flow API for AI agent teams and its chat envoy.\n";
 
 async function managed(req: Request, env: Env): Promise<Response> {
@@ -47,6 +50,13 @@ async function managed(req: Request, env: Env): Promise<Response> {
     if (req.method !== "POST" || !want || !got || !(await same(got, want))) return new Response("forbidden", { status: 403 });
     const r = await inst.mainUpdate(doc, await body());
     return r.forward ? forward(env, r.forward, req) : new Response("ok");
+  }
+  const h = HOOK.exec(pathname);
+  if (h) {
+    const hit = req.method === "POST" ? await inst.resolve(doc, { id: h[1] }) : null;
+    if (!hit) return refused();
+    // a paused workspace acknowledges and ignores; the reconcile after it resumes catches up
+    return hit.paused ? new Response("ok") : forward(env, h[1], req, `/hooks/${h[2]}`);
   }
   let m = /^\/telegram\/w\/([a-z0-9-]+)$/.exec(pathname);
   if (m) {
@@ -103,6 +113,8 @@ async function route(req: Request, env: Env): Promise<Response> {
     // updates of chats no workspace is bound to (and anything a standalone instance does not manage) are dropped
     return w ? forward(env, w.id, req) : new Response("ok");
   }
+  const h = HOOK.exec(pathname);
+  if (h) return req.method === "POST" && reg.get(h[1]) ? forward(env, h[1], req, `/hooks/${h[2]}`) : refused();
   let m = /^\/w\/([a-z0-9-]+)(\/v1\/.*)$/.exec(pathname);
   if (m) return reg.get(m[1]) ? forward(env, m[1], req, m[2]) : json({ ok: false, error: "not_found", message: `There is no workspace '${m[1]}'.` }, 404);
   if (pathname.startsWith("/v1/")) {

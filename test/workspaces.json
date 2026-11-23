@@ -82,6 +82,9 @@
       },
       "profile": {
         "photo": "https://assets.test/profile.png"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -136,6 +139,9 @@
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "555"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -199,6 +205,9 @@
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "777"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -291,6 +300,9 @@
       "texts": {
         "owner": "Ann",
         "cardHeading": "For Ann"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -350,6 +362,9 @@
       "texts": {
         "owner": "Ann",
         "cardHeading": "For Ann"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -416,6 +431,107 @@
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "901"
+      },
+      "sync": {
+        "webhooks": "off"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "hooks",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/hooks"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "HOOKS_BOARD"
+        },
+        {
+          "instance": "dev1",
+          "role": "developer",
+          "secret": "HOOKS_DEV1"
+        },
+        {
+          "instance": "dev2",
+          "role": "developer",
+          "secret": "HOOKS_DEV2"
+        },
+        {
+          "instance": "tester",
+          "role": "tester",
+          "secret": "HOOKS_TESTER"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "HOOKS_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Ann",
+          "tracker": "ann-dev",
+          "chat": "700"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "700",
+        "publicUrl": "https://flow.test"
+      },
+      "texts": {
+        "owner": "Ann",
+        "cardHeading": "For Ann"
+      }
+    },
+    {
+      "flowee": 1,
+      "id": "hooks2",
+      "flow": {
+        "preset": "trunk"
+      },
+      "tracker": {
+        "type": "github",
+        "repos": [
+          "acme/hooks2"
+        ],
+        "token": "GITHUB_TOKEN"
+      },
+      "roles": [
+        {
+          "instance": "board",
+          "role": "board",
+          "secret": "HOOKS2_BOARD"
+        },
+        {
+          "instance": "owner",
+          "role": "owner",
+          "secret": "HOOKS2_OWNER"
+        }
+      ],
+      "owners": [
+        {
+          "name": "Bo",
+          "chat": "701"
+        }
+      ],
+      "chat": {
+        "type": "telegram",
+        "token": "TELEGRAM_BOT_TOKEN",
+        "webhookSecret": "TG_WEBHOOK_SECRET",
+        "chatId": "701",
+        "publicUrl": "https://flow.test"
       }
     },
     {
@@ -474,6 +590,9 @@
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "902"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     },
     {
@@ -542,6 +661,9 @@
         "token": "TELEGRAM_BOT_TOKEN",
         "webhookSecret": "TG_WEBHOOK_SECRET",
         "chatId": "903"
+      },
+      "sync": {
+        "webhooks": "off"
       }
     }
   ]
