@@ -67,11 +67,13 @@ const living = (chat: number | string) => tg.shown(String(chat)).filter((m) => m
 const screen = (chat: number | string = 100) => living(chat)?.html as string;
 const tap = (from: number, data: string, chat = from, message = living(chat)?.id ?? 1) =>
   post("/telegram", { update_id: ++uid, callback_query: { id: `q${uid}`, from: { id: from }, data, message: { message_id: message, chat: { id: chat } } } });
-const api = async (secret: string, path: string, body?: unknown) => {
+const api = async (token: string, path: string, body?: unknown) => {
+  // `<project key>|<agent>`: the key acting as that agent
+  const [secret, agent] = token.split("|");
   const r = await worker.fetch(
     new Request(`https://flowee.test${path}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json", ...(agent ? { "x-flowee-agent": agent } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
     menv(),
@@ -86,10 +88,20 @@ const admin = async (method: string, path: string, body?: unknown, token = "admi
   return { status: r.status, body: (await r.json()) as Record<string, any> };
 };
 /** The secrets file handed over at the end: instance -> secret. */
-async function handed(): Promise<Record<string, string>> {
+/**
+ * What the last file handed over: the project key (`key`) and secrets of agents a document names. With a key, the
+ * agents `names` are created through the API, each as `<key>|<name>` (the api helper sends the name).
+ */
+async function handed(names = ["board", "dev1", "dev2", "tester", "owner"]): Promise<Record<string, string>> {
   const f = tg.of("sendDocument").at(-1)?.document as File;
   const text = await f.text();
-  return Object.fromEntries([...text.matchAll(/^mkdir -p \S+ && install -m 600 \/dev\/stdin \S+\/([a-z0-9-]+) <<'EOF'\n([0-9a-f]{64})\nEOF$/gm)].map((m) => [m[1], m[2]]));
+  const got: Record<string, string> = Object.fromEntries([...text.matchAll(/^mkdir -p \S+ && install -m 600 \/dev\/stdin \S+\/([a-z0-9-]+) <<'EOF'\n([0-9a-f]{64})\nEOF$/gm)].map((m) => [m[1], m[2]]));
+  if (got.key)
+    for (const n of names) {
+      await api(got.key, "/v1/agents", { role: n.startsWith("dev") ? "developer" : n, name: n });
+      got[n] = `${got.key}|${n}`;
+    }
+  return got;
 }
 
 // ---- the Telegram rich-message markup the screens use ----
@@ -114,10 +126,10 @@ const WELCOME = [
   ROW(CB("🚀 Set up a workspace", "w:new")),
   ROW(CB("📥 Import a configuration", "m:import")),
 ].join("");
-const REPOS = (step = "Step 1 of 6", extra = "") =>
+const REPOS = (step = "Step 1 of 5", extra = "") =>
   `<p>🆕 <b>New workspace</b> · ${step}</p><p><b>Which repository is this workspace for?</b></p><p>Paste the repository's link from GitHub or GitLab, for example <code>https://github.com/octo/app</code>. Several: one per line.</p>${extra}`;
 const BOT = [
-  "<p>🆕 <b>New workspace</b> · Step 2 of 6</p>",
+  "<p>🆕 <b>New workspace</b> · Step 2 of 5</p>",
   "<p><b>Which bot should bring you the tickets?</b></p>",
   TABLE(
     OPT("💬 This bot (@FloweeTestBot)", "I bring them myself, next to your other workspaces.", CB("💬 Choose", "w:bot:shared")),
@@ -126,7 +138,7 @@ const BOT = [
   NAV,
 ].join("");
 const FLOW = [
-  "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+  "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
   "<p><b>How should the agents bring in their code?</b></p>",
   "<p>Choose one. Versioning and the other options come next; each works with either.</p>",
   TABLE(
@@ -159,7 +171,7 @@ const TOGGLE = (f: string, on: Record<string, boolean>, lines: Record<string, st
 /** The second screen of the flow step: versioning, then the more options, each a toggle row. */
 const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "", lines: Record<string, string> = {}) =>
   [
-    "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+    "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
     "<p><b>What else should the flow do?</b></p>",
     `<p>With <b>${branching}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.</p>`,
     note,
@@ -171,14 +183,14 @@ const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "",
     NEXT("w:flow:done"),
   ].join("");
 const WHERE_HERE = [
-  "<p>🆕 <b>New workspace</b> · Step 4 of 6</p>",
+  "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
   "<p><b>Where should the tickets appear?</b></p>",
   TABLE(OPT("💬 Here", "In this chat with me.", CB("💬 Choose", "w:bind:here")), OPT("👥 In a group", "Your team works the tickets together; each answer is recorded with the name of who gave it.", CB("👥 Choose", "w:bind:group"))),
   NAV,
 ].join("");
 const WHERE_GROUP = (bot: string, id: string) =>
   [
-    "<p>🆕 <b>New workspace</b> · Step 4 of 6</p>",
+    "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
     "<p><b>Add the bot to a group</b></p>",
     TABLE(
       OPT("👥 A whole group", `Pick one: Telegram adds @${bot} there, and the group is set.`, URL_("👥 Choose a group", `https://t.me/${bot}?startgroup=${id}`)),
@@ -188,7 +200,7 @@ const WHERE_GROUP = (bot: string, id: string) =>
   ].join("");
 const TOKEN_URL = (id: string, repo: string) =>
   `https://github.com/settings/personal-access-tokens/new?name=Flowee+${id}&description=Flowee%3A+${repo.replace("/", "%2F")}&target_name=${repo.split("/")[0]}&expires_in=366&issues=write&contents=read&repository_hooks=write`;
-const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 6", lead = "") =>
+const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 5", lead = "") =>
   [
     `<p>🆕 <b>New workspace</b> · ${step}</p>`,
     lead,
@@ -202,21 +214,6 @@ const CREDENTIAL = (id: string, repo: string, extra = "", step = "Step 5 of 6", 
     ROW(URL_("🔑 Create a token", TOKEN_URL(id, repo))),
     NAV,
   ].join("");
-const AGENT_ROW = (r: string, label: string, desc: string, n: number) => OPT(label, desc, CB("−", `w:role:${r}:-1`), DIS(String(n)), CB("+", `w:role:${r}:1`));
-const ROLES = (board: number, dev: number, tester: number, extra = "") =>
-  [
-    "<p>🆕 <b>New workspace</b> · Step 6 of 6</p>",
-    "<p><b>Agent identities</b></p>",
-    "<p>Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start with these; you can add or remove agents any time.</p>",
-    extra,
-    TABLE(
-      AGENT_ROW("board", "🧭 Board", "Plans and sorts the tickets, and asks you.", board),
-      AGENT_ROW("developer", "🛠 Developers", "Build what the tickets ask for.", dev),
-      AGENT_ROW("tester", "🧪 Testers", "Test each ticket before it closes.", tester),
-    ),
-    NEXT("w:roles:done"),
-  ].join("");
-
 /** Everything a step sends: an edit of the living message `id` with this view, and the press answered. */
 function edited(id: number, html: string, chat = "100") {
   const edit = tg.calls.filter((c) => c.method === "editMessageText").at(-1)?.params;
@@ -269,7 +266,7 @@ describe("the setup wizard: one living message", () => {
     expect(tg.calls.at(-1)).toMatchObject({ method: "answerCallbackQuery", params: { callback_query_id: `q${uid}` } });
     await dm(100, "acme");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
-    edited(id, REPOS("Step 1 of 6", "<p>⚠️ &#39;acme&#39; is not a repository link of GitHub or GitLab; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
+    edited(id, REPOS("Step 1 of 5", "<p>⚠️ &#39;acme&#39; is not a repository link of GitHub or GitLab; send its link, for example https://github.com/octo/app.</p>".replace(/&#39;/g, "'")) + CANCEL);
     await dm(100, "https://github.com/acme/app/");
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     edited(id, BOT);
@@ -290,14 +287,6 @@ describe("the setup wizard: one living message", () => {
     await dm(100, TOKEN);
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     expect(app.auth.at(-1)).toBe(`Bearer ${TOKEN}`);
-    edited(id, ROLES(1, 1, 1));
-    await tap(100, "w:role:developer:1");
-    edited(id, ROLES(1, 2, 1));
-    for (const r of ["board", "developer", "tester", "developer"]) await tap(100, `w:role:${r}:-1`);
-    await tap(100, "w:roles:done");
-    edited(id, ROLES(0, 0, 0, "<p>⚠️ At least one agent is needed.</p>"));
-    for (const r of ["board", "developer", "developer", "tester"]) await tap(100, `w:role:${r}:1`);
-    await tap(100, "w:roles:done");
     edited(
       id,
       [
@@ -309,7 +298,7 @@ describe("the setup wizard: one living message", () => {
           FACT("🔀 Way of working", "Single branch"),
           FACT("💬 Tickets appear", "here, in this chat"),
           FACT("🔑 GitHub token", "checked"),
-          FACT("👥 Agents", "board, dev1, dev2, tester (each gets a new secret)"),
+          FACT("🗝 Project key", "a new one, shown once"),
         ),
         ROW(CB("✅ Create the workspace", "w:confirm")),
         NAV,
@@ -320,27 +309,31 @@ describe("the setup wizard: one living message", () => {
       id,
       [
         "<p>✅ <b>Workspace ready</b> · <code>app</code></p>",
-        "<p>These are your agents' sign-in secrets for <code>flowee.py</code>, <b>shown only this once</b>. Save each one on the machine where that agent runs (the file shows where), put the <code>.flowee.toml</code> part into the repository, then delete the file.</p>",
+        "<p>Below is the workspace's <b>project key</b> for <code>flowee.py</code>, <b>shown only this once</b>. Store it where your agents run (the file shows the line), put the <code>.flowee.toml</code> part into the repository, then delete the file. Your agents read the roles and create themselves with it; you see them in 📂 My workspaces.</p>",
         ROW(CB("📂 My workspaces", "m:list")),
       ].join(""),
     );
-    const s = await handed();
-    expect(Object.keys(s)).toEqual(["board", "dev1", "dev2", "tester", "owner"]);
-    expect(tg.of("sendDocument").at(-1)?.caption).toBe("🔑 Agent secrets: shown only this once.");
+    expect(tg.of("sendDocument").at(-1)?.caption).toBe("🔑 Project key: shown only this once.");
     const file = await (tg.of("sendDocument").at(-1)?.document as File).text();
-    expect(file).toContain('url = "https://flowee.test"\nworkspace = "app"\ninstance = "board"\nsecret_file = "~/.secrets/flowee/{workspace}/{instance}"');
-    expect(file).toContain(`# dev1\nmkdir -p ~/.secrets/flowee/app && install -m 600 /dev/stdin ~/.secrets/flowee/app/dev1 <<'EOF'\n${s.dev1}\nEOF`);
-    expect(file.split("\n").slice(0, 4)).toEqual([
-      "# Flowee workspace app: the agents' sign-in secrets for flowee.py, shown only this once.",
-      "# Flowee keeps only a fingerprint of each; a lost secret is replaced in /workspaces (New agent secret).",
-      '# Hand this file to an agent with the address https://flowee.test and say "set this up", or do the two steps below.',
+    const key = /\/key <<'EOF'\n([0-9a-f]{64})\nEOF/.exec(file)?.[1] as string;
+    expect(file).toContain(`mkdir -p ~/.secrets/flowee/app && install -m 600 /dev/stdin ~/.secrets/flowee/app/key <<'EOF'\n${key}\nEOF`);
+    expect(file).toContain('url = "https://flowee.test"\nworkspace = "app"\nkey_file = "~/.secrets/flowee/{workspace}/key"\nagent = "dev1"');
+    expect(file).toContain("#    python3 flowee.py roles\n#    python3 flowee.py agents add developer dev1\n#    python3 flowee.py agents\n");
+    expect(file.split("\n").slice(0, 5)).toEqual([
+      "# Flowee workspace app: the project key for flowee.py, shown only this once.",
+      "# With it your agents list the roles of the flow, create themselves and work the tickets. Flowee keeps only a",
+      "# fingerprint; a lost key is replaced in /workspaces (New project key), and the old one stops working.",
+      '# Hand this file to an agent with the address https://flowee.test and say "set this up", or do the three steps below.',
       "# Then delete this file and the message it came in. More: https://flowee.test/docs/agents/",
     ]);
     expect(JSON.parse(tg.of("sendDocument").at(-1)?.reply_markup)).toEqual({
-      inline_keyboard: [[{ text: "🗑 Delete this file from the chat", callback_data: "m:rmfile" }], [{ text: "❓ How do I use these?", url: "https://flowee.test/docs/agents/" }]],
+      inline_keyboard: [[{ text: "🗑 Delete this file from the chat", callback_data: "m:rmfile" }], [{ text: "❓ How do I use this?", url: "https://flowee.test/docs/agents/" }]],
     });
+    // the agents create themselves with the key: the roles first, then one agent per run
+    expect((await api(key, "/v1/roles")).body.roles.map((r: { name: string }) => r.name)).toEqual(["board", "developer", "tester", "owner"]);
+    const s = await handed();
     // the whole setup left two messages of the bot in the chat: the living one and the secrets file
-    expect(tg.shown("100").map((m) => (m.file ? m.file : m.id))).toEqual([id, "flowee-app-secrets.txt"]);
+    expect(tg.shown("100").map((m) => (m.file ? m.file : m.id))).toEqual([id, "flowee-app-key.txt"]);
     expect(tg.of("sendRichMessage").length).toBe(1);
     // the file's own button deletes the file's message, never the living one, and says so in a toast
     const doc0 = tg.sent("sendDocument").at(-1)?.id as number;
@@ -358,7 +351,7 @@ describe("the setup wizard: one living message", () => {
     expect(doc.workspace.features).toEqual({ userFeedback: { autoTriage: false } });
     expect(JSON.stringify(doc)).not.toContain(TOKEN);
     const sealed = await runInDurableObject(env.INSTANCE.get(env.INSTANCE.idFromName("instance")), (o: Instance) => o.host.store.rows<{ sealed: string }>("SELECT sealed FROM vault"));
-    expect(sealed.length).toBe(6);
+    expect(sealed.length).toBe(2);
     expect(JSON.stringify(sealed)).not.toContain(TOKEN.slice(11));
     // the envoy works in the bound private chat: the card comes, a reply answers it
     app.add({ number: 1, state_label: "board review" });
@@ -377,7 +370,7 @@ describe("the setup wizard: one living message", () => {
     edited(
       id,
       [
-        "<p>🆕 <b>New workspace</b> · Step 2 of 6</p>",
+        "<p>🆕 <b>New workspace</b> · Step 2 of 5</p>",
         "<p><b>Create the new bot</b></p>",
         "<p>Tap <b>🤖 Create the bot</b> on the keyboard below. Telegram suggests the name <b>Widget envoy</b> and the username <code>@widget_envoy_bot</code>; keep them or change them, then confirm.</p>",
         NAV,
@@ -420,7 +413,7 @@ describe("the setup wizard: one living message", () => {
     edited(
       id,
       [
-        "<p>🆕 <b>New workspace</b> · Step 4 of 6</p>",
+        "<p>🆕 <b>New workspace</b> · Step 4 of 5</p>",
         "<p><b>Where should the tickets appear?</b></p>",
         TABLE(
           OPT("💬 In my private chat with @WidgetEnvoyBot", "Open it and press <b>Start</b> once, so it may write to you.", URL_("↗ Open", "https://t.me/WidgetEnvoyBot"), CB("💬 Choose", "w:bind:here")),
@@ -449,13 +442,11 @@ describe("the setup wizard: one living message", () => {
     await dm(200, TOKEN);
     expect(gh2.auth.at(-1)).toBe(`Bearer ${TOKEN}`);
     expect(lib.auth.at(-1)).toBe(`Bearer ${TOKEN}`);
-    await tap(200, "w:role:tester:-1");
-    await tap(200, "w:roles:done");
     expect(screen(200)).toContain(FACT("🤖 Bot", "its own, @WidgetEnvoyBot"));
     expect(screen(200)).toContain(FACT("💬 Tickets appear", "one topic of “Team”"));
     await tap(200, "w:confirm");
     const s = await handed();
-    expect(Object.keys(s)).toEqual(["board", "dev1", "owner"]);
+    expect(Object.keys(s)).toContain("key");
     const doc = (await admin("GET", "/admin/workspaces/widget")).body.workspace;
     expect(doc.tracker.repos).toEqual([
       { repo: "acme/widget", alias: "widget" },
@@ -510,7 +501,7 @@ describe("the setup wizard: one living message", () => {
     const HINT = "<p>Tap a value, ✏️ Type your own, or send a <code>.json</code> or text file with the values (an agent can prepare it). ▶ Done keeps what is shown.</p>";
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+        "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
         "<p><b>How should versioning work?</b></p>",
         HINT,
         TABLE(
@@ -579,7 +570,6 @@ describe("the setup wizard: one living message", () => {
       URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&expires_in=366&issues=write&contents=write&pull_requests=write&checks=read&statuses=read&repository_hooks=write"),
     );
     await dm(100, TOKEN);
-    await tap(100, "w:roles:done");
     expect(screen()).toContain(FACT("🔀 Way of working", "Feature branches, Versioning"));
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
@@ -603,7 +593,6 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:flow:done");
     await tap(100, "w:bind:here");
     await dm(100, TOKEN);
-    await tap(100, "w:roles:done");
     await tap(100, "w:confirm");
     expect((await admin("GET", "/admin/workspaces/app")).body.workspace.features).toEqual({ userFeedback: { label: "from users", autoTriage: false } });
   });
@@ -616,7 +605,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:ext:open");
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 3 of 6</p>",
+        "<p>🆕 <b>New workspace</b> · Step 3 of 5</p>",
         "<p><b>Custom steps</b></p>",
         "<p>An extension adds your own states, roles and rules to the flow, written as a small chart file (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send its <code>.json</code> file here; an agent can write one from the base chart at <code>https://flowee.test/flows/flow.json</code>.</p>",
         "<p>None added yet.</p>",
@@ -629,19 +618,20 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toContain(FACT("$.extensions[0].states.ready: extension &#39;broken&#39; adds the state &#39;ready&#39;, which the flow has already; change a state with on, replace or remove.".replace(/&#39;/g, "'")));
     files["ext-ok"] = JSON.stringify(security);
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "ext-ok", file_name: "security-review.json", file_size: 10 } }));
-    expect(screen()).toContain("<p>⚠️ 🧩 security-review is added; its roles appear in the agents step.</p>");
+    expect(screen()).toContain("<p>⚠️ 🧩 security-review is added; agents of its roles can be created with the project key.</p>");
     expect(screen()).toContain(OPT("🧩 security-review", "A security reviewer looks at a ticket the board sends before it closes.", CB("✖ Remove", "w:ext:rm:0")));
     await tap(100, "w:ext:back");
     expect(screen()).toBe(OPTIONS("Single branch", {}, "", { ext: "<code>security-review</code>" }));
     await tap(100, "w:flow:done");
     await tap(100, "w:bind:here");
     await dm(100, TOKEN);
-    expect(screen()).toContain(OPT("🧩 security", "Works as the security reviewer.", CB("−", "w:role:security:-1"), DIS("1"), CB("+", "w:role:security:1")));
-    await tap(100, "w:roles:done");
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
     expect(doc.extensions).toEqual([security]);
-    expect(doc.roles.map((r: { instance: string }) => r.instance)).toEqual(["board", "dev1", "tester", "security", "owner"]);
+    expect(doc.roles).toBeUndefined();
+    // the extension's role is offered to the agents through the API
+    const { key } = await handed([]);
+    expect((await api(key, "/v1/roles")).body.roles.map((r: { name: string }) => r.name)).toEqual(["board", "developer", "tester", "owner", "security"]);
     await dm(100, "/workspaces");
     await tap(100, "m:ws:app");
     expect(screen()).toContain(FACT("🧩 Custom steps", "<code>security-review</code>", CB("✏️ Change", "m:edit:app:ext")));
@@ -652,7 +642,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:confirm");
     const after = (await admin("GET", "/admin/workspaces/app")).body.workspace;
     expect(after.extensions).toBeUndefined();
-    expect(after.roles.map((r: { instance: string }) => r.instance)).toEqual(["board", "dev1", "tester", "owner"]);
+    expect((await api(key, "/v1/roles")).body.roles.map((r: { name: string }) => r.name)).toEqual(["board", "developer", "tester", "owner"]);
   });
 
   it("a workspace with an extension keeps its extension and the extension's agents through a wizard edit", async () => {
@@ -672,7 +662,7 @@ describe("the setup wizard: one living message", () => {
     expect((await admin("PUT", "/admin/workspaces/pics", doc)).status).toBe(200);
     await dm(100, "/workspaces");
     await tap(100, "m:ws:pics");
-    expect(screen()).toContain(FACT("👥 Agents", "board, sampler"));
+    expect(screen()).toContain(FACT("👥 Agents", "board, sampler, owner", CB("👥 Agents", "m:ag:pics")));
     await tap(100, "m:edit:pics:flow");
     await tap(100, "w:branch:single");
     await tap(100, "w:flow:done");
@@ -698,7 +688,7 @@ describe("the setup wizard: one living message", () => {
     await dm(100, TOKEN);
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Step 5 of 6</p>",
+        "<p>🆕 <b>New workspace</b> · Step 5 of 5</p>",
         "<p><b>This token reaches more than it needs</b></p>",
         "<p>Besides <code>acme/app</code> it can also reach <code>acme/secret</code>, <code>acme/other</code>; a narrower token limits what a leak could do.</p>",
         TABLE(
@@ -712,7 +702,7 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(CREDENTIAL("app", "acme/app"));
     await dm(100, TOKEN);
     await tap(100, "w:wide:keep");
-    expect(screen()).toContain("<p><b>Agent identities</b></p>");
+    expect(screen()).toContain("<p><b>Create the workspace <code>app</code>?</b></p>");
     globalThis.fetch = fake;
   });
 
@@ -732,9 +722,7 @@ describe("the setup wizard: one living message", () => {
     at("group");
     await tap(100, "w:back");
     await tap(100, "w:bind:here");
-    await dm(100, TOKEN);
-    at("agents");
-    const rows = { bot: 2, branching: 2, options: 5, where: 2, group: 2, agents: 3 };
+    const rows = { bot: 2, branching: 2, options: 5, where: 2, group: 2 };
     for (const [name, n] of Object.entries(rows)) {
       const options = (seen[name].match(/<tr><td><b>.*?<\/tr>/g) ?? []).filter((tr) => tr.includes("</b> · "));
       expect(options.length, name).toBe(n);
@@ -768,7 +756,6 @@ describe("the setup wizard: one living message", () => {
     );
     expect(screen()).not.toContain("GitHub");
     await dm(100, GL);
-    await tap(100, "w:roles:done");
     expect(screen()).toContain(FACT("📦 Repositories", "<code>acme/backend/api</code> on GitLab"));
     expect(screen()).toContain(FACT("🔑 GitLab token", "checked"));
     await tap(100, "w:confirm");
@@ -851,9 +838,8 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:bind:here");
     tg.refuse = { deleteMessage: "Bad Request: message can't be deleted" };
     await dm(100, TOKEN);
-    expect(screen()).toBe(
-      ROLES(1, 1, 1, "<p>⚠️ I could not delete your message (Telegram refused deleteMessage: Bad Request: message can&#39;t be deleted.); please delete it yourself.</p>".replace("&#39;", "'")),
-    );
+    expect(screen()).toContain("<p>🆕 <b>New workspace</b> · Last check</p>");
+    expect(screen()).toContain("</table><p>⚠️ I could not delete your message (Telegram refused deleteMessage: Bad Request: message can&#39;t be deleted.); please delete it yourself.</p>".replace("&#39;", "'"));
   });
 
   it("a refused profile of the own bot: the workspace is made, the user told, the secrets handed over", async () => {
@@ -865,15 +851,12 @@ describe("the setup wizard: one living message", () => {
     await tap(200, "w:flow:done");
     await tap(200, "w:bind:here");
     await dm(200, TOKEN);
-    await tap(200, "w:role:board:-1");
-    await tap(200, "w:role:tester:-1");
-    await tap(200, "w:roles:done");
     tg.refuse = { setMySettings: "Bad Request: not enough rights" };
     await tap(200, "w:confirm");
     expect(screen(200)).toContain(
       "<p>✅ <b>Workspace ready</b> · <code>web</code></p><p>⚠️ The bot&#39;s profile was not set (Telegram refused setMySettings: Bad Request: not enough rights.); the next deploy tries again.</p>".replace("&#39;", "'"),
     );
-    expect(Object.keys(await handed())).toEqual(["dev1", "owner"]);
+    expect(Object.keys(await handed([]))).toEqual(["key"]);
     expect((await admin("GET", "/admin/workspaces/web")).status).toBe(200);
   });
 
@@ -881,7 +864,7 @@ describe("the setup wizard: one living message", () => {
     tg.refuse = { sendDocument: "Bad Request: file is too big" };
     await sharedSetup(100);
     const last = tg.sent("sendRichMessage").at(-1)?.rich_message.html as string;
-    expect(last).toMatch(/^<p>🔑 <b>Agent secrets<\/b> · <code>app<\/code><\/p><pre># Flowee workspace app: the agents' sign-in secrets for flowee.py/);
+    expect(last).toMatch(/^<p>🔑 <b>Project key<\/b> · <code>app<\/code><\/p><pre># Flowee workspace app: the project key for flowee.py, shown only this once./);
     expect(last).toMatch(/^[0-9a-f]{64}$/m);
     expect(last).toContain('data="m:rmfile">🗑 Delete this file from the chat</tg-button>');
   });
@@ -892,7 +875,7 @@ describe("the setup wizard: one living message", () => {
     expect(screen()).toBe(BOT);
     await tap(100, "w:back");
     expect(screen()).toBe(
-      REPOS("Step 1 of 6", "<p>Now: <code>acme/app</code> on GitHub</p>") + ROW(CB("✅ Keep acme/app", "w:repos:keep")) + CANCEL,
+      REPOS("Step 1 of 5", "<p>Now: <code>acme/app</code> on GitHub</p>") + ROW(CB("✅ Keep acme/app", "w:repos:keep")) + CANCEL,
     );
     await tap(100, "w:repos:keep");
     expect(screen()).toBe(BOT);
@@ -953,14 +936,12 @@ describe("the management menu: one living message", () => {
         FACT("🔀 Way of working", "Single branch", CB("✏️ Change", "m:edit:app:flow")),
         FACT("💬 Tickets appear", "your private chat with this bot", CB("✏️ Change", "m:edit:app:bind")),
         FACT("🔑 GitHub token", "never shown", CB("✏️ Change", "m:edit:app:credential")),
-        FACT("👥 Agents", "board, dev1, tester"),
+        FACT("👥 Agents", "board, dev1, dev2, tester, owner", CB("👥 Agents", "m:ag:app")),
         FACT("🧩 Custom steps", "none", CB("✏️ Change", "m:edit:app:ext")),
         FACT("⚡ Instant updates", "off for app (not set up yet); the tracker is checked every minute", CB("⚡ Turn on", "m:hook:app")),
       ),
       TABLE(
-        OPT("➕ Add an agent", "A new identity with its own secret; the other agents keep theirs.", CB("➕ Add", "m:add:app")),
-        OPT("➖ Remove an agent", "Its secret stops working, and the tickets it holds go back to the queue.", CB("➖ Remove", "m:rmag:app")),
-        OPT("🔑 New agent secret", "One agent gets a new secret; its old one stops working.", CB("🔑 New secret", "m:rot:app")),
+        OPT("🗝 New project key", "Your agents get a new key, handed over as a file; the old one stops working at once.", CB("🗝 New key", "m:key:app")),
         OPT("📤 Export", "The configuration without secrets, as a file to edit and import again.", CB("📤 Export", "m:exp:app")),
         paused
           ? OPT("▶ Resume", "The agents' API and the chat work again.", CB("▶ Resume", "m:resume:app"))
@@ -983,23 +964,24 @@ describe("the management menu: one living message", () => {
     );
     await tap(100, "m:ws:app");
     edited(id, WS());
-    await tap(100, "m:rot:app");
+    await tap(100, "m:key:app");
     edited(
       id,
       [
-        "<p>🔑 <b>New agent secret</b> · <code>app</code></p>",
-        "<p><b>Which agent gets a new secret?</b></p>",
-        "<p>Its old secret stops working at once.</p>",
-        TABLE(...[["board", "board"], ["dev1", "developer"], ["tester", "tester"], ["owner", "owner"]].map(([i, r]) => OPT(i, r, CB("🔑 New secret", `m:rot:app:${i}`)))),
-        ROW(CB("« Back", "m:ws:app")),
+        "<p>🗝 <b>New project key</b> · <code>app</code></p>",
+        "<p><b>Replace the project key?</b></p>",
+        "<p>Every agent using the old key stops working at once, until the new key is stored where it runs.</p>",
+        ROW(CB("🗝 Make a new key", "m:key:app:yes"), CB("« Back", "m:ws:app")),
       ].join(""),
     );
-    await tap(100, "m:rot:app:dev1");
-    edited(id, ["<p>🔑 <b>New secret for <code>dev1</code></b></p>", "<p>It is in the file below, <b>shown only this once</b>, with the line that stores it on the agent's machine. The old one no longer works.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
-    expect(tg.of("answerCallbackQuery").at(-1)).toEqual({ callback_query_id: `q${uid}`, text: "🔑 New secret below" });
-    const fresh = await handed();
-    expect(Object.keys(fresh)).toEqual(["dev1"]);
+    await tap(100, "m:key:app:yes");
+    edited(id, ["<p>🗝 <b>New project key</b> · <code>app</code></p>", "<p>It is in the file below, <b>shown only this once</b>, with the line that stores it where your agents run. The old one no longer works.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
+    expect(tg.of("answerCallbackQuery").at(-1)).toEqual({ callback_query_id: `q${uid}`, text: "🗝 New key below" });
+    expect(tg.of("sendDocument").at(-1)?.caption).toBe("🔑 Project key: shown only this once.");
+    const fresh = await handed([]);
     expect((await api(s.dev1, "/v1/whoami")).status).toBe(401);
+    // the agents stay: the new key acts as them at once
+    fresh.dev1 = `${fresh.key}|dev1`;
     expect((await api(fresh.dev1, "/v1/whoami")).body.instance).toBe("dev1");
     await tap(100, "m:ws:app");
     await tap(100, "m:exp:app");
@@ -1027,55 +1009,56 @@ describe("the management menu: one living message", () => {
     expect((await admin("GET", "/admin/workspaces")).body.workspaces).toEqual([]);
   });
 
-  it("add an agent and remove one: one identity minted or revoked, the others untouched, a removed agent's ticket back in the queue", async () => {
+  it("the agents screen: who exists, its role, last seen, what it holds; pause and resume one, remove one and its ticket goes back to the queue", async () => {
     const s = await sharedSetup(100);
+    app.add({ number: 1, state_label: "ready" });
+    expect((await api(s.dev1, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
     await dm(100, "/workspaces");
     const id = living(100)?.id as number;
     await tap(100, "m:ws:app");
-    await tap(100, "m:add:app");
-    edited(
-      id,
+    await tap(100, "m:ag:app");
+    const html = screen();
+    const seen = /seen (\d{4}-\d\d-\d\d \d\d:\d\d) UTC/.exec(html)?.[1];
+    const row = (name: string, role: string, rest: string, ...buttons: string[]) => OPT(name, `${role} · ${rest}`, ...buttons);
+    const agents = (dev1: string, more = "") =>
       [
-        "<p>➕ <b>Add an agent</b> · <code>app</code></p>",
-        "<p><b>Which kind of agent?</b></p>",
-        "<p>It gets its own secret, shown once; the other agents keep theirs.</p>",
+        "<p>👥 <b>Agents</b> · <code>app</code></p>",
+        "<p>Agents create themselves with the project key (<code>flowee.py agents add</code>); here you see them, and pause or remove one.</p>",
+        more,
         TABLE(
-          OPT("🧭 Board", "Plans and sorts the tickets, and asks you.", CB("➕ Add", "m:add:app:board")),
-          OPT("🛠 Developers", "Build what the tickets ask for.", CB("➕ Add", "m:add:app:developer")),
-          OPT("🧪 Testers", "Test each ticket before it closes.", CB("➕ Add", "m:add:app:tester")),
+          row("board", "🧭 Board", "never seen · holds nothing", CB("⏸ Pause", "m:agp:app:board"), CB("➖ Remove", "m:agrm:app:board")),
+          dev1,
+          row("dev2", "🛠 Developer", "never seen · holds nothing", CB("⏸ Pause", "m:agp:app:dev2"), CB("➖ Remove", "m:agrm:app:dev2")),
+          row("tester", "🧪 Tester", "never seen · holds nothing", CB("⏸ Pause", "m:agp:app:tester"), CB("➖ Remove", "m:agrm:app:tester")),
+          row("owner", "👤 Owner", "never seen · holds nothing", CB("⏸ Pause", "m:agp:app:owner"), CB("➖ Remove", "m:agrm:app:owner")),
         ),
         ROW(CB("« Back", "m:ws:app")),
-      ].join(""),
-    );
-    await tap(100, "m:add:app:developer");
-    edited(id, ["<p>➕ <b><code>dev2</code> added</b></p>", "<p>Its secret is in the file below, <b>shown only this once</b>; the other agents keep theirs.</p>", ROW(CB("« Back", "m:ws:app"))].join(""));
-    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➕ Agent added");
-    const dev2 = (await handed()).dev2;
-    expect((await api(dev2, "/v1/whoami")).body).toEqual({ ok: true, instance: "dev2", role: "developer" });
-    expect((await api(s.dev1, "/v1/whoami")).body.instance).toBe("dev1");
-    app.add({ number: 1, state_label: "ready" });
-    expect((await api(s.dev1, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
-    await tap(100, "m:ws:app");
-    await tap(100, "m:rmag:app");
-    expect(screen()).toContain(OPT("dev1", "🛠 Developers", CB("➖ Remove", "m:rmag:app:dev1")));
-    await tap(100, "m:rmag:app:dev1");
+      ].join("");
+    edited(id, agents(row("dev1", "🛠 Developer", `seen ${seen} UTC · holds #1`, CB("⏸ Pause", "m:agp:app:dev1"), CB("➖ Remove", "m:agrm:app:dev1"))));
+    await tap(100, "m:agp:app:dev1");
+    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("⏸ Paused");
+    expect(screen()).toContain(row("⏸ dev1", "🛠 Developer", `seen ${seen} UTC · holds #1`, CB("▶ Resume", "m:agp:app:dev1"), CB("➖ Remove", "m:agrm:app:dev1")));
+    expect((await api(s.dev1, "/v1/whoami")).body.error).toBe("agent_paused");
+    await tap(100, "m:agp:app:dev1");
+    expect((await api(s.dev1, "/v1/whoami")).status).toBe(200);
+    await tap(100, "m:agrm:app:dev1");
     edited(
       id,
       [
-        "<p>➖ <b>Remove <code>dev1</code>?</b></p>",
-        "<p>Its secret stops working at once, and the tickets it holds go back to the queue; the other agents are not touched.</p>",
-        ROW(CB("➖ Remove it", "m:rmag:app:dev1:yes"), CB("« Back", "m:ws:app")),
+        "<p>➖ <b>Remove <code>dev1</code>?</b> · <code>app</code></p>",
+        "<p>It stops working at once, and the tickets it holds go back to their queues; the other agents are not touched.</p>",
+        ROW(CB("➖ Remove it", "m:agrm:app:dev1:yes"), CB("« Back", "m:ag:app")),
       ].join(""),
     );
-    await tap(100, "m:rmag:app:dev1:yes");
+    await tap(100, "m:agrm:app:dev1:yes");
     expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➖ Agent removed");
-    expect(screen()).toContain("<p>➖ <code>dev1</code> is removed; its tickets go back to the queue.</p>");
-    expect(screen()).toContain(FACT("👥 Agents", "board, tester, dev2"));
-    expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("➖ Agent removed");
-    expect((await api(s.dev1, "/v1/whoami")).status).toBe(401);
+    expect(screen()).toContain("<p>➖ <code>dev1</code> is removed; its tickets go back to their queues.</p>");
+    expect(screen()).not.toContain("m:agrm:app:dev1");
+    expect((await api(s.dev1, "/v1/whoami")).body.error).toBe("unknown_agent");
     expect((await api(s.board, "/v1/whoami")).body.instance).toBe("board");
     await runDurableObjectAlarm(env.WORKSPACE.get(env.WORKSPACE.idFromName("app")));
-    expect((await api(dev2, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
+    expect(app.label(1)[0]).toBe("ready");
+    expect((await api(s.dev2, "/v1/next", {})).body.ticket).toMatchObject({ n: 1 });
     // the workspace object outlives the test: wipe it, so its claim does not reach the next test's
     await tap(100, "m:del:app:yes");
   });
@@ -1147,7 +1130,6 @@ describe("the management menu: one living message", () => {
     await tap(200, "w:flow:done");
     await tap(200, "w:bind:here");
     await dm(200, TOKEN);
-    await tap(200, "w:roles:done");
     await tap(200, "w:confirm");
     await tap(200, "m:ws:widget");
     expect(screen(200)).toContain(OPT("♻️ New bot token", "The bot gets a new token; the old one stops working.", CB("♻️ New token", "m:tok:widget")));
@@ -1187,7 +1169,6 @@ describe("groups, topics and preconfigured workspaces", () => {
     });
     expect(screen()).toContain("<p><b>Send me a GitHub token for <code>acme/app</code></b></p>");
     await dm(100, TOKEN);
-    await tap(100, "w:roles:done");
     expect(screen()).toContain(FACT("💬 Tickets appear", "the group “Team”"));
     await tap(100, "w:confirm");
     const s = await handed();
@@ -1263,7 +1244,6 @@ describe("export and import", () => {
     expect(tg.of("answerCallbackQuery").at(-1)?.text).toBe("⏸ Paused");
     // a manager's changes keep the creator's ownership and do not make the manager an owner of the inbox
     await tap(300, "m:edit:app:roles");
-    await tap(300, "w:roles:done");
     await tap(300, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body;
     expect(doc.workspace.owners).toEqual([{ chat: "100" }]);
@@ -1302,9 +1282,11 @@ describe("export and import", () => {
     await dm(100, TOKEN);
     expect(screen()).toContain("<p><b>Create the workspace <code>app-copy</code>?</b></p>");
     await tap(100, "w:confirm");
-    const s = await handed();
-    expect(Object.keys(s)).toEqual(["board", "dev1", "tester", "owner"]);
+    // the copy gets its own project key; agents are no part of a configuration, they create themselves again
+    const s = await handed(["dev1"]);
+    expect(Object.keys(s)).toEqual(["key", "dev1"]);
     const doc = (await admin("GET", "/admin/workspaces/app-copy")).body.workspace;
+    expect(doc.agents).toEqual({ key: "W_APP_COPY_KEY" });
     expect(doc.texts).toEqual({ project: "Copy" });
     expect(doc.chat).toBeUndefined();
     expect((await api(s.dev1, "/w/app-copy/v1/whoami")).body.instance).toBe("dev1");
@@ -1388,6 +1370,18 @@ describe("export and import", () => {
     const all = await admin("GET", "/admin/workspaces");
     expect(all.body).toEqual({ ok: true, flowee: 1, workspaces: [doc] });
     expect(JSON.stringify(all.body)).not.toMatch(/gh-auto|board-secret/);
+    // an older workspace gets a project key over the API; its agents with their own secrets keep working
+    const k = await admin("POST", "/admin/workspaces/auto/key", {});
+    expect(k.body).toMatchObject({ ok: true, id: "auto", key: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect((await admin("GET", "/admin/workspaces/auto")).body.workspace.agents).toEqual({ key: "W_AUTO_KEY" });
+    expect((await api(k.body.key, "/v1/agents", { role: "developer" })).body.agent).toMatchObject({ name: "dev1", role: "developer" });
+    expect((await api(`${k.body.key}|dev1`, "/v1/whoami")).body).toEqual({ ok: true, instance: "dev1", role: "developer" });
+    expect((await api("board-secret", "/v1/whoami")).body.instance).toBe("board");
+    // a second one replaces it: the old key stops working at once
+    const k2 = await admin("POST", "/admin/workspaces/auto/key", {});
+    expect((await api(k.body.key, "/v1/roles")).status).toBe(401);
+    expect((await api(k2.body.key, "/v1/roles")).status).toBe(200);
+    expect((await admin("POST", "/admin/workspaces/nope/key", {})).status).toBe(404);
     expect((await admin("DELETE", "/admin/workspaces/auto")).body).toEqual({ ok: true, id: "auto", deleted: true });
   });
 });

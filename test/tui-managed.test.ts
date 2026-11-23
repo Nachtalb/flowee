@@ -46,7 +46,7 @@ async function create(c: Scripted) {
   await c.sync({ text: { text: "/start" } });
   expect(c.screen()).toContain("Set up a workspace");
   await tap(c, /Set up a workspace/);
-  expect(c.screen()).toMatch(/Step 1 of 4/);
+  expect(c.screen()).toMatch(/Step 1 of 3/);
   await c.sync({ text: { text: "https://github.com/acme/app" } });
   expect(c.screen()).toContain("Single branch");
   await tap(c, /Choose|Single branch/);
@@ -55,18 +55,17 @@ async function create(c: Scripted) {
   await c.sync({ text: { text: TOKEN } });
   // the token was read and removed: no trace of it in the conversation
   expect(JSON.stringify(c.c.messages)).not.toContain(TOKEN);
-  if (c.screen().includes("Agents") || c.screen().includes("agents")) await tap(c, "▶ Next");
   expect(c.screen()).toMatch(/Last check/);
   await tap(c, /Create/);
 }
 
 describe("setup and management in the terminal", () => {
-  it("the instance's people get the setup seat; a manager sets up a terminal workspace and gets the secrets as a file", async () => {
+  it("the instance's people get the setup seat; a manager sets up a terminal workspace and gets the project key as a file", async () => {
     const mia = new Scripted("tui-mia", "@instance", "x", fetcher);
     const me = await mia.me();
     expect(me.body.workspaces.map((w: { id: string }) => w.id)).toEqual(["@instance"]);
     await create(mia);
-    const secrets = mia.c.files.find((f) => f.file?.name.endsWith("-secrets.txt"));
+    const secrets = mia.c.files.find((f) => f.file?.name.endsWith("-key.txt"));
     expect(secrets?.file?.data).toContain("# Flowee workspace app:");
     expect(secrets?.file?.data).toMatch(/[0-9a-f]{64}/);
     const doc = (await (await fetcher(new Request("https://flow.test/admin/workspaces/app", { headers: { authorization: "Bearer admin-test" } }))).json()) as any;

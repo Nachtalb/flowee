@@ -100,9 +100,13 @@ beforeAll(async () => {
   const m = new Scripted("tui-mia", "@instance", "x", fetcher);
   await setUp(m, "https://github.com/acme/app", "Feature branches");
   await setUp(m, "https://github.com/acme/widget", "Single branch");
+  // an agent created with the project key, so the agents screen has a row
+  const file = m.c.files.find((f) => f.file?.name === "flowee-app-key.txt")?.file?.data ?? "";
+  const key = /\/key <<'EOF'\n([0-9a-f]{64})/.exec(file)?.[1] ?? "";
+  await fetcher(new Request("https://flow.test/v1/agents", { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ role: "developer" }) }));
   await m.sync({ text: { text: "/workspaces" } });
   await m.pressRow("app");
-  for (const [label, back] of [["👥 People", "« Back"], ["➕ Add", "« Back"], ["➖ Remove", "« Back"], ["🔑 New secret", "« Back"], ["🗑 Delete", "« Back"]] as const) {
+  for (const [label, back] of [["👥 People", "« Back"], ["👥 Agents", "« Back"], ["🗝 New key", "« Back"], ["🗑 Delete", "« Back"]] as const) {
     await m.press(label).catch(() => undefined);
     await m.press(back).catch(() => undefined);
   }
@@ -131,7 +135,7 @@ function draw(view: View, w: number, h: number) {
 describe("every view in the terminal", () => {
   it("walks produced the screens of the envoy, the wizard and the menu", () => {
     const all = walked.map(([, v]) => JSON.stringify(v)).join("\n");
-    for (const s of ["Question:", "📋 List", "New workspace", "Step 1 of", "Last check", "Your workspaces", "Who can use this workspace", "New agent secret", "Import"]) expect(all, s).toContain(s);
+    for (const s of ["Question:", "📋 List", "New workspace", "Step 1 of", "Last check", "Your workspaces", "Who can use this workspace", "New project key", "holds nothing", "Import"]) expect(all, s).toContain(s);
   });
 
   for (const [w, h] of [[80, 24], [140, 40]] as const)

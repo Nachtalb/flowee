@@ -5,6 +5,7 @@
 import type { InstanceDoc, TuiPersonDoc, WorkspaceDoc } from "../config/document";
 import type { Env } from "../adapters/instance";
 import type { SyncStatus } from "../core/events";
+import type { AgentRow } from "../core/agents";
 import type { Store } from "../ports/store";
 
 /** One workspace's (or the instance's) durable home: its store, its one wake-up time, wiping it. */
@@ -36,8 +37,6 @@ export interface WorkspaceApi {
   agents(change?: { name: string; remove?: boolean; paused?: boolean }): Promise<AgentRow[]>;
 }
 
-/** One agent as the management menu shows it. */
-export type AgentRow = { name: string; role: string; source: "api" | "document"; paused: boolean; created?: number; seen?: number; holds: string[] };
 
 export type Routed = { forward?: string; status?: number };
 

@@ -846,7 +846,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 1 of 4                                               ┃
+┃ 🆕 New workspace · Step 1 of 3                                               ┃
 ┃ Which repository is this workspace for?                                      ┃
 ┃ Paste the repository's link from GitHub or GitLab, for example               ┃
 ┃ https://github.com/octo/app. Several: one per line.                          ┃
@@ -873,7 +873,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 4                                               ┃
+┃ 🆕 New workspace · Step 2 of 3                                               ┃
 ┃ How should the agents bring in their code?                                   ┃
 ┃ Choose one. Versioning and the other options come next; each works with      ┃
 ┃ either.                                                                      ┃
@@ -900,7 +900,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 4                                               ▐
+┃ 🆕 New workspace · Step 2 of 3                                               ▐
 ┃ What else should the flow do?                                                ┃
 ┃ With Feature branches. Each switch works on its own; one that needs details  ┃
 ┃ asks for them next. You can change them later.                               ┃
@@ -927,7 +927,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 3 of 4                                               ▐
+┃ 🆕 New workspace · Step 3 of 3                                               ▐
 ┃ Send me a GitHub token for acme/app                                          ┃
 ┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the   ┃
 ┃ permissions and an expiry of 366 days filled in. Create the token and paste  ┃
@@ -954,18 +954,18 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 4 of 4                                               ┃
-┃ Agent identities                                                             ┃
-┃ Each agent signs in with its own secret, so Flowee knows who holds which     ┃
-┃ ticket. Start with these; you can add or remove agents any time.             ┃
+┃ 🆕 New workspace · Last check                                                ┃
+┃ Create the workspace app?                                                    ┃
 ┃                                                                              ┃
-┃ 🧭 Board · Plans and sorts the tickets, and asks you.      [ − ] [ 1 ] [ + ] ┃
-┃ 🛠 Developers · Build what the tickets ask for.            [ − ] [ 1 ] [ + ] ┃
-┃ 🧪 Testers · Test each ticket before it closes.            [ − ] [ 1 ] [ + ] ┃
+┃ 📦 Repositories    acme/app on GitHub                                        ┃
+┃ 🔀 Way of working  Feature branches                                          ┃
+┃ 💬 Tickets appear  in the terminal (flowee-tui): you first, more people in … ┃
+┃ 🔑 GitHub token    checked                                                   ┃
+┃ 🗝 Project key     a new one, shown once                                     ┃
 ┃                                                                              ┃
-┃                      [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                      ┃
+┃                         [ ✅ Create the workspace ]                          ┃
 ┃                                                                              ┃
-┃                                                                              ┃
+┃                           [ ◀ Back ] [ ✖ Cancel ]                            ┃
 ┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -981,37 +981,12 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Last check                                                ┃
-┃ Create the workspace app?                                                    ┃
-┃                                                                              ┃
-┃ 📦 Repositories    acme/app on GitHub                                        ┃
-┃ 🔀 Way of working  Feature branches                                          ┃
-┃ 💬 Tickets appear  in the terminal (flowee-tui): you first, more people in … ┃
-┃ 🔑 GitHub token    checked                                                   ┃
-┃ 👥 Agents          board, dev1, tester (each gets a new secret)              ┃
-┃                                                                              ┃
-┃                         [ ✅ Create the workspace ]                          ┃
-┃                                                                              ┃
-┃                           [ ◀ Back ] [ ✖ Cancel ]                            ┃
-┃                                                                              ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 20 80x24 1`] = `
-" Flowee · Shop                                             ◌ connecting  ? help
-┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
-│ Loading…                                                                     │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ ✅ Workspace ready · app                                                     ┃
-┃ These are your agents' sign-in secrets for flowee.py, shown only this once.  ┃
-┃ Save each one on the machine where that agent runs (the file shows where),   ┃
-┃ put the .flowee.toml part into the repository, then delete the file.         ┃
+┃ Below is the workspace's project key for flowee.py, shown only this once.    ┃
+┃ Store it where your agents run (the file shows the line), put the            ┃
+┃ .flowee.toml part into the repository, then delete the file. Your agents     ┃
+┃ read the roles and create themselves with it; you see them in 📂 My          ┃
+┃ workspaces.                                                                  ┃
 ┃                                                                              ┃
 ┃                             [ 📂 My workspaces ]                             ┃
 ┃                                                                              ┃
@@ -1019,14 +994,12 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
-┃                                                                              ┃
-┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 21 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 20 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1053,7 +1026,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 22 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 21 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1062,7 +1035,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 2 of 4                                               ▐
+┃ 🆕 New workspace · Step 2 of 3                                               ▐
 ┃ What else should the flow do?                                                ┃
 ┃ With Single branch. Each switch works on its own; one that needs details     ┃
 ┃ asks for them next. You can change them later.                               ┃
@@ -1080,7 +1053,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 23 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 22 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1089,7 +1062,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🆕 New workspace · Step 3 of 4                                               ▐
+┃ 🆕 New workspace · Step 3 of 3                                               ▐
 ┃ Send me a GitHub token for acme/widget                                       ┃
 ┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the   ┃
 ┃ permissions and an expiry of 366 days filled in. Create the token and paste  ┃
@@ -1107,7 +1080,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 24 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 23 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1123,7 +1096,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ 🔀 Way of working  Single branch                                             ┃
 ┃ 💬 Tickets appear  in the terminal (flowee-tui): you first, more people in … ┃
 ┃ 🔑 GitHub token    checked                                                   ┃
-┃ 👥 Agents          board, dev1, tester (each gets a new secret)              ┃
+┃ 🗝 Project key     a new one, shown once                                     ┃
 ┃                                                                              ┃
 ┃                         [ ✅ Create the workspace ]                          ┃
 ┃                                                                              ┃
@@ -1134,7 +1107,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 25 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 24 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1144,13 +1117,13 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ ✅ Workspace ready · widget                                                  ┃
-┃ These are your agents' sign-in secrets for flowee.py, shown only this once.  ┃
-┃ Save each one on the machine where that agent runs (the file shows where),   ┃
-┃ put the .flowee.toml part into the repository, then delete the file.         ┃
+┃ Below is the workspace's project key for flowee.py, shown only this once.    ┃
+┃ Store it where your agents run (the file shows the line), put the            ┃
+┃ .flowee.toml part into the repository, then delete the file. Your agents     ┃
+┃ read the roles and create themselves with it; you see them in 📂 My          ┃
+┃ workspaces.                                                                  ┃
 ┃                                                                              ┃
 ┃                             [ 📂 My workspaces ]                             ┃
-┃                                                                              ┃
-┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
@@ -1161,7 +1134,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 26 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 25 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1188,7 +1161,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 27 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 26 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1204,18 +1177,18 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃ 💬 Tickets appear   in the terminal (flowee-tui)                             ┃
 ┃ 🖥 Terminal people  Mia                                       [ 👥 People ]  ┃
 ┃ 🔑 GitHub token     never shown                               [ ✏️ Change ]  ┃
-┃ 👥 Agents           board, dev1, tester                                      ┃
+┃ 👥 Agents           dev1                                      [ 👥 Agents ]  ┃
 ┃ 🧩 Custom steps     none                                      [ ✏️ Change ]  ┃
 ┃ ⚡ Instant updates  off for app (not set up yet); the track…  [ ⚡ Turn on ] ┃
 ┃                                                                              ┃
-┃ ➕ Add an agent · A new identity with its own secret; the other              ┃
-┃ agents keep theirs.                                               [ ➕ Add ] ┃
+┃ 🗝 New project key · Your agents get a new key, handed over                  ┃
+┃ as a file; the old one stops working at once.                 [ 🗝 New key ] ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 28 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 27 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1242,6 +1215,33 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 28 80x24 1`] = `
+" Flowee · Shop                                             ◌ connecting  ? help
+┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
+│ Loading…                                                                     │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 👥 Agents · app                                                              ┃
+┃ Agents create themselves with the project key (flowee.py agents add); here   ┃
+┃ you see them, and pause or remove one.                                       ┃
+┃                                                                              ┃
+┃ dev1 · 🛠 Developer · never seen · holds nothing   [ ⏸ Pause ] [ ➖ Remove ] ┃
+┃                                                                              ┃
+┃                                  [ « Back ]                                  ┃
+┃                                                                              ┃
+┃                                                                              ┃
+┃                                                                              ┃
+┃                                                                              ┃
+┃                                                                              ┃
+┃                                                                              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+ ? shows every key."
+`;
+
 exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 29 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
@@ -1251,15 +1251,15 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ ➕ Add an agent · app                                                        ┃
-┃ Which kind of agent?                                                         ┃
-┃ It gets its own secret, shown once; the other agents keep theirs.            ┃
+┃ 🗝 New project key · app                                                     ┃
+┃ Replace the project key?                                                     ┃
+┃ Every agent using the old key stops working at once, until the new key is    ┃
+┃ stored where it runs.                                                        ┃
 ┃                                                                              ┃
-┃ 🧭 Board · Plans and sorts the tickets, and asks you.             [ ➕ Add ] ┃
-┃ 🛠 Developers · Build what the tickets ask for.                   [ ➕ Add ] ┃
-┃ 🧪 Testers · Test each ticket before it closes.                   [ ➕ Add ] ┃
+┃                       [ 🗝 Make a new key ] [ « Back ]                       ┃
 ┃                                                                              ┃
-┃                                  [ « Back ]                                  ┃
+┃                                                                              ┃
+┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
@@ -1270,60 +1270,6 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 `;
 
 exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 30 80x24 1`] = `
-" Flowee · Shop                                             ◌ connecting  ? help
-┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
-│ Loading…                                                                     │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ ➖ Remove an agent · app                                                     ┃
-┃ Which agent goes?                                                            ┃
-┃ Its secret stops working at once, and the tickets it holds go back to the    ┃
-┃ queue.                                                                       ┃
-┃                                                                              ┃
-┃ board · 🧭 Board                                               [ ➖ Remove ] ┃
-┃ dev1 · 🛠 Developers                                           [ ➖ Remove ] ┃
-┃ tester · 🧪 Testers                                            [ ➖ Remove ] ┃
-┃                                                                              ┃
-┃                                  [ « Back ]                                  ┃
-┃                                                                              ┃
-┃                                                                              ┃
-┃                                                                              ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 31 80x24 1`] = `
-" Flowee · Shop                                             ◌ connecting  ? help
-┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
-│ Loading…                                                                     │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🔑 New agent secret · app                                                    ┃
-┃ Which agent gets a new secret?                                               ┃
-┃ Its old secret stops working at once.                                        ┃
-┃                                                                              ┃
-┃ board · board                                              [ 🔑 New secret ] ┃
-┃ dev1 · developer                                           [ 🔑 New secret ] ┃
-┃ tester · tester                                            [ 🔑 New secret ] ┃
-┃ owner · owner                                              [ 🔑 New secret ] ┃
-┃                                                                              ┃
-┃                                  [ « Back ]                                  ┃
-┃                                                                              ┃
-┃                                                                              ┃
-┃                                                                              ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 32 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -1350,7 +1296,7 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 33 80x24 1`] = `
+exports[`every view in the terminal > 80x24: no overflow, no cut button, every button reachable > walk 31 80x24 1`] = `
 " Flowee · Shop                                             ◌ connecting  ? help
 ┌─ Inbox ──────────────────────────────────────────────────────────────────────┐
 │ Loading…                                                                     │
@@ -2713,7 +2659,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 14 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 1 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 1 of 3                                                         ┃
 │                                                │┃ Which repository is this workspace for?                                                ┃
 │                                                │┃ Paste the repository's link from GitHub or GitLab, for example                         ┃
 │                                                │┃ https://github.com/octo/app. Several: one per line.                                    ┃
@@ -2756,7 +2702,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 15 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
 │                                                │┃ How should the agents bring in their code?                                             ┃
 │                                                │┃ Choose one. Versioning and the other options come next; each works with either.        ┃
 │                                                │┃                                                                                        ┃
@@ -2799,7 +2745,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 16 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
 │                                                │┃ What else should the flow do?                                                          ┃
 │                                                │┃ With Feature branches. Each switch works on its own; one that needs details asks for   ┃
 │                                                │┃ them next. You can change them later.                                                  ┃
@@ -2842,7 +2788,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 17 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 3                                                         ┃
 │                                                │┃ Send me a GitHub token for acme/app                                                    ┃
 │                                                │┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the permissions ┃
 │                                                │┃ and an expiry of 366 days filled in. Create the token and paste it here.               ┃
@@ -2885,49 +2831,6 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 18 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 4 of 4                                                         ┃
-│                                                │┃ Agent identities                                                                       ┃
-│                                                │┃ Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start ┃
-│                                                │┃ with these; you can add or remove agents any time.                                     ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃ 🧭 Board · Plans and sorts the tickets, and asks you.                [ − ] [ 1 ] [ + ] ┃
-│                                                │┃ 🛠 Developers · Build what the tickets ask for.                      [ − ] [ 1 ] [ + ] ┃
-│                                                │┃ 🧪 Testers · Test each ticket before it closes.                      [ − ] [ 1 ] [ + ] ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-└────────────────────────────────────────────────┘┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 19 140x40 1`] = `
-" Flowee · Shop                                                                                                         ◌ connecting  ? help
-┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🆕 New workspace · Last check                                                          ┃
 │                                                │┃ Create the workspace app?                                                              ┃
 │                                                │┃                                                                                        ┃
@@ -2935,7 +2838,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ 🔀 Way of working  Feature branches                                                    ┃
 │                                                │┃ 💬 Tickets appear  in the terminal (flowee-tui): you first, more people in the menu    ┃
 │                                                │┃ 🔑 GitHub token    checked                                                             ┃
-│                                                │┃ 👥 Agents          board, dev1, tester (each gets a new secret)                        ┃
+│                                                │┃ 🗝 Project key     a new one, shown once                                               ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                              [ ✅ Create the workspace ]                               ┃
 │                                                │┃                                                                                        ┃
@@ -2968,16 +2871,16 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 20 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 19 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ ✅ Workspace ready · app                                                               ┃
-│                                                │┃ These are your agents' sign-in secrets for flowee.py, shown only this once. Save each  ┃
-│                                                │┃ one on the machine where that agent runs (the file shows where), put the .flowee.toml  ┃
-│                                                │┃ part into the repository, then delete the file.                                        ┃
+│                                                │┃ Below is the workspace's project key for flowee.py, shown only this once. Store it     ┃
+│                                                │┃ where your agents run (the file shows the line), put the .flowee.toml part into the    ┃
+│                                                │┃ repository, then delete the file. Your agents read the roles and create themselves     ┃
+│                                                │┃ with it; you see them in 📂 My workspaces.                                             ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                  [ 📂 My workspaces ]                                  ┃
-│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3011,7 +2914,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 21 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 20 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 👋 Welcome to Flowee                                                                   ┃
@@ -3054,10 +2957,10 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 22 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 21 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 2 of 3                                                         ┃
 │                                                │┃ What else should the flow do?                                                          ┃
 │                                                │┃ With Single branch. Each switch works on its own; one that needs details asks for them ┃
 │                                                │┃ next. You can change them later.                                                       ┃
@@ -3097,10 +3000,10 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 23 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 22 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 4                                                         ┃
+│ Loading…                                       │┃ 🆕 New workspace · Step 3 of 3                                                         ┃
 │                                                │┃ Send me a GitHub token for acme/widget                                                 ┃
 │                                                │┃ Tap 🔑 Create a token: GitHub opens the form with the name, the owner, the permissions ┃
 │                                                │┃ and an expiry of 366 days filled in. Create the token and paste it here.               ┃
@@ -3140,7 +3043,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 24 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 23 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🆕 New workspace · Last check                                                          ┃
@@ -3150,7 +3053,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ 🔀 Way of working  Single branch                                                       ┃
 │                                                │┃ 💬 Tickets appear  in the terminal (flowee-tui): you first, more people in the menu    ┃
 │                                                │┃ 🔑 GitHub token    checked                                                             ┃
-│                                                │┃ 👥 Agents          board, dev1, tester (each gets a new secret)                        ┃
+│                                                │┃ 🗝 Project key     a new one, shown once                                               ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                              [ ✅ Create the workspace ]                               ┃
 │                                                │┃                                                                                        ┃
@@ -3183,16 +3086,16 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 25 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 24 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ ✅ Workspace ready · widget                                                            ┃
-│                                                │┃ These are your agents' sign-in secrets for flowee.py, shown only this once. Save each  ┃
-│                                                │┃ one on the machine where that agent runs (the file shows where), put the .flowee.toml  ┃
-│                                                │┃ part into the repository, then delete the file.                                        ┃
+│                                                │┃ Below is the workspace's project key for flowee.py, shown only this once. Store it     ┃
+│                                                │┃ where your agents run (the file shows the line), put the .flowee.toml part into the    ┃
+│                                                │┃ repository, then delete the file. Your agents read the roles and create themselves     ┃
+│                                                │┃ with it; you see them in 📂 My workspaces.                                             ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                  [ 📂 My workspaces ]                                  ┃
-│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3226,7 +3129,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 26 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 25 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 📂 Your workspaces                                                                     ┃
@@ -3269,7 +3172,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 27 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 26 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 📂 app · ▶ running                                                                     ┃
@@ -3279,16 +3182,12 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ 💬 Tickets appear   in the terminal (flowee-tui)                                       ┃
 │                                                │┃ 🖥 Terminal people  Mia                                                 [ 👥 People ]  ┃
 │                                                │┃ 🔑 GitHub token     never shown                                         [ ✏️ Change ]  ┃
-│                                                │┃ 👥 Agents           board, dev1, tester                                                ┃
+│                                                │┃ 👥 Agents           dev1                                                [ 👥 Agents ]  ┃
 │                                                │┃ 🧩 Custom steps     none                                                [ ✏️ Change ]  ┃
 │                                                │┃ ⚡ Instant updates  off for app (not set up yet); the tracker is chec…  [ ⚡ Turn on ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ➕ Add an agent · A new identity with its own secret; the other agents                 ┃
-│                                                │┃ keep theirs.                                                                [ ➕ Add ] ┃
-│                                                │┃ ➖ Remove an agent · Its secret stops working, and the tickets it holds                ┃
-│                                                │┃ go back to the queue.                                                    [ ➖ Remove ] ┃
-│                                                │┃ 🔑 New agent secret · One agent gets a new secret; its old one                         ┃
-│                                                │┃ stops working.                                                       [ 🔑 New secret ] ┃
+│                                                │┃ 🗝 New project key · Your agents get a new key, handed over as a file;                 ┃
+│                                                │┃ the old one stops working at once.                                      [ 🗝 New key ] ┃
 │                                                │┃ 📤 Export · The configuration without secrets, as a file to edit and                   ┃
 │                                                │┃ import again.                                                            [ 📤 Export ] ┃
 │                                                │┃ ⏸ Pause · The agents' API answers that it is paused, and the chat stays                ┃
@@ -3307,12 +3206,16 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 └────────────────────────────────────────────────┘┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 28 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 27 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 👥 Who can use this workspace · app                                                    ┃
@@ -3355,18 +3258,61 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 28 140x40 1`] = `
+" Flowee · Shop                                                                                                         ◌ connecting  ? help
+┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Loading…                                       │┃ 👥 Agents · app                                                                        ┃
+│                                                │┃ Agents create themselves with the project key (flowee.py agents add); here you see     ┃
+│                                                │┃ them, and pause or remove one.                                                         ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃ dev1 · 🛠 Developer · never seen · holds nothing             [ ⏸ Pause ] [ ➖ Remove ] ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                       [ « Back ]                                       ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
+└────────────────────────────────────────────────┘┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+ ? shows every key."
+`;
+
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 29 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ ➕ Add an agent · app                                                                  ┃
-│                                                │┃ Which kind of agent?                                                                   ┃
-│                                                │┃ It gets its own secret, shown once; the other agents keep theirs.                      ┃
+│ Loading…                                       │┃ 🗝 New project key · app                                                               ┃
+│                                                │┃ Replace the project key?                                                               ┃
+│                                                │┃ Every agent using the old key stops working at once, until the new key is stored where ┃
+│                                                │┃ it runs.                                                                               ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ 🧭 Board · Plans and sorts the tickets, and asks you.                       [ ➕ Add ] ┃
-│                                                │┃ 🛠 Developers · Build what the tickets ask for.                             [ ➕ Add ] ┃
-│                                                │┃ 🧪 Testers · Test each ticket before it closes.                             [ ➕ Add ] ┃
+│                                                │┃                            [ 🗝 Make a new key ] [ « Back ]                            ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃                                       [ « Back ]                                       ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3399,92 +3345,6 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 `;
 
 exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 30 140x40 1`] = `
-" Flowee · Shop                                                                                                         ◌ connecting  ? help
-┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ ➖ Remove an agent · app                                                               ┃
-│                                                │┃ Which agent goes?                                                                      ┃
-│                                                │┃ Its secret stops working at once, and the tickets it holds go back to the queue.       ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃ board · 🧭 Board                                                         [ ➖ Remove ] ┃
-│                                                │┃ dev1 · 🛠 Developers                                                     [ ➖ Remove ] ┃
-│                                                │┃ tester · 🧪 Testers                                                      [ ➖ Remove ] ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                       [ « Back ]                                       ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-└────────────────────────────────────────────────┘┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 31 140x40 1`] = `
-" Flowee · Shop                                                                                                         ◌ connecting  ? help
-┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Loading…                                       │┃ 🔑 New agent secret · app                                                              ┃
-│                                                │┃ Which agent gets a new secret?                                                         ┃
-│                                                │┃ Its old secret stops working at once.                                                  ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃ board · board                                                        [ 🔑 New secret ] ┃
-│                                                │┃ dev1 · developer                                                     [ 🔑 New secret ] ┃
-│                                                │┃ tester · tester                                                      [ 🔑 New secret ] ┃
-│                                                │┃ owner · owner                                                        [ 🔑 New secret ] ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                       [ « Back ]                                       ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-│                                                │┃                                                                                        ┃
-└────────────────────────────────────────────────┘┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
- ? shows every key."
-`;
-
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 32 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🗑 Delete app?                                                                         ┃
@@ -3527,7 +3387,7 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
  ? shows every key."
 `;
 
-exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 33 140x40 1`] = `
+exports[`every view in the terminal > 140x40: no overflow, no cut button, every button reachable > walk 31 140x40 1`] = `
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 📥 Import a configuration                                                              ┃

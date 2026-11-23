@@ -17,6 +17,9 @@ export interface Agent {
   seen?: number;
 }
 
+/** One agent as the management menu shows it: `holds` the tickets it claims, as labels (`#12`). */
+export type AgentRow = Agent & { holds: string[] };
+
 /** The agent types the flow offers: what each may do, which states it takes tickets from. */
 export function roles(flow: Flow) {
   const o = flow.options;

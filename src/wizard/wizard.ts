@@ -22,10 +22,10 @@ export interface PastedRepo extends TrackerRef {
 
 export const TTL = 24 * 3600e3;
 
-export type Step = "repos" | "bot" | "botCreate" | "flow" | "bind" | "credential" | "roles" | "summary";
-export const STEPS: Step[] = ["repos", "bot", "botCreate", "flow", "bind", "credential", "roles", "summary"];
+export type Step = "repos" | "bot" | "botCreate" | "flow" | "bind" | "credential" | "summary";
+export const STEPS: Step[] = ["repos", "bot", "botCreate", "flow", "bind", "credential", "summary"];
 /** The steps counted in "Step k of n"; creating the bot belongs to the bot step. */
-const COUNTED: Step[] = ["repos", "bot", "flow", "bind", "credential", "roles"];
+const COUNTED: Step[] = ["repos", "bot", "flow", "bind", "credential"];
 
 export interface Draft {
   id?: string;
@@ -60,7 +60,6 @@ export interface Draft {
   hook?: string;
   /** A workspace without a chat (imported that way): the bind step is skipped. */
   noChat?: boolean;
-  roles: Record<string, number>;
 }
 
 export interface Session {
@@ -137,9 +136,12 @@ export interface WizardHost {
   repoTaken(repo: string, except: string | undefined, t: TrackerRef): string | undefined;
   /** The managed bot just created: its token stored for the draft, its webhook set. */
   adoptBot(s: Session, botId: string): Promise<void>;
-  /** Creates or replaces the workspace; returns the role secrets to hand over once. */
-  /** `warning`: the workspace was made, but its bot's profile was not (one sentence). */
-  commit(s: Session): Promise<{ id: string; secrets: Record<string, string>; doc: WorkspaceDoc; warning?: string }>;
+  /**
+   * Creates or replaces the workspace; returns what to hand over once: the project key when it is new, and the
+   * secrets of agents an imported document names without one. `warning`: the workspace was made, but its bot's
+   * profile was not (one sentence).
+   */
+  commit(s: Session): Promise<{ id: string; key?: string; secrets: Record<string, string>; doc: WorkspaceDoc; warning?: string }>;
   load(user: string): Session | undefined;
   /** A draft over an imported document, with what the instance already holds for it filled in. */
   draftOf(doc: WorkspaceDoc): Draft;
@@ -174,16 +176,12 @@ const OPTIONS: Record<string, [string, string, string?]> = {
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
   userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
 };
-export const ROLES: Record<string, [string, string]> = {
-  board: ["🧭 Board", "Plans and sorts the tickets, and asks you."],
-  developer: ["🛠 Developers", "Build what the tickets ask for."],
-  tester: ["🧪 Testers", "Test each ticket before it closes."],
-};
+const ROLES: Record<string, string> = { board: "🧭 Board", developer: "🛠 Developer", tester: "🧪 Tester", owner: "👤 Owner" };
 /** The way of working in words: the branching, then every option switched on. */
 export const wayOf = (features: Record<string, unknown> = {}) =>
   [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f] && (features[f] as { autoTriage?: boolean }).autoTriage !== false).map((f) => OPTIONS[f][0])].join(", ");
 /** A role's name on the screens; an extension's role by its own name. */
-export const roleName = (r: string) => ROLES[r]?.[0] ?? `🧩 ${esc(r)}`;
+export const roleName = (r: string) => ROLES[r] ?? `🧩 ${esc(r)}`;
 
 /** The parts of a screen: text blocks, then button rows; a warning goes between them. */
 interface Screen {
@@ -231,16 +229,14 @@ export const failedView = (why: string, setup: boolean): View => [
 
 export function fresh(user: string, at: ChatRef, now: number): Session {
   // user feedback is a choice either way: off, a ticket with the label waits for a human first
-  return { user, at, step: "bot", back: [], draft: { repos: [], features: { userFeedback: false }, roles: {} }, ts: now };
+  return { user, at, step: "bot", back: [], draft: { repos: [], features: { userFeedback: false } }, ts: now };
 }
 
 /** A chat as its owner knows it, without its title. */
 export const chatLabel = (chat: string, topic?: number) => (!chat.startsWith("-") ? "a private chat" : topic ? "one topic of your group" : "your group");
 
 /** A draft from an existing or imported document. */
-export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
-  const roles: Record<string, number> = {};
-  for (const r of d.roles ?? []) if (r.role !== flow.ownerRole) roles[r.role] = (roles[r.role] ?? 0) + 1;
+export function fromDoc(d: WorkspaceDoc): Draft {
   const { pullRequests, untrustedReports, ...features } = d.features ?? {};
   // the former name: automatic triage of user feedback
   if (untrustedReports && features.userFeedback === undefined) features.userFeedback = true;
@@ -254,24 +250,11 @@ export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
     features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false && !(k === "userFeedback" && typeof v === "object" && (v as { autoTriage?: boolean }).autoTriage === false)])),
     ...(d.extensions?.length ? { extensions: structuredClone(d.extensions) } : {}),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
-    roles,
   };
 }
 
 /** Secret names of a workspace made here: one prefix per workspace keeps them apart. */
 export const slot = (id: string, what: string) => `W_${id.toUpperCase().replace(/-/g, "_")}_${what.toUpperCase().replace(/-/g, "_")}`;
-
-/** Role instance names for the chosen counts: board, dev1…, tester or tester1…, and the owner. */
-export function instances(roles: Record<string, number>, preset: FlowInfo): { instance: string; role: string }[] {
-  const out: { instance: string; role: string }[] = [];
-  for (const role of preset.roles.filter((r) => r !== preset.ownerRole)) {
-    const n = roles[role] ?? 0;
-    const short = role === "developer" ? "dev" : role;
-    for (let i = 1; i <= n; i++) out.push({ instance: n === 1 && role !== "developer" ? short : `${short}${i}`, role });
-  }
-  out.push({ instance: preset.ownerRole, role: preset.ownerRole });
-  return out;
-}
 
 /** User feedback as written: its options (also from the former `untrustedReports`) with the switch as `autoTriage`. */
 function feedbackDoc(f: WorkspaceDoc["features"], on: boolean, asked?: Values) {
@@ -287,7 +270,7 @@ function withInputs(k: string, old: unknown, asked: Values | undefined, on: bool
 }
 
 /** The workspace document of a finished draft; fields of an imported or existing document are kept. */
-export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token: string; webhookSecret: string; username?: string }, publicUrl: string, api?: string): WorkspaceDoc {
+export function toDoc(d: Draft, user: string, shared: { token: string; webhookSecret: string; username?: string }, publicUrl: string, api?: string): WorkspaceDoc {
   const id = d.id as string;
   const base: Partial<WorkspaceDoc> = d.base ? JSON.parse(JSON.stringify(d.base)) : {};
   // every secret a workspace made here names is its own slot: a document cannot borrow another workspace's token
@@ -318,9 +301,13 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
       // a self-managed or Enterprise tracker names its API; the instance's GitHub API applies to GitHub only
       ...(d.tracker?.api ? { api: d.tracker.api } : api && (d.tracker?.kind ?? "github") === "github" && !base.tracker?.api ? { api } : {}),
     },
-    roles: instances(d.roles, preset).map((r) => ({ ...r, secret: slot(id, r.instance) })),
     owners,
   };
+  // agents with their own secrets in an imported or older document keep them, in this workspace's own slots;
+  // a new workspace gets one project key, and its agents create themselves with it
+  if (base.roles?.length) doc.roles = base.roles.map((r) => ({ ...r, secret: slot(id, r.instance) }));
+  else delete doc.roles;
+  if (base.agents || !base.roles?.length) doc.agents = { ...(base.agents ?? {}), key: slot(id, "key") };
   if (!Object.keys(doc.features ?? {}).length) delete doc.features;
   if (d.extensions?.length) doc.extensions = structuredClone(d.extensions);
   else delete doc.extensions;
@@ -381,8 +368,6 @@ export class Wizard {
         return !d.bind && !d.noChat;
       case "credential":
         return !d.token && !d.tokenStored;
-      case "roles":
-        return !Object.keys(d.roles).length;
       case "summary":
         return true;
     }
@@ -440,22 +425,11 @@ export class Wizard {
     s.step = step;
     delete s.sub;
     s.ts = this.now();
-    const roles = this.agentRoles(s.draft);
-    for (const r of Object.keys(s.draft.roles)) if (!roles.includes(r)) delete s.draft.roles[r];
-    if (step === "roles" && !Object.keys(s.draft.roles).length) for (const r of roles) s.draft.roles[r] = 1;
     await this.show(s, o);
   }
 
   private async advance(s: Session, o: { note?: string } = {}) {
     await this.go(s, this.nextStep(s), true, o);
-  }
-
-  /** The roles agents can have with the draft's features. */
-  agentRoles(d: Draft) {
-    const p = this.host.flow(d);
-    const on = this.switches(d);
-    const holds = (t: string) => !!on[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
-    return p.roles.filter((r) => r !== p.ownerRole && (p.roleFeatures?.[r] ?? []).every(holds));
   }
 
   /** Shows the session's step in the living message; `note` is one sentence under the prompt. */
@@ -658,17 +632,6 @@ export class Wizard {
             : [...(create.length ? [row(...create)] : []), nav],
         };
       }
-      case "roles": {
-        const roles = this.agentRoles(d);
-        return {
-          body: [
-            top,
-            question("Agent identities"),
-            text("Each agent signs in with its own secret, so Flowee knows who holds which ticket. Start with these; you can add or remove agents any time."),
-          ],
-          rows: [options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? `Works as ${esc(this.host.flow(d).who?.[r] ?? r)}.`, b("−", `role:${r}:-1`), { label: String(d.roles[r] ?? 0) }, b("+", `role:${r}:1`)))), this.nav(s, "roles:done")],
-        };
-      }
       case "summary": {
         const edit = !!(s.single || d.replaces);
         return {
@@ -706,7 +669,6 @@ export class Wizard {
     else if (what === "back") s.sub = "options";
     else if (what === "rm") {
       d.extensions = (d.extensions ?? []).filter((_, k) => k !== Number(i));
-      for (const r of Object.keys(d.roles)) if (!this.agentRoles(d).includes(r)) delete d.roles[r];
     }
     return this.show(s);
   }
@@ -731,7 +693,7 @@ export class Wizard {
     }
     delete s.extProblems;
     d.extensions = next;
-    return this.show(s, { note: `🧩 ${name} is added; its roles appear in the agents step.` });
+    return this.show(s, { note: `🧩 ${name} is added; agents of its roles can be created with the project key.` });
   }
 
   /** An option's values now: defaults, the document's, then what was asked here. */
@@ -866,15 +828,14 @@ export class Wizard {
   /** What it will be, as rows of a two-column table. */
   private facts(s: Session): string[][] {
     const d = s.draft;
-    const p = this.host.flow();
-    const agents = instances(d.roles, p).filter((r) => r.role !== p.ownerRole).map((r) => esc(r.instance));
+    const named = d.base?.roles?.length && !d.base.agents;
     return [
       ["📦 Repositories", `${d.repos.map(code).join(", ")} on ${this.host.trackerName(d.tracker?.kind)}`],
       ...(this.host.terminal ? [] : [["🤖 Bot", d.bot === "own" ? `its own${d.botUsername ? `, @${esc(d.botUsername)}` : ""}` : "this bot"]]),
       ["🔀 Way of working", wayOf(this.switches(d))],
       ["💬 Tickets appear", this.where(s)],
       [`🔑 ${this.host.trackerName(d.tracker?.kind)} token`, d.token ? "checked" : d.tokenStored ? "kept from before" : "missing"],
-      ["👥 Agents", `${agents.join(", ") || "none"}${agents.length ? " (each gets a new secret)" : ""}`],
+      ["🗝 Project key", named ? "none: the agents keep their own secrets" : d.replaces && d.base?.agents ? "kept from before" : "a new one, shown once"],
     ];
   }
 
@@ -891,6 +852,8 @@ export class Wizard {
         await this.living.show(user, at, [heading("⌛", "This setup is over"), text("It was finished or cancelled."), row(b("🚀 Set up a workspace", "new"))]);
       return i.kind === "press" && i.data.startsWith("w:");
     }
+    // a session stored at a step that no longer exists (the former agents step) resumes at the last check
+    if (!STEPS.includes(s.step)) s.step = "summary";
     if (this.now() - s.ts > TTL) {
       this.host.drop(user);
       await this.dropHelper(s);
@@ -982,13 +945,6 @@ export class Wizard {
         }
         d.bind = { chat: s.at.chat, label: "a private chat" };
         return this.advance(s);
-      case "role": {
-        d.roles[v] = Math.max(0, Math.min(9, (d.roles[v] ?? 0) + Number(w)));
-        return this.show(s);
-      }
-      case "roles":
-        if (!Object.values(d.roles).some((x) => x > 0)) return this.show(s, { note: "At least one agent is needed." });
-        return this.advance(s);
       case "wide":
         if (v === "keep" && d.token) return this.advance(s);
         delete d.token;
@@ -1073,54 +1029,78 @@ export class Wizard {
     }
     this.host.drop(s.user);
     await this.dropHelper(s);
-    const names = Object.keys(r.secrets);
+    const give = !!r.key || Object.keys(r.secrets).length > 0;
     await this.living.show(s.user, s.at, [
       heading("✅", s.draft.replaces ? "Changes saved" : "Workspace ready", code(r.id)),
       ...(r.warning ? [warning(r.warning)] : []),
-      ...(names.length ? [text(`These are your agents' sign-in secrets for ${code("flowee.py")}, <b>shown only this once</b>. Save each one on the machine where that agent runs (the file shows where), put the ${code(".flowee.toml")} part into the repository, then delete the file.`)] : []),
+      ...(r.key
+        ? [text(`Below is the workspace's <b>project key</b> for ${code("flowee.py")}, <b>shown only this once</b>. Store it where your agents run (the file shows the line), put the ${code(".flowee.toml")} part into the repository, then delete the file. Your agents read the roles and create themselves with it; you see them in 📂 My workspaces.`)]
+        : give
+          ? [text(`These are your agents' sign-in secrets for ${code("flowee.py")}, <b>shown only this once</b>. Save each one on the machine where that agent runs (the file shows where), then delete the file.`)]
+          : []),
       row(btn("📂 My workspaces", "m:list")),
     ]);
-    if (names.length) await this.handOver(s.at, r.id, r.secrets);
+    if (give) await this.handOver(s.at, r.id, { key: r.key, secrets: r.secrets });
     const [next, ...rest] = s.queue ?? [];
-    // the secrets file now stands under the living message: the next workspace starts anew below it
-    if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest, { bottom: names.length > 0 });
+    // the key file now stands under the living message: the next workspace starts anew below it
+    if (next) await this.over(s.user, s.at, this.host.draftOf(next), undefined, rest, { bottom: give });
   }
 
-  /** The agents' secrets as a file that explains itself, once (or a message where files are refused). */
-  async handOver(at: ChatRef, id: string, secrets: Record<string, string>) {
-    const body = secretsFile(this.host.publicUrl, id, secrets);
-    const buttons = [[btn("🗑 Delete this file from the chat", "m:rmfile")], [linkBtn("❓ How do I use these?", `${this.host.publicUrl}/docs/agents/`)]];
-    // shown once: a refused file must not lose them, so they come as a message instead
-    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-secrets.txt`, body, "🔑 Agent secrets: shown only this once.", buttons).then(() => true, () => false))) return;
-    await this.chat.view(at, [heading("🔑", "Agent secrets", code(id)), { html: `<pre>${esc(body)}</pre>` }, row(...buttons[0]), row(...buttons[1])]);
+  /** The project key (and secrets of agents a document names) as a file that explains itself, once (or a message where files are refused). */
+  async handOver(at: ChatRef, id: string, what: { key?: string; secrets?: Record<string, string> }) {
+    const body = keyFile(this.host.publicUrl, id, what);
+    const buttons = [[btn("🗑 Delete this file from the chat", "m:rmfile")], [linkBtn("❓ How do I use this?", `${this.host.publicUrl}/docs/agents/`)]];
+    const title = what.key ? "🔑 Project key: shown only this once." : "🔑 Agent secrets: shown only this once.";
+    // shown once: a refused file must not lose it, so it comes as a message instead
+    if (this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-${what.key ? "key" : "secrets"}.txt`, body, title, buttons).then(() => true, () => false))) return;
+    await this.chat.view(at, [heading("🔑", what.key ? "Project key" : "Agent secrets", code(id)), { html: `<pre>${esc(body)}</pre>` }, row(...buttons[0]), row(...buttons[1])]);
   }
 }
 
 
 /**
- * The secrets file: each agent's secret as a ready block that stores it with mode 600 where flowee.py reads it (the
- * secret on stdin, never in an argument), then the `.flowee.toml` for the repository. An agent handed this file and
- * the instance URL can set up the project side by itself.
+ * The key file: the project key as a ready block that stores it with mode 600 where flowee.py reads it (on stdin,
+ * never in an argument), the `.flowee.toml` for the repository, and the three commands an agent runs to see the roles
+ * and create its agents. Agents a document names with their own secrets get a block each. An agent handed this file
+ * and the instance URL can set up the project side by itself.
  */
-export function secretsFile(url: string, id: string, secrets: Record<string, string>): string {
-  const names = Object.keys(secrets);
+export function keyFile(url: string, id: string, what: { key?: string; secrets?: Record<string, string> }): string {
   const dir = `~/.secrets/flowee/${id}`;
+  const names = Object.keys(what.secrets ?? {});
+  const agents = names.flatMap((n) => ["", `# ${n}`, `mkdir -p ${dir} && install -m 600 /dev/stdin ${dir}/${n} <<'EOF'`, (what.secrets ?? {})[n], "EOF"]);
+  if (!what.key)
+    return [
+      `# Flowee workspace ${id}: agents' sign-in secrets for flowee.py, shown only this once.`,
+      "# Flowee keeps only a fingerprint of each; a lost secret is replaced in /workspaces (New agent secret).",
+      `# Run each block on the machine where that agent runs, then delete this file. More: ${url}/docs/agents/`,
+      ...agents,
+      "",
+    ].join("\n");
   return [
-    `# Flowee workspace ${id}: the agents' sign-in secrets for flowee.py, shown only this once.`,
-    "# Flowee keeps only a fingerprint of each; a lost secret is replaced in /workspaces (New agent secret).",
-    `# Hand this file to an agent with the address ${url} and say "set this up", or do the two steps below.`,
+    `# Flowee workspace ${id}: the project key for flowee.py, shown only this once.`,
+    "# With it your agents list the roles of the flow, create themselves and work the tickets. Flowee keeps only a",
+    "# fingerprint; a lost key is replaced in /workspaces (New project key), and the old one stops working.",
+    `# Hand this file to an agent with the address ${url} and say "set this up", or do the three steps below.`,
     `# Then delete this file and the message it came in. More: ${url}/docs/agents/`,
     "",
-    "# 1. Each agent's secret: run its block on the machine where that agent runs. It stores the secret with",
-    `#    mode 600 in ${dir}/<agent>, where .flowee.toml points flowee.py.`,
-    ...names.flatMap((n) => ["", `# ${n}`, `mkdir -p ${dir} && install -m 600 /dev/stdin ${dir}/${n} <<'EOF'`, secrets[n], "EOF"]),
+    "# 1. The key: run this on every machine where an agent runs. It stores the key with mode 600 where",
+    "#    .flowee.toml points flowee.py.",
+    `mkdir -p ${dir} && install -m 600 /dev/stdin ${dir}/key <<'EOF'`,
+    what.key,
+    "EOF",
     "",
-    "# 2. .flowee.toml: commit it to the repository's root (no secret in it). Each agent runs as its own",
-    `#    instance: set FLOWEE_AS=<agent> in that agent's environment, or edit 'instance' in its clone.`,
+    "# 2. .flowee.toml: commit it to the repository's root (no secret in it). Each agent runs under its own name:",
+    "#    set FLOWEE_AS=<name> in that agent's environment, or edit 'agent' in its clone.",
     `url = "${url}"`,
     `workspace = "${id}"`,
-    `instance = "${names[0]}"`,
-    `secret_file = "~/.secrets/flowee/{workspace}/{instance}"`,
+    `key_file = "~/.secrets/flowee/{workspace}/key"`,
+    `agent = "dev1"`,
+    "",
+    "# 3. The roles, then one agent per run you schedule (idempotent: safe in every run), then the list:",
+    "#    python3 flowee.py roles",
+    "#    python3 flowee.py agents add developer dev1",
+    "#    python3 flowee.py agents",
+    ...(names.length ? ["", "# Agents the configuration names with their own secrets: one block each, on that agent's machine.", ...agents] : []),
     "",
   ].join("\n");
 }

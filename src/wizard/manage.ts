@@ -6,7 +6,8 @@ import type { SyncStatus } from "../core/events";
 import { btn, esc, facts, heading, option, options, question, row, text } from "../envoy/render";
 import type { Block, Chat, ChatRef, View } from "../ports/chat";
 import type { BotAccess } from "../ports/bots";
-import { chatLabel, extName, ROLES, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
+import type { AgentRow } from "../core/agents";
+import { chatLabel, extName, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
   /** Whether the user manages the document by other means than being its creator or a manager (a terminal key). */
@@ -22,10 +23,12 @@ export interface ManageHost extends WizardHost {
   remove(id: string): Promise<void>;
   /** A new secret for one agent; only its fingerprint is kept. */
   rotate(id: string, instance: string): Promise<string>;
-  /** One more agent of `role` with a new identity and secret; the other agents keep theirs. */
-  addAgent(id: string, role: string): Promise<{ instance: string; secret: string }>;
-  /** One agent goes: its secret stops working and the tickets it holds go back to the queue. */
+  /** One agent the document names goes: its secret stops working and the tickets it holds go back to the queue. */
   removeAgent(id: string, instance: string): Promise<void>;
+  /** A new project key (a workspace without one gets it now); only its fingerprint is kept. */
+  rotateKey(id: string): Promise<string>;
+  /** The workspace's agents, after removing or pausing one created with the key. */
+  agents(id: string, change?: { name: string; remove?: boolean; paused?: boolean }): Promise<AgentRow[]>;
   /** A new token for the workspace's own bot (the old one stops working). */
   replaceBotToken(id: string): Promise<void>;
   access(id: string): Promise<BotAccess>;
@@ -144,6 +147,7 @@ export class Manager {
   /** One workspace: what it is, and everything that can be done with it. */
   private async workspace(user: string, at: ChatRef, d: WorkspaceDoc, note?: string) {
     const sync = await this.host.sync?.(d.id).catch(() => undefined);
+    const agents = await this.host.agents(d.id).catch(() => []);
     const hooks = sync && instantUpdates(sync);
     const own = !!d.chat?.managed;
     const paused = this.host.paused(d.id);
@@ -158,14 +162,13 @@ export class Manager {
         d.chat || !d.tui ? { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] } : ["💬 Tickets appear", this.where(user, d)],
         ...(d.tui ? [{ cells: ["🖥 Terminal people", d.tui.people.map((p) => esc(p.name ?? p.id)).join(", ")], buttons: [b("👥 People", `ppl:${d.id}`)] }] : []),
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
-        ["👥 Agents", (d.roles ?? []).filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
+        { cells: ["👥 Agents", agents.map((a) => esc(a.name)).join(", ") || "none yet: they create themselves with the project key"], buttons: [b("👥 Agents", `ag:${d.id}`)] },
         { cells: ["🧩 Custom steps", (d.extensions ?? []).map((e) => code(extName(e))).join(", ") || "none"], buttons: [edit("ext" as Step)] },
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
       ]),
       options(
-        option("➕ Add an agent", "A new identity with its own secret; the other agents keep theirs.", b("➕ Add", `add:${d.id}`)),
-        option("➖ Remove an agent", "Its secret stops working, and the tickets it holds go back to the queue.", b("➖ Remove", `rmag:${d.id}`)),
-        option("🔑 New agent secret", "One agent gets a new secret; its old one stops working.", b("🔑 New secret", `rot:${d.id}`)),
+        option("🗝 New project key", "Your agents get a new key, handed over as a file; the old one stops working at once.", b("🗝 New key", `key:${d.id}`)),
+        ...(d.roles?.length ? [option("🔑 New agent secret", "An agent the configuration names gets a new secret; its old one stops working.", b("🔑 New secret", `rot:${d.id}`))] : []),
         ...(own
           ? [
               option("♻️ New bot token", "The bot gets a new token; the old one stops working.", b("♻️ New token", `tok:${d.id}`)),
@@ -179,6 +182,32 @@ export class Manager {
         option("🗑 Delete", "Its configuration, secrets and state go; the repositories stay.", b("🗑 Delete", `del:${d.id}`)),
       ),
       row(b("« All workspaces", "list")),
+    ]);
+  }
+
+  /** The agents: who exists, its role, when it was last seen and what it holds; pause or remove one. */
+  private async agents(user: string, at: ChatRef, d: WorkspaceDoc, note?: string) {
+    const list = await this.host.agents(d.id);
+    const seen = (ms?: number) => (ms ? `seen ${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC` : "never seen");
+    return this.show(user, at, [
+      heading("👥", "Agents", code(d.id)),
+      text(`Agents create themselves with the project key (${code("flowee.py agents add")}); here you see them, and pause or remove one.`),
+      ...(note ? [text(note)] : []),
+      ...(list.length
+        ? [
+            options(
+              ...list.map((a) =>
+                option(
+                  `${a.paused ? "⏸ " : ""}${esc(a.name)}`,
+                  `${roleName(a.role)} · ${seen(a.seen)} · ${a.holds.length ? `holds ${a.holds.map(esc).join(", ")}` : "holds nothing"}`,
+                  ...(a.source === "api" ? [a.paused ? b("▶ Resume", `agp:${d.id}:${a.name}`) : b("⏸ Pause", `agp:${d.id}:${a.name}`)] : []),
+                  b("➖ Remove", `agrm:${d.id}:${a.name}`),
+                ),
+              ),
+            ),
+          ]
+        : [text("None yet: an agent runs <code>flowee.py roles</code>, then <code>flowee.py agents add &lt;role&gt; &lt;name&gt;</code>.")]),
+      row(back(d.id)),
     ]);
   }
 
@@ -286,50 +315,41 @@ export class Manager {
         await this.show(user, at, [heading("🔑", `New secret for ${code(v)}`), text("It is in the file below, <b>shown only this once</b>, with the line that stores it on the agent's machine. The old one no longer works."), row(back(id))]);
         await this.wizard.handOver(at, id, { [v]: await this.host.rotate(id, v) });
         return "🔑 New secret below";
-      case "add": {
-        const roles = this.wizard.agentRoles(this.host.draftOf(d));
-        if (!v || !roles.includes(v)) {
+      case "key":
+        if (v !== "yes") {
           await this.show(user, at, [
-            heading("➕", "Add an agent", code(id)),
-            question("Which kind of agent?"),
-            text("It gets its own secret, shown once; the other agents keep theirs."),
-            options(...roles.map((r) => option(roleName(r), ROLES[r]?.[1] ?? "", b("➕ Add", `add:${id}:${r}`)))),
-            row(back(id)),
+            heading("🗝", "New project key", code(id)),
+            question("Replace the project key?"),
+            text("Every agent using the old key stops working at once, until the new key is stored where it runs."),
+            row(b("🗝 Make a new key", `key:${id}:yes`), back(id)),
           ]);
           return;
         }
-        const a = await this.host.addAgent(id, v);
-        await this.show(user, at, [heading("➕", `${code(a.instance)} added`), text("Its secret is in the file below, <b>shown only this once</b>; the other agents keep theirs."), row(back(id))]);
-        await this.wizard.handOver(at, id, { [a.instance]: a.secret });
-        return "➕ Agent added";
+        await this.show(user, at, [heading("🗝", "New project key", code(id)), text("It is in the file below, <b>shown only this once</b>, with the line that stores it where your agents run. The old one no longer works."), row(back(id))]);
+        await this.wizard.handOver(at, id, { key: await this.host.rotateKey(id) });
+        return "🗝 New key below";
+      case "ag":
+        await this.agents(user, at, d);
+        return;
+      case "agp": {
+        const a = (await this.host.agents(id)).find((x) => x.name === v && x.source === "api");
+        if (!a) return void (await this.agents(user, at, d, `⚠️ There is no agent ${code(v ?? "")} to pause.`));
+        await this.host.agents(id, { name: v, paused: !a.paused });
+        await this.agents(user, at, d, a.paused ? `▶ ${code(v)} works again.` : `⏸ ${code(v)} is paused: its commands are refused until you resume it; its tickets keep their claim until the lease runs out.`);
+        return a.paused ? "▶ Resumed" : "⏸ Paused";
       }
-      case "rmag": {
-        const agents = (d.roles ?? []).filter((r) => r.role !== this.host.flow().ownerRole);
-        const r = agents.find((x) => x.instance === v);
-        if (!r) {
-          await this.show(user, at, [
-            heading("➖", "Remove an agent", code(id)),
-            question("Which agent goes?"),
-            text("Its secret stops working at once, and the tickets it holds go back to the queue."),
-            options(...agents.map((x) => option(esc(x.instance), roleName(x.role), b("➖ Remove", `rmag:${id}:${x.instance}`)))),
-            row(back(id)),
-          ]);
-          return;
-        }
-        if (agents.length === 1) {
-          await this.workspace(user, at, d, "⚠️ At least one agent is needed: add another one first.");
-          return;
-        }
-        if (w !== "yes") {
-          await this.show(user, at, [
-            heading("➖", `Remove ${code(r.instance)}?`),
-            text("Its secret stops working at once, and the tickets it holds go back to the queue; the other agents are not touched."),
-            row(b("➖ Remove it", `rmag:${id}:${r.instance}:yes`), back(id)),
-          ]);
-          return;
-        }
-        await this.host.removeAgent(id, r.instance);
-        await this.workspace(user, at, this.host.doc(id) ?? d, `➖ ${code(r.instance)} is removed; its tickets go back to the queue.`);
+      case "agrm": {
+        const a = (await this.host.agents(id)).find((x) => x.name === v);
+        if (!a) return void (await this.agents(user, at, d, `⚠️ There is no agent ${code(v ?? "")}.`));
+        if (w !== "yes")
+          return void (await this.show(user, at, [
+            heading("➖", `Remove ${code(a.name)}?`, code(id)),
+            text("It stops working at once, and the tickets it holds go back to their queues; the other agents are not touched."),
+            row(b("➖ Remove it", `agrm:${id}:${a.name}:yes`), b("« Back", `ag:${id}`)),
+          ]));
+        if (a.source === "document") await this.host.removeAgent(id, a.name);
+        else await this.host.agents(id, { name: a.name, remove: true });
+        await this.agents(user, at, this.host.doc(id) ?? d, `➖ ${code(a.name)} is removed; its tickets go back to their queues.`);
         return "➖ Agent removed";
       }
       case "exp":

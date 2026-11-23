@@ -225,7 +225,7 @@ export class InstanceHost implements InstanceApi {
       },
       async commit(s) {
         const d = s.draft;
-        const doc = toDoc(d, s.user, self.flowInfo(d), cfg.bot, cfg.publicUrl, cfg.trackerApi);
+        const doc = toDoc(d, s.user, cfg.bot, cfg.publicUrl, cfg.trackerApi);
         const t = tuiOf(s.user);
         if (t) {
           // made in the terminal: the inbox is the terminal, and the one who set it up is its first manager
@@ -254,6 +254,8 @@ export class InstanceHost implements InstanceApi {
             secrets[r.instance] = randomSecret();
             await self.put(r.secret, doc.id, await digestOf(secrets[r.instance]));
           }
+        const pkey = doc.agents && !has(doc.agents.key) ? randomSecret() : undefined;
+        if (pkey && doc.agents) await self.put(doc.agents.key, doc.id, await digestOf(pkey));
         // secrets the old version named and the new one does not
         const keep = new Set(secretNames(doc));
         for (const n of before ? secretNames(before) : []) if (!keep.has(n)) self.dropSecret(n);
@@ -266,7 +268,7 @@ export class InstanceHost implements InstanceApi {
             () => undefined,
             (e: unknown) => `The bot's profile was not set (${e instanceof Error ? e.message : e}); the next deploy tries again.`,
           );
-        return { id: doc.id, secrets, doc, warning };
+        return { id: doc.id, key: pkey, secrets, doc, warning };
       },
       load: (user) => {
         const r = self.store.rows<{ data: string }>("SELECT data FROM sessions WHERE user = ?", user)[0];
@@ -275,7 +277,7 @@ export class InstanceHost implements InstanceApi {
       save: (s) => void self.store.exec("INSERT OR REPLACE INTO sessions VALUES (?, ?, ?)", s.user, JSON.stringify(s), s.ts),
       drop: (user) => void self.store.exec("DELETE FROM sessions WHERE user = ?", user),
       draftOf(doc) {
-        const d: Draft = fromDoc(doc, flow);
+        const d: Draft = fromDoc(doc);
         if (reg.get(doc.id)) d.replaces = doc.id;
         // only the workspace's own slots count: an imported document never reaches another workspace's secrets
         d.tokenStored = !!d.replaces && reg.owner(doc.id) !== undefined && !!self.secrets.get(slot(doc.id, "tracker"));
@@ -310,22 +312,20 @@ export class InstanceHost implements InstanceApi {
         await self.push(id);
         return secret;
       },
-      async addAgent(id, role) {
+      async rotateKey(id) {
         const doc = structuredClone(reg.get(id) as WorkspaceDoc);
-        const taken = new Set((doc.roles ?? []).map((r) => r.instance));
-        const short = role === "developer" ? "dev" : role;
-        let instance = role === "developer" ? "dev1" : short;
-        for (let i = 2; taken.has(instance); i++) instance = `${short}${i}`;
-        (doc.roles ??= []).splice(doc.roles.findIndex((r) => r.role === flow.ownerRole), 0, { instance, role, secret: slot(id, instance) });
-        const errs = validate(doc);
-        if (errs.length) throw new Error(errs.join(" "));
-        reg.import(doc);
-        const secret = randomSecret();
-        await self.put(slot(id, instance), id, await digestOf(secret));
+        // an older workspace gets its project key here; its agents with their own secrets keep them
+        if (!doc.agents) {
+          doc.agents = { key: slot(id, "key") };
+          reg.import(doc);
+        }
+        const k = randomSecret();
+        await self.put(doc.agents.key, id, await digestOf(k));
         reg.reindex();
         await self.push(id);
-        return { instance, secret };
+        return k;
       },
+      agents: (id, change) => self.stub(id).agents(change),
       async removeAgent(id, instance) {
         const doc = structuredClone(reg.get(id) as WorkspaceDoc);
         const r = (doc.roles ?? []).find((x) => x.instance === instance && x.role !== flow.ownerRole);
@@ -669,6 +669,12 @@ export class InstanceHost implements InstanceApi {
       }
       return bad(405, "bad_request", "POST adds a person, DELETE …/people/<person> removes one.");
     }
+    const key = /^\/admin\/workspaces\/([a-z0-9-]+)\/key$/.exec(path);
+    if (key) {
+      if (!reg.get(key[1])) return bad(404, "not_found", `There is no workspace '${key[1]}'.`);
+      if (method !== "POST") return bad(405, "bad_request", "POST makes a new project key.");
+      return ok({ id: key[1], key: await this.host().rotateKey(key[1]) });
+    }
     if (!m) return bad(404, "not_found", "No such endpoint.");
     const [, id, secrets] = m;
     const missing = (w: WorkspaceDoc) => secretNames(w).filter((n) => !this.secrets.get(n));
@@ -698,12 +704,12 @@ export class InstanceHost implements InstanceApi {
       if (!w) return bad(404, "not_found", `There is no workspace '${id}'.`);
       const given = (body ?? {}) as Record<string, unknown>;
       const names = secretNames(w);
-      const roleSlots = new Set((w.roles ?? []).map((r) => r.secret));
+      const roleSlots = new Set([...(w.roles ?? []).map((r) => r.secret), ...(w.agents ? [w.agents.key] : [])]);
       for (const [n, v] of Object.entries(given)) {
         if (!names.includes(n)) return bad(400, "bad_request", `${n}: the workspace names no such secret.`);
         if (typeof v !== "string" || !v) return bad(400, "bad_request", `${n}: must be a non-empty string.`);
       }
-      // an agent's secret is kept only as its digest
+      // an agent's secret and the project key are kept only as their digests
       for (const [n, v] of Object.entries(given)) await this.put(n, id, roleSlots.has(n) ? await digestOf(v as string) : (v as string));
       reg.reindex();
       await this.push(id);
