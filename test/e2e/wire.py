@@ -107,8 +107,8 @@ class GitHub:
             return 200, {"check_runs": r["checks"].get(mm.group(1), [])}
         if re.match(r"^/commits/\w+/status$", rest):
             return 200, {"statuses": []}
-        if rest == "/releases/latest":
-            return (200, r["release"]) if r["release"] else (404, {"message": "Not Found"})
+        if rest == "/releases":
+            return 200, [r["release"]] if r["release"] else []
         if mm := re.match(r"^/git/ref/tags/(.+)$", rest):
             t = r["tags"].get(mm.group(1))
             return (200, {"object": {"sha": t, "type": "commit"}}) if t else (404, {"message": "Not Found"})

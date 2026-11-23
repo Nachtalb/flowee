@@ -146,7 +146,7 @@ describe("GitLab adapter", () => {
     gl.publish("1.0.0", a);
     gl.publish("2.0.0", a);
     gl.releases[0].upcoming_release = true;
-    expect((await t.releases.latest())?.tag).toBe("1.0.0");
+    expect((await t.releases.recent()).map((r) => r.tag)).toEqual(["1.0.0"]);
   });
 });
 

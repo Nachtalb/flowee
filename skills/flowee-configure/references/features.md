@@ -45,7 +45,7 @@ refused.
 | `features.releases.checks` | array of names | `[]` | `testedTag` lands only on a commit with these checks green. |
 | `features.releases.skip` | array of commit types | `["docs", "chore", "test"]` | `testedTag` never lands on a commit of these types. |
 | `features.releases.hold` | boolean | `true` | A `Kind: test` card for a ticket whose commits the release lacks waits in `awaiting release`; the cron hands it to the owner when a release has them. |
-| `features.releases.versionLine` | boolean | `true` | Test cards say `📦 In <version> or later`. |
+| `features.releases.versionLine` | boolean | `true` | Test cards say `📦 In <version> or later`: the first of the last 10 published releases that has every commit of the ticket (the minimum version to install); no line while no published build has them all, or for a ticket without commits. |
 | `features.samples` | `true` or object | off | The `sampler` role and the states `needs samples`, `in procurement`, `samples unobtainable`; `Kind: sample` cards. |
 | `features.samples.root` | string | `""` | Sample paths must start with this (e.g. `Samples/`). |
 | `features.samples.notNeededLabel` | string | `not file related` | A ticket with this label needs no sample to become `ready`. |

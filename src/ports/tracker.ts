@@ -149,9 +149,12 @@ export interface Release {
   publishedAt: string;
 }
 
+/** How far back the minimum version of a test card is looked for (feature releases). */
+export const RECENT_RELEASES = 10;
+
 export interface Releases {
-  /** The latest published release, or null. */
-  latest(): Promise<Release | null>;
+  /** The published releases (no drafts or pre-releases), newest first, at most `RECENT_RELEASES`. */
+  recent(): Promise<Release[]>;
 }
 
 export interface Tags {

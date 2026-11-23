@@ -223,9 +223,11 @@ describe.each(Object.keys(HARNESSES) as TrackerKind[])("tracker contract: %s", (
     expect(runs.every((r) => r.status === "completed" && r.conclusion === "success")).toBe(true);
     expect(await capability(t, "checks").forCommit(h.commit("feat: no ci"))).toEqual([]);
     const rel = capability(t, "releases");
-    expect(await rel.latest()).toBeNull();
+    expect(await rel.recent()).toEqual([]);
     h.publish("1.2.0", a);
-    expect(await rel.latest()).toMatchObject({ tag: "1.2.0", name: "1.2.0", sha: a });
+    h.publish("1.3.0", a);
+    expect((await rel.recent()).map((r) => r.tag)).toEqual(["1.3.0", "1.2.0"]);
+    expect((await rel.recent())[1]).toMatchObject({ tag: "1.2.0", name: "1.2.0", sha: a });
     const tags = capability(t, "tags");
     expect(await tags.get("tested")).toBeNull();
     await tags.move("tested", a);

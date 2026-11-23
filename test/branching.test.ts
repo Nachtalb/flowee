@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { validate } from "../src/config/schema";
 import { FLOW, flowOf, PRESETS } from "../src/config/presets";
 import { ACTIONS } from "../src/core/actions";
+import { firstVersion } from "../src/core/code";
 import { loadFlow } from "../src/core/chart";
 import { type FeaturesDoc, prune, resolve } from "../src/core/features";
 import { GUARDS } from "../src/core/guards";
@@ -125,6 +126,62 @@ describe("single branch with versioning", () => {
     expect((await r("owner", "answer", { n, text: "Fast now." })).body.state).toBe("needs triage");
     expect((await r("board", "approve", { n })).body.state).toBe("closed");
     expect(relmain.issues.get(n)!.state).toBe("closed");
+  });
+});
+
+describe("versioning: the minimum version on a test card", () => {
+  const card = async (n: number) => (await inFlow((f) => f.rows<{ card: string }>("SELECT card FROM inbox WHERE n = ?", n).map((x) => JSON.parse(x.card))[0], "relmain")) ?? null;
+  const version = (n: number) => inFlow(async (f) => firstVersion(f, await f.ticket(n)), "relmain");
+
+  it("is the first release that has every commit of the ticket, not the latest one", async () => {
+    const code = new FakeCode(relmain);
+    relmain.add({ number: 2, state_label: "board review" });
+    const a = relmain.commit("feat: part one (#2)");
+    code.publish("1.1.0", a);
+    const b = relmain.commit("feat: part two (#2)");
+    relmain.commit("feat: other (#5)");
+    code.publish("1.2.0", b);
+    code.publish("1.3.0", relmain.main.at(-1)!.sha);
+    expect((await r("board", "escalate", { n: 2, comment: CARD })).body.state).toBe("human review");
+    expect((await card(2)).version).toBe("1.2.0");
+    expect(JSON.stringify(tg.of("sendRichMessage"))).toContain("📦 In 1.2.0 or later");
+  });
+
+  it("nothing ever released: the card waits, and says no version until a release has the code", async () => {
+    const code = new FakeCode(relmain);
+    relmain.add({ number: 3, state_label: "board review" });
+    const a = relmain.commit("feat: thing (#3)");
+    expect(await version(3)).toBeNull();
+    expect((await r("board", "escalate", { n: 3, comment: CARD })).body.state).toBe("awaiting release");
+    await inFlow((f) => f.cron(), "relmain");
+    expect(relmain.label(3)).toEqual(["awaiting release"]);
+    code.publish("0.1.0", relmain.commit("chore: unrelated"));
+    expect(await version(3)).toBe("0.1.0");
+    code.publish("0.2.0", a);
+    relmain.add({ number: 4, state_label: "board review" });
+    relmain.commit("feat: later (#4)");
+    expect(await version(4)).toBeNull(); // published builds lack its commit: no version line, even without the hold
+  });
+
+  it("a re-opened ticket's new card waits for the release with its new commits and names that one", async () => {
+    const code = new FakeCode(relmain);
+    relmain.add({ number: 6, state_label: "board review" });
+    const a = relmain.commit("feat: first try (#6)");
+    code.publish("2.0.0", a);
+    expect((await r("board", "escalate", { n: 6, comment: CARD })).body.state).toBe("human review");
+    expect((await card(6)).version).toBe("2.0.0");
+    expect((await r("owner", "answer", { n: 6, text: "Still slow." })).body.state).toBe("needs triage");
+    expect((await r("board", "rework", { n: 6, comment: "Owner: still slow." })).body.state).toBe("back to development");
+    await r("dev1", "next", {});
+    const b = relmain.commit("fix: really faster (#6)");
+    expect((await r("dev1", "handoff", { n: 6, comment: "Fixed." })).body.state).toBe("ready for testing");
+    await r("tester", "next", {});
+    expect((await r("tester", "pass", { n: 6, comment: CARD, build: b, gates: { sha: b, ok: true }, owner_check: true })).body.state).toBe("board review");
+    expect((await r("board", "escalate", { n: 6, comment: CARD })).body.state).toBe("awaiting release");
+    code.publish("2.1.0", b);
+    await inFlow((f) => f.cron(), "relmain");
+    expect(relmain.label(6)).toEqual(["human review"]);
+    expect((await card(6)).version).toBe("2.1.0");
   });
 });
 

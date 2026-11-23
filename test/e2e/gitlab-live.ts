@@ -65,7 +65,7 @@ const files = await foss.pulls.files(p.number);
 ok("merge request files", files.length > 0, files.slice(0, 3).map((c) => ({ ...c, added: c.added.length })));
 
 // pipelines and statuses, releases, tags
-const rr = await runner.releases.latest();
+const [rr] = await runner.releases.recent();
 ok("latest release", !!rr && !!rr.tag && !!rr.publishedAt, rr && { tag: rr.tag, name: rr.name, sha: rr.sha, url: rr.url, publishedAt: rr.publishedAt });
 const tagSha = rr ? await runner.tags.get(rr.tag) : null;
 ok("the release's tag: the commit it points at", !!tagSha && /^[0-9a-f]{40}$/.test(tagSha), tagSha);

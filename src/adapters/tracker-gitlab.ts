@@ -21,6 +21,7 @@
 import { Fail } from "../core/errors";
 import type { Hooks } from "../ports/hooks";
 import { GitLabHooks } from "./hooks-gitlab";
+import { RECENT_RELEASES } from "../ports/tracker";
 import type {
   Branches,
   Change,
@@ -443,16 +444,16 @@ class GitLabChecks implements Checks {
 class GitLabReleases implements Releases {
   constructor(private gl: GitLab) {}
 
-  async latest(): Promise<Release | null> {
+  async recent(): Promise<Release[]> {
     const rs = await this.gl.req<{ tag_name: string; name: string | null; description: string | null; released_at: string; upcoming_release?: boolean; _links?: { self?: string } }[]>(
       "GET",
-      `${this.gl.p}/releases?order_by=released_at&sort=desc&per_page=20`,
-      "the latest release",
+      `${this.gl.p}/releases?order_by=released_at&sort=desc&per_page=${RECENT_RELEASES + 10}`,
+      "the releases",
     );
-    const r = rs.find((x) => !x.upcoming_release);
-    if (!r) return null;
-    const sha = /build from `?([0-9a-f]{40})/.exec(r.description ?? "")?.[1] ?? null;
-    return { tag: r.tag_name, name: r.name || r.tag_name, sha, body: r.description ?? "", url: r._links?.self ?? "", publishedAt: r.released_at };
+    return rs
+      .filter((x) => !x.upcoming_release)
+      .slice(0, RECENT_RELEASES)
+      .map((r) => ({ tag: r.tag_name, name: r.name || r.tag_name, sha: /build from `?([0-9a-f]{40})/.exec(r.description ?? "")?.[1] ?? null, body: r.description ?? "", url: r._links?.self ?? "", publishedAt: r.released_at }));
   }
 }
 

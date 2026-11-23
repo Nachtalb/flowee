@@ -1,7 +1,7 @@
 // Guards, actions and housekeeping of the code features (docs/configuration.md, "Features"): branches and pull
 // requests, CI checks, releases and the tested tag, samples, UI review, dependency tickets, untrusted reports.
 // Each reaches the tracker of the ticket's repository through its optional capabilities.
-import { capability, type Change, type Issue, type PullRequest, type Tracker } from "../ports/tracker";
+import { capability, type Change, type Issue, type PullRequest, type Release, type Tracker } from "../ports/tracker";
 import { type Card, parseCard } from "./card";
 import type { Action, Caller, Ctx, Guard } from "./engine";
 import { Fail } from "./errors";
@@ -67,10 +67,41 @@ export async function published(f: Flowee, repo: Repo): Promise<{ version: strin
     const sha = await capability(repo.tracker, "tags").get(String(r.tag));
     return sha ? { version: `${r.tag} ${s7(sha)}`, sha } : null;
   }
-  const rel = await capability(repo.tracker, "releases").latest();
-  if (!rel) return null;
+  const [rel] = await capability(repo.tracker, "releases").recent();
+  return rel ? built(repo, rel) : null;
+}
+
+async function built(repo: Repo, rel: Release) {
   const sha = rel.sha ?? (await capability(repo.tracker, "tags").get(rel.tag));
   return sha ? { version: rel.name, sha } : null;
+}
+
+/**
+ * The first version that has every commit of the ticket, for the card's `📦 In <version> or later`: the oldest of
+ * the recent releases (newest first, the walk stops at the first one lacking a commit) that contains them all, or
+ * the published tag. Null when no published build has them all yet, or the ticket has no commits.
+ */
+export async function firstVersion(f: Flowee, t: Ticket): Promise<string | null> {
+  const r = f.s.features.releases;
+  const { repo } = local(f, t.n);
+  const shas = await ticketShas(f, t);
+  if (!r || !shas.length) return null;
+  const has = async (b: { sha: string } | null) => {
+    if (!b) return false;
+    for (const s of shas) if (!(await repo.tracker.contains(s, b.sha))) return false;
+    return true;
+  };
+  if (r.source === "tag") {
+    const b = await published(f, repo);
+    return (await has(b)) ? (b as { version: string }).version : null;
+  }
+  let first: string | null = null;
+  for (const rel of await capability(repo.tracker, "releases").recent()) {
+    const b = await built(repo, rel);
+    if (!(await has(b))) break;
+    first = rel.name;
+  }
+  return first;
 }
 
 /** Commits of the ticket the published build lacks (all of them when nothing is published). */
@@ -79,7 +110,6 @@ async function unreleased(c: Ctx): Promise<string[]> {
   const shas = await ticketShas(c.f, c.t);
   if (!shas.length) return [];
   const rel = await published(c.f, repo);
-  if (rel) c.data.release = rel;
   const out: string[] = [];
   for (const s of shas) if (!rel || !(await repo.tracker.contains(s, rel.sha))) out.push(s);
   return out;

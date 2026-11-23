@@ -25,7 +25,8 @@ export class FakeCode {
   changes = new Map<string, { filename: string; status: string; patch?: string }[]>();
   pulls: Pull[] = [];
   checks = new Map<string, { name: string; status: string; conclusion: string | null }[]>();
-  release: { tag_name: string; name: string; body: string; html_url: string; published_at: string } | null = null;
+  /** Newest first, as the API lists them. */
+  releases: { tag_name: string; name: string; body: string; html_url: string; published_at: string; draft?: boolean; prerelease?: boolean }[] = [];
   tags = new Map<string, string>();
   merged: { number: number; method: string; title?: string }[] = [];
   private n = 0;
@@ -71,7 +72,7 @@ export class FakeCode {
   }
 
   publish(name: string, sha: string) {
-    this.release = { tag_name: name, name, body: `Built from main.\n\nbuild from \`${sha}\``, html_url: `https://github.com/${this.gh.repo}/releases/${name}`, published_at: "2026-11-20T00:00:00Z" };
+    this.releases.unshift({ tag_name: name, name, body: `Built from main.\n\nbuild from \`${sha}\``, html_url: `https://github.com/${this.gh.repo}/releases/${name}`, published_at: "2026-11-20T00:00:00Z" });
   }
 
   private idx(sha: string) {
@@ -134,7 +135,7 @@ export class FakeCode {
       if (method === "PATCH") Object.assign(p, body);
       return ok(pull(p));
     }
-    if (rest === "releases/latest") return this.release ? ok(this.release) : nf();
+    if (rest === "releases") return ok(this.releases);
     if ((m = /^git\/ref\/tags\/(.+)$/.exec(rest))) return this.tags.has(m[1]) ? ok({ object: { sha: this.tags.get(m[1]), type: "commit" } }) : nf();
     if (rest === "git/refs" && method === "POST") {
       this.tags.set(String(body.ref).replace("refs/tags/", ""), body.sha);

@@ -1,6 +1,6 @@
 // Named actions a chart may use. docs/flows.md describes each one.
 import type { Card } from "./card";
-import { CODE_ACTIONS, published } from "./code";
+import { CODE_ACTIONS, firstVersion } from "./code";
 import type { Action } from "./engine";
 import type { IssuePatch } from "../ports/tracker";
 import { fill, iso } from "./text";
@@ -92,8 +92,8 @@ export const ACTIONS: Record<string, Action> = {
   /** The ticket becomes an inbox item and its card goes to the owner's chat; `field` in the response says how. */
   async sendCard(c, p) {
     const r = c.f.s.features.releases;
-    const rel = r?.versionLine && (c.data.card as Card).kind === "test" ? ((c.data.release as { version: string } | undefined) ?? (await published(c.f, c.f.tracker.at(c.t.n).repo))) : null;
-    const card = { ...(c.data.card as Card), ...(rel ? { version: rel.version } : {}) };
+    const version = r?.versionLine && (c.data.card as Card).kind === "test" ? await firstVersion(c.f, c.t) : null;
+    const card = { ...(c.data.card as Card), ...(version ? { version } : {}) };
     c.f.db.exec("DELETE FROM claims WHERE n = ?", c.t.n);
     c.f.db.exec(
       "INSERT OR REPLACE INTO inbox (n, comment_id, kind, card, title, url, status, ts) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)",

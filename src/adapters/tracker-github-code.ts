@@ -1,7 +1,7 @@
 // The GitHub adapter's optional capabilities over the REST API: branches and files, pull requests, checks,
 // releases, tags. docs/adapters.md lists the fine-grained token permission each one needs.
 import { Fail } from "../core/errors";
-import type { Branches, Change, CheckRun, Checks, PullRequest, PullRequests, Release, Releases, Tags } from "../ports/tracker";
+import { type Branches, type Change, type CheckRun, type Checks, type PullRequest, type PullRequests, RECENT_RELEASES, type Release, type Releases, type Tags } from "../ports/tracker";
 import type { GitHub } from "./tracker-github";
 
 const gone = (e: unknown) => (e as { gh?: number }).gh === 404;
@@ -157,13 +157,16 @@ export class GitHubChecks implements Checks {
 export class GitHubReleases implements Releases {
   constructor(private gh: GitHub) {}
 
-  async latest(): Promise<Release | null> {
-    const r = await orNull(
-      this.gh.req<{ tag_name: string; name: string | null; body: string | null; html_url: string; published_at: string }>("GET", `${this.gh.r}/releases/latest`, "the latest release"),
+  async recent(): Promise<Release[]> {
+    const rs = await this.gh.req<{ tag_name: string; name: string | null; body: string | null; html_url: string; published_at: string; draft?: boolean; prerelease?: boolean }[]>(
+      "GET",
+      `${this.gh.r}/releases?per_page=${RECENT_RELEASES + 10}`,
+      "the releases",
     );
-    if (!r) return null;
-    const sha = /build from `?([0-9a-f]{40})/.exec(r.body ?? "")?.[1] ?? null;
-    return { tag: r.tag_name, name: r.name || r.tag_name, sha, body: r.body ?? "", url: r.html_url, publishedAt: r.published_at };
+    return rs
+      .filter((r) => !r.draft && !r.prerelease)
+      .slice(0, RECENT_RELEASES)
+      .map((r) => ({ tag: r.tag_name, name: r.name || r.tag_name, sha: /build from `?([0-9a-f]{40})/.exec(r.body ?? "")?.[1] ?? null, body: r.body ?? "", url: r.html_url, publishedAt: r.published_at }));
   }
 }
 

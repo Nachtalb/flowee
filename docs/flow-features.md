@@ -69,7 +69,8 @@ branches its merge commit.
 |---|---|
 | The published build: the latest release (its notes' `build from <sha>` names the built commit, else its tag) or a moving tag (`source: "tag"`, `tag`) | `inRelease` |
 | `hold` (default on): a `Kind: test` card whose commits the published build lacks waits in `awaiting release`; the cron hands it to the owner once a release has them | `awaitsRelease`, tick `released` |
-| `versionLine` (default on): test cards say `📦 In <version> or later` | `sendCard` |
+| `versionLine` (default on): test cards say `📦 In <version> or later`, the minimum version: walking the last 10 published releases from the newest, the oldest one that still has every commit of the ticket (its commits on main, plus the merge commit recorded for it); the published tag with `source: "tag"`; no line while no published build has them all (also with `hold` off) or when the ticket has no commits | `sendCard`, `firstVersion` |
+| Nothing ever released: a test card waits in `awaiting release` until the first release has its code. A re-opened ticket's new commits count too: its next test card waits for, and names, the release that has them | `awaitsRelease`, `released` |
 | `testedTag`: a tag the cron moves forward over the main branch up to the first commit of a ticket still untested (`meta.untested`), never onto a commit of a `skip` type, only onto a commit with the `checks` green; CI can release from it | `moveTag` |
 
 ## `samples`: a real sample file before development
