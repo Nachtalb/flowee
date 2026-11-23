@@ -1,5 +1,7 @@
-// In-memory stand-ins for the GitHub REST/GraphQL API and the Telegram Bot API, served through a fetch stub.
-// The Worker and its Durable Object run in the test isolate, so replacing globalThis.fetch reaches them.
+// In-memory stand-ins for the GitHub REST/GraphQL API and the Telegram Bot API, served through a fetch stub
+// (the GitLab one is test/fake-gitlab.ts). The Worker and its Durable Object run in the test isolate, so replacing
+// globalThis.fetch reaches them.
+import { FakeGitLab } from "./fake-gitlab";
 
 type FIssue = {
   number: number;
@@ -21,7 +23,7 @@ export class FakeGitHub {
   issues = new Map<number, FIssue>();
   main: { sha: string; message: string }[] = []; // oldest first
   status = new Map<string, string>(); // node id -> project status
-  fail?: (method: string, path: string) => number | undefined;
+  fail?: (method: string, path: string) => number | Response | undefined;
   writes: string[] = [];
   /** The Authorization header of every request. */
   auth: string[] = [];
@@ -83,6 +85,7 @@ export class FakeGitHub {
     this.auth.push(req.headers.get("authorization") ?? "");
     await new Promise((r) => setTimeout(r, 2)); // real latency lets concurrent requests interleave
     const code = this.fail?.(method, path);
+    if (code instanceof Response) return code;
     if (code) return new Response("{}", { status: code });
     const ok = (b: unknown, status = 200) => Response.json(b, { status });
     const raw = method === "GET" ? "" : await req.text();
@@ -232,12 +235,18 @@ export function install() {
   const web = new FakeGitHub("acme/web");
   const api = new FakeGitHub("acme/api");
   const repos = [gh2, app, lib, viewer, deps, web, api];
+  // GitLab projects: gitlab.com (gl, glshop), a self-managed instance at gitlab.example.com (glself)
+  const gl = new FakeGitLab();
+  const glmix = new FakeGitLab("acme/backend/api", 501);
+  const glself = new FakeGitLab("team/tools/lib", 777);
   const tg = new FakeTelegram();
   const paste = new FakePaste();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init);
     const host = new URL(req.url).host;
     if (host === "api.github.com") return (repos.find((r) => r.owns(new URL(req.url).pathname)) ?? gh).handle(req);
+    if (host === "gitlab.com") return ([glmix].find((r) => r.owns(new URL(req.url).pathname)) ?? gl).handle(req);
+    if (host === "gitlab.example.com") return glself.handle(req);
     if (host === "assets.test") return new Response(new Uint8Array([137, 80, 78, 71]));
     if (host === "api.telegram.org" && new URL(req.url).pathname.startsWith("/file/"))
       return new Response(`bytes of ${new URL(req.url).pathname.split("/").pop()}`);
@@ -245,5 +254,5 @@ export function install() {
     if (host === "paste.example") return paste.handle(req);
     throw new Error(`unexpected fetch ${req.url}`);
   }) as typeof fetch;
-  return { gh, gh2, app, lib, viewer, deps, web, api, tg, paste };
+  return { gh, gh2, app, lib, viewer, deps, web, api, gl, glmix, glself, tg, paste };
 }
