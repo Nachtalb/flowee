@@ -9,7 +9,7 @@ them as three independent things:
 |---|---|---|
 | **Branching**, exactly one | **Single branch**: the agents commit straight to the main branch, the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, its checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
 | **Versioning**, with either branching | Off, or on: the owner gets a test card only once a published version contains the ticket's code, the card says `📦 In <version> or later`, and the `tested` tag follows the tested tickets. | `releases` |
-| **More options**, each on its own | Samples (a `sampler` finds a real sample file first), UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), user feedback (triaged automatically, or by a human first). | `samples`, `uiReview`, `dependencyTickets`, `userFeedback` |
+| **More options**, each on its own | UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), user feedback (triaged automatically, or by a human first). | `uiReview`, `dependencyTickets`, `userFeedback` |
 
 Every combination loads and walks (test/branching.test.ts: 3 branchings, counting both mergers, × versioning on
 and off × the 16 combinations of the other four). A combination is refused only for a real dependency, in one
@@ -73,12 +73,16 @@ branches its merge commit.
 | Nothing ever released: a test card waits in `awaiting release` until the first release has its code. A re-opened ticket's new commits count too: its next test card waits for, and names, the release that has them | `awaitsRelease`, `released` |
 | `testedTag`: a tag the cron moves forward over the main branch up to the first commit of a ticket still untested (`meta.untested`), never onto a commit of a `skip` type, only onto a commit with the `checks` green; CI can release from it | `moveTag` |
 
-## `samples`: a real sample file before development
+## `builtin:samples`: the example extension (formerly `samples`)
+
+Not a switch any more: `flows/extensions/samples.json`, shipped as an example of an extension (docs/flows.md,
+"Extending the flow"). A workspace names `"extensions": ["builtin:samples"]`; a document with the former
+`features.samples` gets it too, with `root` and `notNeededLabel` in its `pathsExist` guards.
 
 | Adds | How |
 |---|---|
-| The `sampler` role and the states `needs samples`, `in procurement` (the sampler holds it), `samples unobtainable` (the owner's inbox) | tagged states |
-| `triage` with `samples: true` → `needs samples`; `triage` to `ready` needs sample paths on the main branch (under `root`, a path may point into a container) or the `notNeededLabel` | `samplesGiven` |
+| The `sampler` role and the states `needs samples`, `in procurement` (the sampler holds it), `samples unobtainable` (the owner's inbox) | the extension's `states`, `roles`, `grant` |
+| `triage` with `samples: true` → `needs samples`; `triage` to `ready` needs sample paths on the main branch (under `root`, a path may point into a container) or the `notNeededLabel` | `pathsExist` (`replace` of `triage`) |
 | `found` (sampler): paths on main → `ready`; `unobtainable`: a `Kind: sample` draft → `board review` | |
 | `escalate` of an unobtainable ticket → `samples unobtainable`, only with a complete `Kind: sample` card (`Samples:` names files, never paths; a code span holds exactly one file name) | `cardKind`, `cardValid` |
 | `needsamples` (board): back to the sampler from review, the inbox or an answered `needs triage` | |

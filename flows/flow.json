@@ -1,7 +1,7 @@
 {
   "id": "flowee",
   "initial": "needs triage",
-  "description": "The full ticket flow: samples, branches and pull requests with CI checks, releases with the tested tag, UI review, dependency tickets and user feedback; each part tagged with its feature in meta.features and pruned when switched off.",
+  "description": "The full ticket flow: branches and pull requests with CI checks, releases with the tested tag, UI review, dependency tickets and user feedback; each part tagged with its feature in meta.features and pruned when switched off.",
   "states": {
     "needs triage": {
       "meta": {
@@ -56,142 +56,43 @@
             "releaseClaim"
           ]
         },
-        "triage": [
-          {
-            "target": "needs samples",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  {
-                    "type": "flag",
-                    "params": {
-                      "name": "samples"
-                    }
+        "triage": {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
                   }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  "samplesGiven"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "{paths}"
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
                 }
-              },
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "samples"
               ]
             }
           },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "!samples"
-              ]
-            }
-          }
-        ],
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        },
         "spec": {
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -224,21 +125,6 @@
             "setLabel",
             "releaseClaim"
           ]
-        },
-        "needsamples": {
-          "target": "needs samples",
-          "guard": "answered",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "samples"
-            ]
-          }
         },
         "escalate": [
           {
@@ -292,10 +178,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -345,473 +229,34 @@
             "recordAnswer"
           ]
         },
-        "feedback": [
-          {
-            "target": "human review",
-            "guard": "untrusted",
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "text": "User feedback: it waits for a human before any agent reads it."
-                }
-              },
-              "setLabel",
-              {
-                "type": "sendCard",
-                "params": {
-                  "field": "telegram",
-                  "card": {
-                    "kind": "decision",
-                    "question": "User feedback came in. Should the board triage it, drop it, or should someone answer the reporter first? Reply with what to do."
-                  }
+        "feedback": {
+          "target": "human review",
+          "guard": "untrusted",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "User feedback: it waits for a human before any agent reads it."
+              }
+            },
+            "setLabel",
+            {
+              "type": "sendCard",
+              "params": {
+                "field": "telegram",
+                "card": {
+                  "kind": "decision",
+                  "question": "User feedback came in. Should the board triage it, drop it, or should someone answer the reporter first? Reply with what to do."
                 }
               }
-            ],
-            "meta": {
-              "features": [
-                "userFeedback.autoTriage=false"
-              ]
             }
-          }
-        ]
-      }
-    },
-    "needs samples": {
-      "meta": {
-        "label": "needs samples",
-        "status": "Todo",
-        "claimable": {
-          "role": "sampler",
-          "rank": 1,
-          "when": {
-            "type": "all",
-            "params": {
-              "guards": [
-                "dependenciesClosed",
-                "trusted"
-              ]
-            }
-          }
-        },
-        "features": [
-          "samples"
-        ]
-      },
-      "on": {
-        "next": [
-          {
-            "target": "in procurement",
-            "guard": {
-              "type": "roleIs",
-              "params": {
-                "roles": [
-                  "sampler"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "setLabel",
-              "claim"
-            ]
-          },
-          {
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "roleIs",
-                    "params": {
-                      "roles": [
-                        "board"
-                      ]
-                    }
-                  },
-                  "untrusted"
-                ]
-              }
-            },
-            "actions": [
-              "claim"
-            ],
-            "meta": {
-              "features": [
-                "userFeedback.autoTriage"
-              ]
-            }
-          }
-        ],
-        "spec": {
-          "guard": {
-            "type": "notClaimedBy",
-            "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
-              ]
-            }
-          },
-          "actions": [
-            "updateBody",
-            "comment"
-          ]
-        },
-        "escalate": [
-          {
-            "target": "awaiting release",
-            "guard": "awaitsRelease",
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "releases.hold"
-              ]
-            }
-          },
-          {
-            "target": "human review",
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              {
-                "type": "sendCard",
-                "params": {
-                  "field": "telegram"
-                }
-              }
-            ]
-          }
-        ],
-        "drop": {
-          "target": "closed",
-          "guard": {
-            "type": "notClaimedBy",
-            "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            {
-              "type": "setLabel",
-              "params": {
-                "reason": "not_planned"
-              }
-            },
-            "releaseClaim"
-          ]
-        },
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
           ],
           "meta": {
             "features": [
-              "userFeedback.autoTriage"
+              "userFeedback.autoTriage=false"
             ]
           }
-        },
-        "answer": {
-          "actions": [
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "recordAnswer"
-          ]
-        }
-      }
-    },
-    "in procurement": {
-      "meta": {
-        "label": "in procurement",
-        "status": "In progress",
-        "holder": "sampler",
-        "features": [
-          "samples"
-        ]
-      },
-      "on": {
-        "next": {
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "board"
-                    ]
-                  }
-                },
-                "untrusted"
-              ]
-            }
-          },
-          "actions": [
-            "claim"
-          ],
-          "meta": {
-            "features": [
-              "userFeedback.autoTriage"
-            ]
-          }
-        },
-        "heartbeat": {
-          "guard": "holdsClaim",
-          "actions": [
-            "touchClaim"
-          ]
-        },
-        "release": {
-          "target": "needs samples",
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "sampler"
-                    ]
-                  }
-                },
-                "holdsClaim"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "found": {
-          "target": "ready",
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                "holdsClaim",
-                "samplesGiven"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            {
-              "type": "comment",
-              "params": {
-                "append": "{paths}"
-              }
-            },
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "unobtainable": {
-          "target": "board review",
-          "guard": "holdsClaim",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            {
-              "type": "recordOrigin",
-              "params": {
-                "from": "unobtainable"
-              }
-            }
-          ]
-        },
-        "stuck": {
-          "target": "board review",
-          "guard": "holdsClaim",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "recordOrigin"
-          ]
-        },
-        "expire": {
-          "target": "needs samples",
-          "actions": [
-            "setStatus",
-            {
-              "type": "comment",
-              "params": {
-                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
-              }
-            },
-            "setLabel",
-            "releaseClaim"
-          ]
-        },
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "userFeedback.autoTriage"
-            ]
-          }
-        },
-        "answer": {
-          "actions": [
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "recordAnswer"
-          ]
-        }
-      }
-    },
-    "samples unobtainable": {
-      "meta": {
-        "label": "samples unobtainable",
-        "status": "Owner",
-        "assignOwner": true,
-        "inbox": true,
-        "features": [
-          "samples"
-        ]
-      },
-      "on": {
-        "next": {
-          "guard": {
-            "type": "all",
-            "params": {
-              "guards": [
-                {
-                  "type": "roleIs",
-                  "params": {
-                    "roles": [
-                      "board"
-                    ]
-                  }
-                },
-                "untrusted"
-              ]
-            }
-          },
-          "actions": [
-            "claim"
-          ],
-          "meta": {
-            "features": [
-              "userFeedback.autoTriage"
-            ]
-          }
-        },
-        "needsamples": {
-          "target": "needs samples",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "dropInboxCard"
-          ],
-          "meta": {
-            "features": [
-              "samples"
-            ]
-          }
-        },
-        "postpone": {
-          "target": "postponed",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "dropInboxCard"
-          ]
-        },
-        "drop": {
-          "target": "closed",
-          "guard": {
-            "type": "notClaimedBy",
-            "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
-              ]
-            }
-          },
-          "actions": [
-            "setStatus",
-            "comment",
-            {
-              "type": "setLabel",
-              "params": {
-                "reason": "not_planned"
-              }
-            },
-            "releaseClaim",
-            "dropInboxCard"
-          ]
-        },
-        "checked": {
-          "guard": "isUntrusted",
-          "actions": [
-            "comment",
-            "markChecked",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "userFeedback.autoTriage"
-            ]
-          }
-        },
-        "answer": {
-          "target": "needs triage",
-          "actions": [
-            "setStatus",
-            {
-              "type": "comment",
-              "params": {
-                "field": "text"
-              }
-            },
-            "setLabel",
-            "recordAnswer"
-          ]
         }
       }
     },
@@ -882,10 +327,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -931,10 +374,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1044,10 +485,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1093,10 +532,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1195,142 +632,43 @@
             "releaseClaim"
           ]
         },
-        "triage": [
-          {
-            "target": "needs samples",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  {
-                    "type": "flag",
-                    "params": {
-                      "name": "samples"
-                    }
+        "triage": {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
                   }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  "samplesGiven"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "{paths}"
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
                 }
-              },
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "samples"
               ]
             }
           },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked"
-            ],
-            "meta": {
-              "features": [
-                "!samples"
-              ]
-            }
-          }
-        ],
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        },
         "spec": {
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1394,46 +732,6 @@
             ]
           },
           {
-            "target": "needs samples",
-            "guard": {
-              "type": "originIs",
-              "params": {
-                "from": "in procurement"
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
-            "target": "needs samples",
-            "guard": {
-              "type": "originIs",
-              "params": {
-                "from": "unobtainable"
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim"
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
             "guard": {
               "type": "refuse",
               "params": {
@@ -1461,90 +759,7 @@
             "releaseClaim"
           ]
         },
-        "needsamples": {
-          "target": "needs samples",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim"
-          ],
-          "meta": {
-            "features": [
-              "samples"
-            ]
-          }
-        },
         "escalate": [
-          {
-            "target": "samples unobtainable",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "originIs",
-                    "params": {
-                      "from": "unobtainable"
-                    }
-                  },
-                  {
-                    "type": "cardKind",
-                    "params": {
-                      "kinds": [
-                        "sample"
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              {
-                "type": "sendCard",
-                "params": {
-                  "field": "telegram"
-                }
-              }
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "originIs",
-                    "params": {
-                      "from": "unobtainable"
-                    }
-                  },
-                  {
-                    "type": "refuse",
-                    "params": {
-                      "status": 422,
-                      "code": "bad_card",
-                      "message": "#{n} could not get its sample: escalate it only with a complete Kind: sample card."
-                    }
-                  }
-                ]
-              }
-            },
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
           {
             "target": "awaiting release",
             "guard": "awaitsRelease",
@@ -1595,10 +810,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1725,10 +938,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -1804,137 +1015,38 @@
             ]
           }
         },
-        "triage": [
-          {
-            "target": "needs samples",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  {
-                    "type": "flag",
-                    "params": {
-                      "name": "samples"
-                    }
+        "triage": {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
                   }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked",
-              "dropInboxCard"
-            ],
-            "meta": {
-              "features": [
-                "samples"
-              ]
-            }
-          },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  },
-                  "samplesGiven"
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              {
-                "type": "comment",
-                "params": {
-                  "append": "{paths}"
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
                 }
-              },
-              "setLabel",
-              "releaseClaim",
-              "markChecked",
-              "dropInboxCard"
-            ],
-            "meta": {
-              "features": [
-                "samples"
               ]
             }
           },
-          {
-            "target": "ready",
-            "guard": {
-              "type": "all",
-              "params": {
-                "guards": [
-                  {
-                    "type": "notClaimedBy",
-                    "params": {
-                      "roles": [
-                        "developer",
-                        "tester",
-                        "sampler"
-                      ]
-                    }
-                  },
-                  {
-                    "type": "hasAcceptance",
-                    "params": {
-                      "heading": "Acceptance"
-                    }
-                  }
-                ]
-              }
-            },
-            "actions": [
-              "setStatus",
-              "comment",
-              "setLabel",
-              "releaseClaim",
-              "markChecked",
-              "dropInboxCard"
-            ],
-            "meta": {
-              "features": [
-                "!samples"
-              ]
-            }
-          }
-        ],
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked",
+            "dropInboxCard"
+          ]
+        },
         "rework": {
           "target": "back to development",
           "guard": {
@@ -1952,21 +1064,6 @@
             "releaseClaim",
             "dropInboxCard"
           ]
-        },
-        "needsamples": {
-          "target": "needs samples",
-          "actions": [
-            "setStatus",
-            "comment",
-            "setLabel",
-            "releaseClaim",
-            "dropInboxCard"
-          ],
-          "meta": {
-            "features": [
-              "samples"
-            ]
-          }
         },
         "approve": {
           "target": "closed",
@@ -1988,10 +1085,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },
@@ -2108,10 +1203,8 @@
           "guard": {
             "type": "notClaimedBy",
             "params": {
-              "roles": [
-                "developer",
-                "tester",
-                "sampler"
+              "except": [
+                "board"
               ]
             }
           },

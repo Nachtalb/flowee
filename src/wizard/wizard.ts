@@ -2,6 +2,7 @@
 // the envoy's blocks (docs/chat-style.md) shown in one living message that each step edits; typed answers are
 // deleted after reading. It reaches the instance through `WizardHost`; docs/managed.md walks through it.
 import type { RepoDoc, WorkspaceDoc } from "../config/document";
+import type { ExtensionRef } from "../config/presets";
 import type { TrackerKind } from "../config/trackers";
 import { btn, copyBtn, esc, facts, heading, linkBtn, option, options, question, row, text, warning } from "../envoy/render";
 import { type Block, type Chat, type ChatRef, type ChatRequest, live, type View } from "../ports/chat";
@@ -44,6 +45,8 @@ export interface Draft {
   branching?: "single" | "feature";
   /** The other switches: versioning (`releases`) and the more options. */
   features: Record<string, boolean>;
+  /** Flow extensions of the workspace (inline or `builtin:<name>`), in order. */
+  extensions?: ExtensionRef[];
   /** The values an option asked for (its follow-up screen), by option; kept when it is switched off. */
   inputs?: Record<string, Record<string, unknown>>;
   bind?: { chat: string; topic?: number; label: string };
@@ -96,12 +99,13 @@ export interface FlowInfo {
   roles: string[];
   ownerRole: string;
   features: string[];
-  /** Roles that exist only with some features: `samples`, `!samples`, `pullRequests.merger=flow`. */
+  /** Roles that exist only with some features: `uiReview`, `!uiReview`, `pullRequests.merger=flow`. */
   roleFeatures?: Record<string, string[]>;
 }
 
 export interface WizardHost {
-  flow(): FlowInfo;
+  /** The flow's roles and switches; for a draft, with its extensions merged. */
+  flow(d?: Draft): FlowInfo;
   /** Why the user may not create another workspace, or null. */
   refusal(user: string, replacing?: string): string | null;
   freeId(base: string): string;
@@ -153,7 +157,6 @@ const BRANCHING: Record<"single" | "feature", [string, string, string]> = {
 /** Versioning first, then the more options; each works with either branching. A third text: the row when off. */
 const OPTIONS: Record<string, [string, string, string?]> = {
   releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
-  samples: ["Samples", "A sampler finds a real sample file before development starts."],
   uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
   userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
@@ -162,12 +165,12 @@ export const ROLES: Record<string, [string, string]> = {
   board: ["🧭 Board", "Plans and sorts the tickets, and asks you."],
   developer: ["🛠 Developers", "Build what the tickets ask for."],
   tester: ["🧪 Testers", "Test each ticket before it closes."],
-  sampler: ["📎 Samplers", "Find real sample files to test with."],
 };
 /** The way of working in words: the branching, then every option switched on. */
 export const wayOf = (features: Record<string, unknown> = {}) =>
   [BRANCHING[features.pullRequests ? "feature" : "single"][1], ...Object.keys(OPTIONS).filter((f) => features[f] && (features[f] as { autoTriage?: boolean }).autoTriage !== false).map((f) => OPTIONS[f][0])].join(", ");
-export const roleName = (r: string) => ROLES[r]?.[0] ?? esc(r);
+/** A role's name on the screens; an extension's role by its own name. */
+export const roleName = (r: string) => ROLES[r]?.[0] ?? `🧩 ${esc(r)}`;
 
 /** The parts of a screen: text blocks, then button rows; a warning goes between them. */
 interface Screen {
@@ -236,6 +239,7 @@ export function fromDoc(d: WorkspaceDoc, flow: FlowInfo): Draft {
     tracker: { kind: d.tracker.type ?? "github", ...(d.tracker.api ? { api: d.tracker.api } : {}) },
     branching: pullRequests ? "feature" : "single",
     features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, v !== false && !(k === "userFeedback" && typeof v === "object" && (v as { autoTriage?: boolean }).autoTriage === false)])),
+    ...(d.extensions?.length ? { extensions: structuredClone(d.extensions) } : {}),
     bind: d.chat ? { chat: d.chat.chatId, topic: d.chat.topicId, label: chatLabel(d.chat.chatId, d.chat.topicId) } : undefined,
     roles,
   };
@@ -304,6 +308,8 @@ export function toDoc(d: Draft, user: string, preset: FlowInfo, shared: { token:
     owners,
   };
   if (!Object.keys(doc.features ?? {}).length) delete doc.features;
+  if (d.extensions?.length) doc.extensions = structuredClone(d.extensions);
+  else delete doc.extensions;
   if (own && d.botName && !doc.texts?.botName) doc.texts = { ...(doc.texts ?? {}), botName: d.botName };
   if (d.bind)
     doc.chat = {
@@ -427,7 +433,7 @@ export class Wizard {
 
   /** The roles agents can have with the draft's features. */
   agentRoles(d: Draft) {
-    const p = this.host.flow();
+    const p = this.host.flow(d);
     const on = this.switches(d);
     const holds = (t: string) => !!on[t.replace(/^!/, "").split(/[.=]/)[0]] !== t.startsWith("!");
     return p.roles.filter((r) => r !== p.ownerRole && (p.roleFeatures?.[r] ?? []).every(holds));

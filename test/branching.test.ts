@@ -16,7 +16,7 @@ import { call, inFlow, setup, wipe } from "./helpers";
 import workspaces from "./workspaces.json";
 
 const load = (f: FeaturesDoc) => {
-  const x = prune(FLOW.chart, FLOW.options, resolve(f));
+  const x = flowOf({ flow: { preset: "trunk" }, features: f });
   return loadFlow(x.chart, x.options, Object.keys(GUARDS), Object.keys(ACTIONS));
 };
 const OTHERS: FeaturesDoc = { samples: true, uiReview: { paths: ["**/ui/**"] }, dependencyTickets: true, untrustedReports: true };

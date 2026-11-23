@@ -30,8 +30,10 @@ to submit. The full specification is in `references/`:
   Write an inline statechart only when no preset plus switches fits (`references/statecharts.md`); it is long and
   every rule of the loader applies.
 - **One role instance per agent**, with the flow's owner role always present (`{"instance": "owner", "role":
-  "owner", …}`): without it the owner cannot answer through the API. The `sampler` role exists only with
-  `features.samples`.
+  "owner", …}`): without it the owner cannot answer through the API. Roles an extension adds (the
+  `sampler` of `builtin:samples`) exist only with it.
+- **Custom states are an extension**, not a new chart: `"extensions": [{"name": …, "states": …, "on": …}]`
+  (`references/statecharts.md`, "Extensions"); start from the instance's `/flows/flow.json`.
 - **Name the tracker.** `tracker.type` is `github` (default) or `gitlab`; a repository on the other one gives its
   own `type`, `token` (required then) and, for self-managed GitLab or GitHub Enterprise, `api`. GitLab paths may be
   nested (`group/subgroup/project`); `tracker.project` (a GitHub board) needs a GitHub repository. What differs on

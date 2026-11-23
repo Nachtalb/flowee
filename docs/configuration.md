@@ -73,6 +73,7 @@ valid, 1 a problem, 2 unreadable).
 | `flow.preset` | `"trunk"`, `"pr-release"` | | A named starting point; both load the one chart `flows/flow.json`, whose parts switch with `features` only (docs/flow-features.md): `trunk` starts as Single branch, `pr-release` as Feature branches with Versioning. |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see Features below. |
+| `extensions` | array | `[]` | Flow extensions merged into the chart in order: an inline extension document (`{"name": "security-review", "states": {…}, "on": {…}, …}`) or a shipped one by name (`"builtin:samples"`); see docs/flows.md, "Extending the flow". The workspace stays one self-contained document. |
 | `tracker` | object | required | The tracker that keeps the record. |
 | `tracker.type` | `"github"`, `"gitlab"` | `"github"` | The tracker of every repository that names none (docs/gitlab.md for GitLab). |
 | `tracker.repos` | array, ≥ 1, of paths or `{repo, alias?, token?, mainBranch?, type?, api?}` | required | The repositories. With several, a ticket is `alias#n` (see "Several repositories" below). |
@@ -191,7 +192,7 @@ docs/adapters.md lists the token permission each one needs; docs/flow-features.m
 | `features.releases.skip` | array of commit types | `["docs", "chore", "test"]` | `testedTag` never lands on a commit of these types. |
 | `features.releases.hold` | boolean | `true` | A `Kind: test` card for a ticket whose commits the release lacks waits in `awaiting release`; the cron hands it to the owner when a release has them. |
 | `features.releases.versionLine` | boolean | `true` | Test cards say `📦 In <version> or later`: the first of the last 10 published releases that has every commit of the ticket (the minimum version to install); no line while no published build has them all, or for a ticket without commits. |
-| `features.samples` | `true` or object | off | The `sampler` role and the states `needs samples`, `in procurement`, `samples unobtainable`; `Kind: sample` cards. |
+| `features.samples` | `true` or object | off | The former samples switch, still read: with a preset the workspace gets the `builtin:samples` extension (the `sampler` role, the states `needs samples`, `in procurement`, `samples unobtainable`, `Kind: sample` cards) with these options in its `pathsExist` guards; with an inline chart, a switch of that chart's own `samples` tags. New documents name `"extensions": ["builtin:samples"]` instead. |
 | `features.samples.root` | string | `""` | Sample paths must start with this (e.g. `Samples/`). |
 | `features.samples.notNeededLabel` | string | `not file related` | A ticket with this label needs no sample to become `ready`. |
 | `features.uiReview` | object | off | A `pass` whose commits change the UI goes to `board review` with an owner card instead of closing. |

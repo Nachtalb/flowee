@@ -1073,8 +1073,8 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
 ┃                                                                              ┃
-┃ ⬜ Samples · A sampler finds a real sample file before                       ┃
-┃ development starts.                                            [ Switch on ] ┃
+┃ ⬜ UI review · A pass that changes the screens comes to you                  ┃
+┃ first; it needs the paths that count as UI.                    [ Switch on ] ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -2812,8 +2812,6 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development                     ┃
-│                                                │┃ starts.                                                                  [ Switch on ] ┃
 │                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
 │                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
 │                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
@@ -2822,6 +2820,8 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3067,8 +3067,6 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Samples · A sampler finds a real sample file before development                     ┃
-│                                                │┃ starts.                                                                  [ Switch on ] ┃
 │                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first; it                  ┃
 │                                                │┃ needs the paths that count as UI.                                        [ Switch on ] ┃
 │                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
@@ -3077,6 +3075,8 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 │                                                │┃ first.                                                                   [ Switch on ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃

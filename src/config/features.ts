@@ -39,7 +39,7 @@ export const FEATURES_SCHEMA: S = {
       hold: bool("Test cards wait in `awaiting release` until the release has the ticket's code.", true),
       versionLine: bool("Test cards say `📦 In <version> or later`.", true),
     }),
-    samples: feature("The sampler role: tickets need a real sample on the main branch before development.", {
+    samples: feature("The former samples switch: the workspace gets the builtin:samples extension with these options (docs/flows.md, Extending the flow).", {
       root: str("Sample paths must start with this.", { default: "" }),
       notNeededLabel: str("Tickets with this label need no sample.", { default: "not file related" }),
     }),

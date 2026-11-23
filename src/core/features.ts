@@ -32,7 +32,8 @@ export interface ReleasesFeature {
   versionLine: boolean;
 }
 
-export interface SamplesFeature {
+/** The former `features.samples`: now the `samples` example extension (docs/flows.md, "Extending the flow"). */
+export interface SamplesOptions {
   /** Sample paths must start with this. */
   root: string;
   /** Tickets with this label need no sample. */
@@ -70,24 +71,26 @@ export interface UserFeedbackFeature {
 export interface Features {
   pullRequests?: PullRequestsFeature;
   releases?: ReleasesFeature;
-  samples?: SamplesFeature;
   uiReview?: UiReviewFeature;
   dependencyTickets?: DependencyTicketsFeature;
   userFeedback?: UserFeedbackFeature;
+  /** The former samples switch, kept for an inline chart's own `samples` tags; a preset gets the extension instead. */
+  samples?: SamplesOptions;
 }
 
-export type FeatureName = keyof Features;
+export type FeatureName = Exclude<keyof Features, "samples">;
 
 /** As written in a workspace document: false/absent off, true on with defaults, an object on with options. */
 export type FeaturesDoc = { [K in FeatureName]?: boolean | Partial<NonNullable<Features[K]>> } & {
   /** The former name of `userFeedback` (automatic triage); still read when `userFeedback` is absent. */
   untrustedReports?: boolean | Partial<Omit<UserFeedbackFeature, "autoTriage">>;
+  /** The former samples switch: the workspace gets the `builtin:samples` extension with these options. */
+  samples?: boolean | Partial<SamplesOptions>;
 };
 
 export const DEFAULTS: { [K in FeatureName]-?: NonNullable<Features[K]> } = {
   pullRequests: { branch: "flowee/{n}", checks: [], method: "merge", merger: "flow", deleteBranch: true },
   releases: { source: "release", checks: [], skip: ["docs", "chore", "test"], hold: true, versionLine: true },
-  samples: { root: "", notNeededLabel: "not file related" },
   uiReview: { paths: [], addedFiles: [], addedLines: [], ignore: [] },
   dependencyTickets: { authors: ["dependabot[bot]"], labels: [] },
   userFeedback: { label: "feedback", role: "board", autoTriage: true },
@@ -99,7 +102,6 @@ export const FEATURES = Object.keys(DEFAULTS) as FeatureName[];
 export const NEEDS: Record<FeatureName, Capability[]> = {
   pullRequests: ["branches", "pulls", "checks"],
   releases: ["releases", "tags"],
-  samples: ["branches"],
   uiReview: ["branches"],
   dependencyTickets: ["pulls"],
   userFeedback: [],
@@ -108,6 +110,7 @@ export const NEEDS: Record<FeatureName, Capability[]> = {
 export function resolve(doc: FeaturesDoc = {}): Features {
   const out: Record<string, unknown> = {};
   // the former `untrustedReports` is `userFeedback` with automatic triage
+  if (doc.samples) out.samples = { root: "", notNeededLabel: "not file related", ...(doc.samples === true ? {} : doc.samples) };
   if (doc.untrustedReports && doc.userFeedback === undefined) doc = { ...doc, userFeedback: { ...(doc.untrustedReports === true ? {} : doc.untrustedReports), autoTriage: true } };
   for (const k of FEATURES) {
     const v = doc[k];
@@ -116,7 +119,7 @@ export function resolve(doc: FeaturesDoc = {}): Features {
   return out as Features;
 }
 
-/** A term: `samples` (on), `!samples` (off), `pullRequests.merger=flow` (on with that option), `releases.hold` (on, option true). */
+/** A term: `uiReview` (on), `!uiReview` (off), `pullRequests.merger=flow` (on with that option), `releases.hold` (on, option true). */
 export function holds(term: string, f: Features): boolean {
   if (term.startsWith("!")) return !holds(term.slice(1), f);
   const [path, want] = term.split("=");

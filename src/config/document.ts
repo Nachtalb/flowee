@@ -2,6 +2,7 @@
 // `secret`/`token`/`webhookSecret` hold the NAME of a secret supplied to the instance separately.
 import type { Chart, FlowOptions } from "../core/chart";
 import type { FeaturesDoc } from "../core/features";
+import type { ExtensionRef } from "./presets";
 import type { Texts } from "../core/settings";
 import type { TrackerKind } from "./trackers";
 
@@ -20,8 +21,10 @@ export interface WorkspaceDoc {
   id: string;
   name?: string;
   flow: FlowRef;
-  /** Feature switches of the flow; phase 1 knows none, presets of later versions read them. */
+  /** Feature switches of the flow (docs/flow-features.md). */
   features?: FeaturesDoc;
+  /** Flow extensions merged into the chart in order: inline documents or `builtin:<name>` (docs/flows.md, "Extending the flow"). */
+  extensions?: ExtensionRef[];
   tracker: {
     /** The tracker of every repository that names none; default `github`. */
     type?: TrackerKind;

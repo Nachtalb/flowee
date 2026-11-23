@@ -14,6 +14,7 @@ is missing here. A **secret name** matches `^[A-Z][A-Z0-9_]*$` and names a Worke
 | `flow.preset` | `"trunk"`, `"pr-release"` | | A named starting point; both load the one chart, whose parts switch with `features` only (`features.md`): `trunk` starts as Single branch, `pr-release` as Feature branches with Versioning. |
 | `flow.chart`, `flow.options` | object | | An inline flow; validated by the same loader as presets. |
 | `features` | object | `{}` | Feature switches of the flow, each off unless given; see `features.md`. |
+| `extensions` | array | `[]` | Flow extensions merged into the chart in order: an inline extension document (`{"name": "security-review", "states": {…}, "on": {…}, …}`) or a shipped one by name (`"builtin:samples"`); see `statecharts.md`, "Extensions". The workspace stays one self-contained document. |
 | `tracker` | object | required | The tracker that keeps the record. |
 | `tracker.type` | `"github"`, `"gitlab"` | `"github"` | The tracker of every repository that names none (docs/gitlab.md for GitLab). |
 | `tracker.repos` | array, ≥ 1, of paths or `{repo, alias?, token?, mainBranch?, type?, api?}` | required | The repositories. With several, a ticket is `alias#n` (see below). |

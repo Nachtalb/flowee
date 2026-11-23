@@ -15,13 +15,6 @@
     "owner": {
       "sign": "{owner}",
       "who": "the owner"
-    },
-    "sampler": {
-      "sign": "Sampler",
-      "who": "the sampler",
-      "features": [
-        "samples"
-      ]
     }
   },
   "commands": {
@@ -30,7 +23,6 @@
         "board",
         "developer",
         "tester",
-        "sampler",
         "owner"
       ],
       "read": true
@@ -40,7 +32,6 @@
         "board",
         "developer",
         "tester",
-        "sampler",
         "owner"
       ],
       "read": true
@@ -50,7 +41,6 @@
         "board",
         "developer",
         "tester",
-        "sampler",
         "owner"
       ],
       "read": true
@@ -60,7 +50,6 @@
         "board",
         "developer",
         "tester",
-        "sampler",
         "owner"
       ]
     },
@@ -68,16 +57,14 @@
       "roles": [
         "board",
         "developer",
-        "tester",
-        "sampler"
+        "tester"
       ]
     },
     "heartbeat": {
       "roles": [
         "board",
         "developer",
-        "tester",
-        "sampler"
+        "tester"
       ],
       "state": false
     },
@@ -85,15 +72,13 @@
       "roles": [
         "board",
         "developer",
-        "tester",
-        "sampler"
+        "tester"
       ],
       "input": {
         "comment": {
           "required": [
             "developer",
-            "tester",
-            "sampler"
+            "tester"
           ]
         }
       }
@@ -129,8 +114,7 @@
     "stuck": {
       "roles": [
         "developer",
-        "tester",
-        "sampler"
+        "tester"
       ],
       "input": {
         "comment": "required"
@@ -141,9 +125,7 @@
         "board"
       ],
       "input": {
-        "comment": "required",
-        "samples": "flag",
-        "paths": "paths"
+        "comment": "required"
       }
     },
     "spec": {
@@ -219,34 +201,6 @@
       "input": {
         "text": "text"
       }
-    },
-    "found": {
-      "roles": [
-        "sampler"
-      ],
-      "input": {
-        "paths": "paths",
-        "comment": "optional"
-      },
-      "features": "samples"
-    },
-    "unobtainable": {
-      "roles": [
-        "sampler"
-      ],
-      "input": {
-        "comment": "card"
-      },
-      "features": "samples"
-    },
-    "needsamples": {
-      "roles": [
-        "board"
-      ],
-      "input": {
-        "comment": "optional"
-      },
-      "features": "samples"
     },
     "checked": {
       "roles": [

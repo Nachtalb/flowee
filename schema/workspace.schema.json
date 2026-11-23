@@ -201,7 +201,7 @@
           ]
         },
         "samples": {
-          "description": "The sampler role: tickets need a real sample on the main branch before development.",
+          "description": "The former samples switch: the workspace gets the builtin:samples extension with these options (docs/flows.md, Extending the flow).",
           "oneOf": [
             {
               "type": "object",
@@ -385,6 +385,27 @@
             }
           ]
         }
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "description": "Flow extensions merged into the chart in order (docs/flows.md, Extending the flow).",
+      "items": {
+        "description": "An extension: inline, or a shipped one by name.",
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^builtin:[a-z0-9-]+$",
+            "description": "A shipped extension (flows/extensions/<name>.json), e.g. builtin:samples."
+          },
+          {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "description": "An inline extension: name, states, on, replace, remove, roles, grant, inputs, commands, ticks, cards."
+          }
+        ]
       }
     },
     "tracker": {

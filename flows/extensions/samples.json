@@ -1,0 +1,1007 @@
+{
+  "name": "samples",
+  "description": "Example extension: a sampler finds a real sample file on the main branch before development starts (formerly features.samples).",
+  "states": {
+    "needs samples": {
+      "meta": {
+        "label": "needs samples",
+        "status": "Todo",
+        "claimable": {
+          "role": "sampler",
+          "rank": 1,
+          "when": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "dependenciesClosed",
+                "trusted"
+              ]
+            }
+          }
+        }
+      },
+      "on": {
+        "next": [
+          {
+            "target": "in procurement",
+            "guard": {
+              "type": "roleIs",
+              "params": {
+                "roles": [
+                  "sampler"
+                ]
+              }
+            },
+            "actions": [
+              "setStatus",
+              "setLabel",
+              "claim"
+            ]
+          },
+          {
+            "guard": {
+              "type": "all",
+              "params": {
+                "guards": [
+                  {
+                    "type": "roleIs",
+                    "params": {
+                      "roles": [
+                        "board"
+                      ]
+                    }
+                  },
+                  "untrusted"
+                ]
+              }
+            },
+            "actions": [
+              "claim"
+            ],
+            "meta": {
+              "features": [
+                "userFeedback.autoTriage"
+              ]
+            }
+          }
+        ],
+        "spec": {
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "except": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "updateBody",
+            "comment"
+          ]
+        },
+        "escalate": [
+          {
+            "target": "awaiting release",
+            "guard": "awaitsRelease",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ],
+            "meta": {
+              "features": [
+                "releases.hold"
+              ]
+            }
+          },
+          {
+            "target": "human review",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim",
+              {
+                "type": "sendCard",
+                "params": {
+                  "field": "telegram"
+                }
+              }
+            ]
+          }
+        ],
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "except": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "userFeedback.autoTriage"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "in procurement": {
+      "meta": {
+        "label": "in procurement",
+        "status": "In progress",
+        "holder": "sampler"
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "userFeedback.autoTriage"
+            ]
+          }
+        },
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "target": "needs samples",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "sampler"
+                    ]
+                  }
+                },
+                "holdsClaim"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "found": {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                "holdsClaim",
+                {
+                  "type": "pathsExist",
+                  "params": {
+                    "field": "paths",
+                    "root": "",
+                    "unlessLabel": "not file related",
+                    "heading": "Samples",
+                    "code": "no_samples",
+                    "what": "sample paths"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "append": "{paths}"
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "unobtainable": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            {
+              "type": "recordOrigin",
+              "params": {
+                "from": "unobtainable"
+              }
+            }
+          ]
+        },
+        "stuck": {
+          "target": "board review",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "recordOrigin"
+          ]
+        },
+        "expire": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "userFeedback.autoTriage"
+            ]
+          }
+        },
+        "answer": {
+          "actions": [
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "recordAnswer"
+          ]
+        }
+      }
+    },
+    "samples unobtainable": {
+      "meta": {
+        "label": "samples unobtainable",
+        "status": "Owner",
+        "assignOwner": true,
+        "inbox": true
+      },
+      "on": {
+        "next": {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "roleIs",
+                  "params": {
+                    "roles": [
+                      "board"
+                    ]
+                  }
+                },
+                "untrusted"
+              ]
+            }
+          },
+          "actions": [
+            "claim"
+          ],
+          "meta": {
+            "features": [
+              "userFeedback.autoTriage"
+            ]
+          }
+        },
+        "needsamples": {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "postpone": {
+          "target": "postponed",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "except": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        },
+        "checked": {
+          "guard": "isUntrusted",
+          "actions": [
+            "comment",
+            "markChecked",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "userFeedback.autoTriage"
+            ]
+          }
+        },
+        "answer": {
+          "target": "needs triage",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "field": "text"
+              }
+            },
+            "setLabel",
+            "recordAnswer"
+          ]
+        }
+      }
+    }
+  },
+  "on": {
+    "needs triage": {
+      "needsamples": [
+        {
+          "target": "needs samples",
+          "guard": "answered",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        }
+      ]
+    },
+    "board review": {
+      "needsamples": [
+        {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        }
+      ]
+    },
+    "human review": {
+      "needsamples": [
+        {
+          "target": "needs samples",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "dropInboxCard"
+          ]
+        }
+      ]
+    }
+  },
+  "replace": {
+    "needs triage": {
+      "triage": [
+        {
+          "target": "needs samples",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "flag",
+                  "params": {
+                    "name": "samples"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        },
+        {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "pathsExist",
+                  "params": {
+                    "field": "paths",
+                    "root": "",
+                    "unlessLabel": "not file related",
+                    "heading": "Samples",
+                    "code": "no_samples",
+                    "what": "sample paths"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "append": "{paths}"
+              }
+            },
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        }
+      ]
+    },
+    "board review": {
+      "triage": [
+        {
+          "target": "needs samples",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "flag",
+                  "params": {
+                    "name": "samples"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        },
+        {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "pathsExist",
+                  "params": {
+                    "field": "paths",
+                    "root": "",
+                    "unlessLabel": "not file related",
+                    "heading": "Samples",
+                    "code": "no_samples",
+                    "what": "sample paths"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "append": "{paths}"
+              }
+            },
+            "setLabel",
+            "releaseClaim",
+            "markChecked"
+          ]
+        }
+      ],
+      "sendback": [
+        {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "originIs",
+                  "params": {
+                    "from": "passed"
+                  }
+                },
+                {
+                  "type": "refuse",
+                  "params": {
+                    "status": 409,
+                    "code": "wrong_state",
+                    "message": "#{n} was passed by the tester; use escalate, approve or rework."
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "target": "back to development",
+          "guard": {
+            "type": "originIs",
+            "params": {
+              "from": "in development"
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        {
+          "target": "ready for testing",
+          "guard": {
+            "type": "originIs",
+            "params": {
+              "from": "testing"
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        {
+          "target": "needs samples",
+          "guard": {
+            "type": "originIs",
+            "params": {
+              "from": "in procurement"
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        {
+          "target": "needs samples",
+          "guard": {
+            "type": "originIs",
+            "params": {
+              "from": "unobtainable"
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        {
+          "guard": {
+            "type": "refuse",
+            "params": {
+              "status": 409,
+              "code": "wrong_state",
+              "message": "#{n} has no recorded hand-over from an agent; use rework or triage."
+            }
+          }
+        }
+      ],
+      "escalate": [
+        {
+          "target": "samples unobtainable",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "originIs",
+                  "params": {
+                    "from": "unobtainable"
+                  }
+                },
+                {
+                  "type": "cardKind",
+                  "params": {
+                    "kinds": [
+                      "sample"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            {
+              "type": "sendCard",
+              "params": {
+                "field": "telegram"
+              }
+            }
+          ]
+        },
+        {
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "originIs",
+                  "params": {
+                    "from": "unobtainable"
+                  }
+                },
+                {
+                  "type": "refuse",
+                  "params": {
+                    "status": 422,
+                    "code": "bad_card",
+                    "message": "#{n} could not get its sample: escalate it only with a complete Kind: sample card."
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "target": "awaiting release",
+          "guard": "awaitsRelease",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ],
+          "meta": {
+            "features": [
+              "releases.hold"
+            ]
+          }
+        },
+        {
+          "target": "human review",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            {
+              "type": "sendCard",
+              "params": {
+                "field": "telegram"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "human review": {
+      "triage": [
+        {
+          "target": "needs samples",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "flag",
+                  "params": {
+                    "name": "samples"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim",
+            "markChecked",
+            "dropInboxCard"
+          ]
+        },
+        {
+          "target": "ready",
+          "guard": {
+            "type": "all",
+            "params": {
+              "guards": [
+                {
+                  "type": "notClaimedBy",
+                  "params": {
+                    "except": [
+                      "board"
+                    ]
+                  }
+                },
+                {
+                  "type": "hasAcceptance",
+                  "params": {
+                    "heading": "Acceptance"
+                  }
+                },
+                {
+                  "type": "pathsExist",
+                  "params": {
+                    "field": "paths",
+                    "root": "",
+                    "unlessLabel": "not file related",
+                    "heading": "Samples",
+                    "code": "no_samples",
+                    "what": "sample paths"
+                  }
+                }
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "append": "{paths}"
+              }
+            },
+            "setLabel",
+            "releaseClaim",
+            "markChecked",
+            "dropInboxCard"
+          ]
+        }
+      ]
+    }
+  },
+  "roles": {
+    "sampler": {
+      "sign": "Sampler",
+      "who": "the sampler"
+    }
+  },
+  "grant": {
+    "whoami": [
+      "sampler"
+    ],
+    "queue": [
+      "sampler"
+    ],
+    "show": [
+      "sampler"
+    ],
+    "file": [
+      "sampler"
+    ],
+    "next": [
+      "sampler"
+    ],
+    "heartbeat": [
+      "sampler"
+    ],
+    "release": [
+      "sampler"
+    ],
+    "stuck": [
+      "sampler"
+    ]
+  },
+  "inputs": {
+    "release": {
+      "comment": {
+        "required": [
+          "developer",
+          "tester",
+          "sampler"
+        ]
+      }
+    },
+    "triage": {
+      "samples": "flag",
+      "paths": "paths"
+    }
+  },
+  "commands": {
+    "found": {
+      "roles": [
+        "sampler"
+      ],
+      "input": {
+        "paths": "paths",
+        "comment": "optional"
+      }
+    },
+    "unobtainable": {
+      "roles": [
+        "sampler"
+      ],
+      "input": {
+        "comment": "card"
+      }
+    },
+    "needsamples": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "optional"
+      }
+    }
+  },
+  "cards": [
+    "sample"
+  ]
+}

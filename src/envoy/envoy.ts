@@ -869,7 +869,7 @@ export class Envoy implements Inbox {
         if (row.title !== i.title) this.exec("UPDATE inbox SET title = ? WHERE n = ?", i.title, i.n);
         continue;
       }
-      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.s.features.samples);
+      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.flow.options.cards?.includes("sample"));
       if (row && (row.comment_id ?? 0) === h.cid) {
         // the same hand-over back in the inbox
         this.exec("UPDATE inbox SET status = ? WHERE n = ?", row.answered_at ? "answered" : "sent", i.n);
@@ -895,7 +895,7 @@ export class Envoy implements Inbox {
     });
     for (const i of parked) {
       if (this.rows("SELECT 1 FROM postponed WHERE n = ? AND updated_at = ?", i.n, i.updatedAt).length) continue;
-      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.s.features.samples);
+      const h = handover(await f.tracker.comments(i.n), this.signs(), heading, !!f.flow.options.cards?.includes("sample"));
       this.exec("INSERT OR REPLACE INTO postponed VALUES (?, ?, ?, ?, ?, ?, ?)", i.n, h.cid, JSON.stringify(h.content), i.title, i.url, h.at, i.updatedAt);
     }
     const still = new Set(parked.map((i) => i.n));

@@ -136,7 +136,6 @@ const FLOW = [
 ].join("");
 const OPTION_TEXT: Record<string, [string, string, string?]> = {
   releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
-  samples: ["Samples", "A sampler finds a real sample file before development starts."],
   uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
   dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
   userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
@@ -166,7 +165,7 @@ const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "",
     branching === "Feature branches" ? TABLE(OPT("⚙️ Feature branches", lines.pullRequests ?? LINES.pullRequests, CB("⚙️ Change", "w:in:open:pullRequests"))) : "",
     TABLE(TOGGLE("releases", on, lines)),
     "<p><b>More options</b></p>",
-    TABLE(...["samples", "uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
+    TABLE(...["uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
     NEXT("w:flow:done"),
   ].join("");
 const WHERE_HERE = [
@@ -607,6 +606,33 @@ describe("the setup wizard: one living message", () => {
     expect((await admin("GET", "/admin/workspaces/app")).body.workspace.features).toEqual({ userFeedback: { label: "from users", autoTriage: false } });
   });
 
+  it("a workspace with an extension keeps its extension and the extension's agents through a wizard edit", async () => {
+    const doc = {
+      flowee: 1,
+      id: "pics",
+      flow: { preset: "trunk" },
+      extensions: ["builtin:samples"],
+      tracker: { repos: ["acme/pics"], token: "PICS_TOKEN" },
+      roles: [
+        { instance: "board", role: "board", secret: "PICS_BOARD" },
+        { instance: "sampler", role: "sampler", secret: "PICS_SAMPLER" },
+        { instance: "owner", role: "owner", secret: "PICS_OWNER" },
+      ],
+      owners: [{ chat: "100" }],
+    };
+    expect((await admin("PUT", "/admin/workspaces/pics", doc)).status).toBe(200);
+    await dm(100, "/workspaces");
+    await tap(100, "m:ws:pics");
+    expect(screen()).toContain(FACT("👥 Agents", "board, sampler"));
+    await tap(100, "m:edit:pics:flow");
+    await tap(100, "w:branch:single");
+    await tap(100, "w:flow:done");
+    await tap(100, "w:confirm");
+    const after = (await admin("GET", "/admin/workspaces/pics")).body.workspace;
+    expect(after.extensions).toEqual(["builtin:samples"]);
+    expect(after.roles.map((r: { instance: string }) => r.instance)).toEqual(["board", "sampler", "owner"]);
+  });
+
   it("a token that reaches other repositories: one sentence, use it anyway or make a narrower one", async () => {
     const fake = globalThis.fetch;
     globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
@@ -659,7 +685,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:bind:here");
     await dm(100, TOKEN);
     at("agents");
-    const rows = { bot: 2, branching: 2, options: 5, where: 2, group: 2, agents: 3 };
+    const rows = { bot: 2, branching: 2, options: 4, where: 2, group: 2, agents: 3 };
     for (const [name, n] of Object.entries(rows)) {
       const options = (seen[name].match(/<tr><td><b>.*?<\/tr>/g) ?? []).filter((tr) => tr.includes("</b> · "));
       expect(options.length, name).toBe(n);

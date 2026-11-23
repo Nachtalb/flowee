@@ -3,7 +3,7 @@
 // sampler, untrusted-text, dependency-ticket and developer-merges variants against the Worker.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMachine, initialTransition, transition } from "xstate";
-import { FLOW } from "../src/config/presets";
+import { FLOW, flowOf } from "../src/config/presets";
 import { ACTIONS } from "../src/core/actions";
 import { type Chart, type FlowOptions, loadFlow } from "../src/core/chart";
 import { uiReasons } from "../src/core/code";
@@ -16,7 +16,8 @@ import { call, claim, inFlow, setup, wipe } from "./helpers";
 const C = FLOW.chart;
 const O = FLOW.options;
 const load = (f: FeaturesDoc) => {
-  const x = prune(C, O, resolve(f));
+  // the preset's flow as a workspace gets it: its extensions (the former samples switch) merged, then pruned
+  const x = flowOf({ flow: { preset: "pr-release" }, features: f });
   return loadFlow(x.chart, x.options, Object.keys(GUARDS), Object.keys(ACTIONS));
 };
 const p = (who: string, cmd: string, body?: unknown) => call(who, cmd, body, undefined, "p");

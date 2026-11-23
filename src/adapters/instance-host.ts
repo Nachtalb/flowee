@@ -3,12 +3,12 @@
 // bots passes through here first: the wizard and the management menu take theirs, the rest is forwarded to the
 // workspace bound to the update's bot, chat and topic.
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
-import { FLOW } from "../config/presets";
+import { FLOW, rawFlow } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
 import { repoClashes, repoIdent, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
 import { list } from "../core/chart";
-import { featuresOf } from "../core/features";
+import { type FeaturesDoc, featuresOf } from "../core/features";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
 import type { Chat, ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
@@ -112,8 +112,8 @@ export class InstanceHost implements InstanceApi {
     return new Telegram(this.secrets.get(this.cfg.bot.token), this.cfg.bot.token);
   }
 
-  private flowInfo(): FlowInfo {
-    const { chart, options } = FLOW;
+  private flowInfo(d?: Draft): FlowInfo {
+    const { chart, options } = d ? rawFlow({ flow: { preset: "trunk" }, extensions: d.extensions, features: d.features as FeaturesDoc }) : FLOW;
     return {
       roles: Object.keys(options.roles),
       ownerRole: options.ownerRole as string,
@@ -163,7 +163,7 @@ export class InstanceHost implements InstanceApi {
       },
       botUsername: cfg.bot.username,
       publicUrl: cfg.publicUrl,
-      flow: () => flow,
+      flow: (d) => (d ? self.flowInfo(d) : flow),
       parseRepo: recognise(cfg.trackerApi),
       tokenHelp: (t) => TRACKERS[t.kind].tokenHelp(t.api ?? (t.kind === "github" ? cfg.trackerApi : undefined)),
       trackerName: (kind = "github") => TRACKER_KINDS[kind].name,
@@ -223,7 +223,7 @@ export class InstanceHost implements InstanceApi {
       },
       async commit(s) {
         const d = s.draft;
-        const doc = toDoc(d, s.user, flow, cfg.bot, cfg.publicUrl, cfg.trackerApi);
+        const doc = toDoc(d, s.user, self.flowInfo(d), cfg.bot, cfg.publicUrl, cfg.trackerApi);
         const t = tuiOf(s.user);
         if (t) {
           // made in the terminal: the inbox is the terminal, and the one who set it up is its first manager

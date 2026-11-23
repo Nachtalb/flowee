@@ -49,11 +49,11 @@ Configuration and secrets: docs/configuration.md; the operator's steps: skills/f
 
 ```
 src/
-  core/       the flow: statechart loader (chart.ts), engine (engine.ts), guards.ts, actions.ts, repos.ts (the
+  core/       the flow: statechart loader (chart.ts), extensions merged into it (extend.ts), engine (engine.ts), guards.ts, actions.ts, repos.ts (the
               workspace's repositories as one tracker, ticket ids and alias#n), the service
               (service.ts: commands, queues, reaper), owner card (card.ts), storage schema (schema.ts), settings.ts,
               features.ts (feature switches: defaults, terms, pruning a tagged chart), code.ts (the guards, actions
-              and cron work of the code features: pull requests, checks, releases, tested tag, samples, UI review,
+              and cron work of the code features: pull requests, checks, releases, tested tag, paths on the main branch, UI review,
               dependency and untrusted tickets), housekeeping.ts (what the cron runs for them), events.ts
               (webhooks: deliveries queued, the targeted work per event, the mirror of open tickets behind `queue`,
               registration, health, fallback to polling, the listings' schedule), errors.ts (`Fail`:
@@ -93,9 +93,11 @@ src/
               compiled.ts: the executable's entry; bun.d.ts: the Bun/Node APIs it uses)
   index.ts    the Worker's entry: re-exports src/runtime/cloudflare/worker.ts
 flows/        flow.json (the one XState statechart, every part tagged with its switch) + flow.options.json; the
-              starting points trunk and pr-release (src/config/presets.ts) only preset switches
+              starting points trunk and pr-release (src/config/presets.ts) only preset switches; extensions/
+              (shipped flow extensions, `builtin:<name>`: samples.json, the example)
 schema/       workspace.schema.json, instance.schema.json (generated)
-scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), deploy.ts (`bun run deploy`),
+scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), flow.ts (`bun run flow <doc> --merged`:
+              the merged chart for Stately), deploy.ts (`bun run deploy`),
               bundle.ts (`bun run bundle`: served/ from SOURCES, the skills/ and docs/ indexes, manifest.json,
               bundle.tar.gz; the secret and deployment-value check)
 served/       generated, git-ignored: the Worker's static assets (`[assets]`, binding ASSETS, run_worker_first),
@@ -218,6 +220,9 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
 - **a guard or an action:** `src/core/guards.ts` (`kind: "selector" | "check"`) / `src/core/actions.ts` (code
   features: `src/core/code.ts`); a row in docs/flows.md and in skills/flowee-configure/references/statecharts.md
   (a test checks both); a test. Reach the tracker, store and clock through `c.f` only.
+- **custom states for one workspace:** an extension (`extensions` in the document, docs/flows.md "Extending the
+  flow"), never a second chart; a shipped one goes to `flows/extensions/<name>.json` (`BUILTIN` in
+  src/config/presets.ts) with a test against it.
 - **a starting point:** a name and its `start` switches in `src/config/presets.ts`, `bun run schema`, a row in
   README.md, docs/flow-features.md and skills/flowee-configure/references/features.md. A new flow part is a tagged
   part of `flows/flow.json` (a feature switch, below), never a second chart.

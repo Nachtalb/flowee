@@ -6,7 +6,7 @@ One flow, three independent choices, each written as switches under `features`:
 |---|---|---|
 | **Branching**, exactly one | **Single branch**: commits straight to the main branch (subject ending ` (#n)`), the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
 | **Versioning**, with either branching | Off, or on: a test card reaches the owner only once a published version contains the ticket's code, saying `📦 In <version> or later`; the `tested` tag follows. | `releases` |
-| **More options**, each on its own | `samples` (adds the `sampler` role), `uiReview` (needs `paths`, `addedFiles` or `addedLines`), `dependencyTickets` (needs a tracker with pull requests), `userFeedback` (`autoTriage` on or off). | as named |
+| **More options**, each on its own | `uiReview` (needs `paths`, `addedFiles` or `addedLines`), `dependencyTickets` (needs a tracker with pull requests), `userFeedback` (`autoTriage` on or off). | as named |
 
 ## Starting points
 
@@ -17,12 +17,12 @@ One flow, three independent choices, each written as switches under `features`:
 
 Both names load the same chart, and a preset name never switches anything on by itself: write every switch the
 project uses in `features` (a `trunk` document may switch Versioning on, a `pr-release` one may leave everything
-off). Roles: `board`, `developer`, `tester`, `owner`, plus `sampler` with `samples`.
+off). Roles: `board`, `developer`, `tester`, `owner`, plus the roles an extension adds (`sampler` with `builtin:samples`).
 
 States (labels on the issue): `needs triage` (also: no label), `ready`, `in development`, `ready for testing`,
 `testing`, `back to development`, `board review`, `human review` (the owner's inbox), `postponed`, closed.
-The switches add `needs samples`, `in procurement`, `samples unobtainable` (`samples`) and `awaiting release`
-(`releases` with `hold`).
+The switches add `awaiting release` (`releases` with `hold`); extensions add their own (`builtin:samples`: `needs
+samples`, `in procurement`, `samples unobtainable`).
 
 ## Switches
 
@@ -46,7 +46,7 @@ refused.
 | `features.releases.skip` | array of commit types | `["docs", "chore", "test"]` | `testedTag` never lands on a commit of these types. |
 | `features.releases.hold` | boolean | `true` | A `Kind: test` card for a ticket whose commits the release lacks waits in `awaiting release`; the cron hands it to the owner when a release has them. |
 | `features.releases.versionLine` | boolean | `true` | Test cards say `📦 In <version> or later`: the first of the last 10 published releases that has every commit of the ticket (the minimum version to install); no line while no published build has them all, or for a ticket without commits. |
-| `features.samples` | `true` or object | off | The `sampler` role and the states `needs samples`, `in procurement`, `samples unobtainable`; `Kind: sample` cards. |
+| `features.samples` | `true` or object | off | The former samples switch, still read: with a preset the workspace gets the `builtin:samples` extension (the `sampler` role, the states `needs samples`, `in procurement`, `samples unobtainable`, `Kind: sample` cards) with these options in its `pathsExist` guards; with an inline chart, a switch of that chart's own `samples` tags. New documents name `"extensions": ["builtin:samples"]` instead. |
 | `features.samples.root` | string | `""` | Sample paths must start with this (e.g. `Samples/`). |
 | `features.samples.notNeededLabel` | string | `not file related` | A ticket with this label needs no sample to become `ready`. |
 | `features.uiReview` | object | off | A `pass` whose commits change the UI goes to `board review` with an owner card instead of closing. |
@@ -71,7 +71,6 @@ refused.
 |---|---|---|---|
 | `pullRequests` | | `pr` (open or update the pull request from the ticket's branch), `merge` (`merger: developer`) | `handoff` needs the pull request open with the checks green (or merged with `merger: developer`); with `merger: flow` the tester tests its head and `pass` merges it; `show` adds `branch` and `pull` |
 | `releases` | `awaiting release` (`hold`) | | an escalated `Kind: test` card waits until the published build has the ticket's commits; the cron moves it to the owner; `📦 In <version> or later` on test cards; `testedTag` moved forward by the cron |
-| `samples` | `needs samples`, `in procurement`, `samples unobtainable` | `found`, `unobtainable`, `needsamples`; `triage` with `samples` / `paths` | `ready` needs sample paths on the main branch or the `notNeededLabel`; `Kind: sample` cards |
 | `uiReview` | | | a `pass` whose changes (every file of the open pull request, else the ticket's commits) touch the UI goes to `board review` and needs an owner card |
 | `dependencyTickets` | | `merge` | the cron files one ticket per open pull request of `authors`; its hand-off needs that pull request merged |
 | `userFeedback` | | `checked` (`autoTriage`); the cron's `feedback` tick (without) | `autoTriage`: a ticket with `label` goes only to `role`, in any state, until `triage` or `checked` removes the label; without: a new one goes to the owner's inbox first, the answer removes the label |
@@ -88,7 +87,7 @@ A fine-grained token limited to the workspace's repositories. The base flow need
 | `releases` | the latest release, read a tag | **Contents: read** |
 | `releases.testedTag` | move the tag | **Contents: read and write** |
 | `releases.checks` | check runs and statuses of main's commits | **Checks: read**, **Commit statuses: read** |
-| `samples` | does a path exist on main | **Contents: read** |
+| `builtin:samples` (extension) | does a path exist on main | **Contents: read** |
 | `uiReview` | the files and lines of the ticket's commits | **Contents: read** |
 | `dependencyTickets` | list open pull requests, read one, file a ticket | **Pull requests: read**, **Issues: read and write** |
 | `userFeedback` | labels only | (base) |

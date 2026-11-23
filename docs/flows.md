@@ -79,7 +79,7 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `originIs` | selector | `from` | the recorded origin (`recordOrigin`) is `from` | — |
 | `dependenciesClosed` | selector | | every `Depends on: #n` ticket is closed | — |
 | `holdsClaim` | check | | the caller's instance holds the claim | 409 `not_claimed` `#12 is not claimed by dev2.` |
-| `notClaimedBy` | check | `roles` | no instance of these roles holds the claim | 409 `claimed` `#12 is claimed by dev1.` |
+| `notClaimedBy` | check | `roles` or `except` | no instance of these roles holds the claim (`except`: of any role but these, so an extension's roles count too) | 409 `claimed` `#12 is claimed by dev1.` |
 | `hasAcceptance` | check | `heading` (`Acceptance`) | the body has a `## <heading>` section | 400 `bad_request` `#12 has no ## Acceptance section; add one with spec first.` |
 | `commitsOnMain` | check | | a commit on the main branch for the ticket that no earlier handoff listed (kept for `recordHanded`) | 422 `no_commits` `No new commit on main ends with (#12); push first.` |
 | `gatesMatchBuild` | check | | `gates.sha == build` and `gates.ok` | 422 `gates_mismatch` `The gates ran on 1a2b3c4, not on the build 5d6e7f8.` / `The gates failed on 5d6e7f8; pass needs them green.` |
@@ -97,7 +97,8 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `awaitsRelease` | selector | | `releases.hold`, the card is `Kind: test` and the published build lacks a commit of the ticket (nothing published: all) | — |
 | `cardKind` | selector | `kinds` | the card checked by the command's input is of one of these kinds | — |
 | `hasCard` | selector | | the newest comment with a valid owner card (kept for `sendCard`) | — |
-| `samplesGiven` | check | | `paths` are given, start with `samples.root` and exist on the main branch (or a container they point into does), or the ticket has `samples.notNeededLabel`; the paths go to the comment as `{paths}` | 422 `no_samples` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
+| `pathsExist` | check | `field` (`paths`), `root`, `unlessLabel`, `heading`, `code`, `what` | the paths in input `field` exist on the main branch under `root` (or a container they point into does), or the ticket carries `unlessLabel`; the paths go to the comment as `{paths}` under `heading` (the samples extension's `found` and `triage`) | 422 `<code>` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
+| `hasLabel` | selector | `label` | the ticket carries `label` | — |
 | `untrusted` | selector | | the ticket has the `userFeedback.label` | — |
 | `isUntrusted` | check | | the ticket has the label | 409 `not_untrusted` `#12 has no 'feedback' label.` |
 | `trusted` | selector | | no feedback label, or the caller is `userFeedback.role` and either `autoTriage` is on or the ticket is past the initial state (in `claimable.when`: other roles never get such a ticket, and without `autoTriage` nobody takes a new one) | — |
@@ -163,6 +164,255 @@ state has it, after the reaper; selector guards decide (e.g. `released` hands an
 once `inRelease` holds). Tick events need no entry in `options.commands`.
 
 **Input rule `paths`**: an optional array of non-empty strings (sample paths).
+
+## Extending the flow
+
+A workspace's flow is the built-in chart plus zero or more **extensions**: small documents in the same XState JSON
+vocabulary that add to it. They are inline in the workspace document (`"extensions": [ {…}, "builtin:samples" ]`),
+so a workspace stays one self-contained document that exports and imports. Merged at load in order
+(`src/core/extend.ts`), then pruned by the feature switches like the base, then validated as one flow.
+
+### What an extension holds
+
+| Part | Does | Merge rule |
+|---|---|---|
+| `name` | lower-case letters, digits, dashes | unique in the workspace |
+| `states` | new states with their `meta` (label, status, holder, claimable role and rank) and their `on` | a name the flow (or another extension) has already is refused |
+| `on` | `{state: {event: transitions}}` on existing or new states | appended after the base's transitions of that event (the base's guards are tried first) |
+| `replace` | `{state: {event: transitions}}` | replaces all of the base's transitions of that event, explicitly; the base must have it; two extensions replacing the same one are refused |
+| `remove` | `{state: [events]}` | takes events off a state; the state must have them |
+| `roles` | `{role: {sign, who}}` | new roles only |
+| `grant` | `{command: [roles]}` | opens existing commands (`next`, `heartbeat`, `release`, `queue` …) to roles; a role's queue order is its states' `claimable.rank` |
+| `inputs` | `{command: {field: rule}}` | adds or replaces body fields of existing commands |
+| `commands` | new commands (a new event needs one unless a tick fires it) | new names only |
+| `ticks` | `[{event, role}]` cron ticks | appended |
+| `cards` | owner card kinds beyond test, question, decision | only those the envoy renders: `sample` |
+
+Nothing is changed silently: every problem is one sentence starting with the JSON path and naming the extension
+(`$.extensions[0].states.ready: extension 'a' adds the state 'ready', which the flow has already; change a state
+with on, replace or remove.`); then the merged flow goes through the loader (unknown guard or action, a target that
+does not exist, an unreachable state, an event without a command), its problems pointing at the extension that
+added the state. Guards and actions stay the named built-ins of the tables above; generic enough for extensions:
+`roleIs`, `all`, `holdsClaim`, `notClaimedBy` (`except`), `answered`, `originIs`, `hasLabel`, `flag`, `cardValid`,
+`cardKind`, `hasCard`, `pathsExist`, `dependenciesClosed`, `refuse`; `setStatus`, `setLabel`, `comment`,
+`claim`, `releaseClaim`, `touchClaim`, `recordOrigin`, `sendCard` (with its own `card` for a tick),
+`dropInboxCard`, `markChecked`.
+
+### Worked example: a security review with its own role
+
+The board sends a reviewed ticket to a security reviewer; the reviewer takes it from the queue, then passes it
+(`secure`, closed) or sends it back to development (`insecure`). Two new states, one role, three commands and the
+common commands opened to the role (test/fixtures/security-review.json, validated and walked by
+`test/extend.test.ts`):
+
+```json
+{
+  "name": "security-review",
+  "description": "A security reviewer looks at a ticket the board sends before it closes.",
+  "states": {
+    "awaiting security": {
+      "meta": {
+        "label": "awaiting security",
+        "status": "Todo",
+        "claimable": {
+          "role": "security",
+          "rank": 1
+        }
+      },
+      "on": {
+        "next": {
+          "target": "security review",
+          "guard": {
+            "type": "roleIs",
+            "params": {
+              "roles": [
+                "security"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "setLabel",
+            "claim"
+          ]
+        },
+        "drop": {
+          "target": "closed",
+          "guard": {
+            "type": "notClaimedBy",
+            "params": {
+              "except": [
+                "board"
+              ]
+            }
+          },
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "not_planned"
+              }
+            },
+            "releaseClaim"
+          ]
+        }
+      }
+    },
+    "security review": {
+      "meta": {
+        "label": "security review",
+        "status": "In progress",
+        "holder": "security"
+      },
+      "on": {
+        "heartbeat": {
+          "guard": "holdsClaim",
+          "actions": [
+            "touchClaim"
+          ]
+        },
+        "release": {
+          "target": "awaiting security",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "secure": {
+          "target": "closed",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            {
+              "type": "setLabel",
+              "params": {
+                "reason": "completed"
+              }
+            },
+            "releaseClaim"
+          ]
+        },
+        "insecure": {
+          "target": "back to development",
+          "guard": "holdsClaim",
+          "actions": [
+            "setStatus",
+            "comment",
+            "setLabel",
+            "releaseClaim"
+          ]
+        },
+        "expire": {
+          "target": "awaiting security",
+          "actions": [
+            "setStatus",
+            {
+              "type": "comment",
+              "params": {
+                "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+              }
+            },
+            "setLabel",
+            "releaseClaim"
+          ]
+        }
+      }
+    }
+  },
+  "on": {
+    "board review": {
+      "securityreview": {
+        "target": "awaiting security",
+        "actions": [
+          "setStatus",
+          "comment",
+          "setLabel",
+          "releaseClaim"
+        ]
+      }
+    }
+  },
+  "roles": {
+    "security": {
+      "sign": "Security",
+      "who": "the security reviewer"
+    }
+  },
+  "grant": {
+    "whoami": [
+      "security"
+    ],
+    "queue": [
+      "security"
+    ],
+    "show": [
+      "security"
+    ],
+    "next": [
+      "security"
+    ],
+    "heartbeat": [
+      "security"
+    ],
+    "release": [
+      "security"
+    ]
+  },
+  "commands": {
+    "securityreview": {
+      "roles": [
+        "board"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "secure": {
+      "roles": [
+        "security"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    },
+    "insecure": {
+      "roles": [
+        "security"
+      ],
+      "input": {
+        "comment": "required"
+      }
+    }
+  }
+}
+```
+
+Add an instance of the role (`{"instance": "sec", "role": "security", "secret": "…"}`) and the agent works it with
+`flowee.py next`, `secure N`, `insecure N` like any other.
+
+### Getting the base chart and handing it to an agent
+
+Every instance serves the base chart and options at `/flows/flow.json` and `/flows/flow.options.json`, the shipped
+extensions under `/flows/extensions/` (`samples.json`, the example), and this page. Give an agent those, the
+workspace's exported configuration (📤 Export) and what the flow should do; it writes the extension, checks it with
+`bun run validate <workspace.json>` (or `POST /validate`), and `bun run flow <workspace.json> --merged >
+chart.json` prints the merged chart, which Stately opens (xstate's `createMachine` loads it in the tests). In the
+chat the options screen's 🧩 Custom steps row takes the `.json` file; the workspace's menu lists and removes them.
+
+### The samples extension and the former switch
+
+`flows/extensions/samples.json` (`builtin:samples`) is the former Samples feature, moved out of the core: the
+`sampler` role, `needs samples`, `in procurement`, `samples unobtainable`, `found`, `unobtainable`,
+`needsamples`, the `Kind: sample` card, and `replace` of `triage`, `sendback` and `escalate` where sample paths
+come in (`pathsExist`). **Compatibility:** a document with a preset and `features.samples` gets this extension, its
+`root` and `notNeededLabel` written into the `pathsExist` guards (`root`, `unlessLabel`); with an inline chart,
+`features.samples` stays a switch of that chart's own `samples` tags.
 
 ## Writing a preset
 

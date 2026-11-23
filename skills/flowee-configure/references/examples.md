@@ -258,6 +258,247 @@ sends them back. Two roles, four states; the owner answers through the API (no c
 }
 ```
 
+## 5b. Custom states with an extension: a security review
+
+The trunk flow plus a security reviewer: the board sends a reviewed ticket to `awaiting security`; the reviewer
+(`sec`, role `security`) takes it with `next` and closes it with `secure` or returns it with `insecure`.
+
+```json
+{
+  "flowee": 1,
+  "id": "shop",
+  "flow": {
+    "preset": "trunk"
+  },
+  "extensions": [
+    {
+      "name": "security-review",
+      "description": "A security reviewer looks at a ticket the board sends before it closes.",
+      "states": {
+        "awaiting security": {
+          "meta": {
+            "label": "awaiting security",
+            "status": "Todo",
+            "claimable": {
+              "role": "security",
+              "rank": 1
+            }
+          },
+          "on": {
+            "next": {
+              "target": "security review",
+              "guard": {
+                "type": "roleIs",
+                "params": {
+                  "roles": [
+                    "security"
+                  ]
+                }
+              },
+              "actions": [
+                "setStatus",
+                "setLabel",
+                "claim"
+              ]
+            },
+            "drop": {
+              "target": "closed",
+              "guard": {
+                "type": "notClaimedBy",
+                "params": {
+                  "except": [
+                    "board"
+                  ]
+                }
+              },
+              "actions": [
+                "setStatus",
+                "comment",
+                {
+                  "type": "setLabel",
+                  "params": {
+                    "reason": "not_planned"
+                  }
+                },
+                "releaseClaim"
+              ]
+            }
+          }
+        },
+        "security review": {
+          "meta": {
+            "label": "security review",
+            "status": "In progress",
+            "holder": "security"
+          },
+          "on": {
+            "heartbeat": {
+              "guard": "holdsClaim",
+              "actions": [
+                "touchClaim"
+              ]
+            },
+            "release": {
+              "target": "awaiting security",
+              "guard": "holdsClaim",
+              "actions": [
+                "setStatus",
+                "comment",
+                "setLabel",
+                "releaseClaim"
+              ]
+            },
+            "secure": {
+              "target": "closed",
+              "guard": "holdsClaim",
+              "actions": [
+                "setStatus",
+                "comment",
+                {
+                  "type": "setLabel",
+                  "params": {
+                    "reason": "completed"
+                  }
+                },
+                "releaseClaim"
+              ]
+            },
+            "insecure": {
+              "target": "back to development",
+              "guard": "holdsClaim",
+              "actions": [
+                "setStatus",
+                "comment",
+                "setLabel",
+                "releaseClaim"
+              ]
+            },
+            "expire": {
+              "target": "awaiting security",
+              "actions": [
+                "setStatus",
+                {
+                  "type": "comment",
+                  "params": {
+                    "text": "The claim of {claim} expired after {lease} h without a heartbeat; the ticket is back in the queue."
+                  }
+                },
+                "setLabel",
+                "releaseClaim"
+              ]
+            }
+          }
+        }
+      },
+      "on": {
+        "board review": {
+          "securityreview": {
+            "target": "awaiting security",
+            "actions": [
+              "setStatus",
+              "comment",
+              "setLabel",
+              "releaseClaim"
+            ]
+          }
+        }
+      },
+      "roles": {
+        "security": {
+          "sign": "Security",
+          "who": "the security reviewer"
+        }
+      },
+      "grant": {
+        "whoami": [
+          "security"
+        ],
+        "queue": [
+          "security"
+        ],
+        "show": [
+          "security"
+        ],
+        "next": [
+          "security"
+        ],
+        "heartbeat": [
+          "security"
+        ],
+        "release": [
+          "security"
+        ]
+      },
+      "commands": {
+        "securityreview": {
+          "roles": [
+            "board"
+          ],
+          "input": {
+            "comment": "required"
+          }
+        },
+        "secure": {
+          "roles": [
+            "security"
+          ],
+          "input": {
+            "comment": "required"
+          }
+        },
+        "insecure": {
+          "roles": [
+            "security"
+          ],
+          "input": {
+            "comment": "required"
+          }
+        }
+      }
+    }
+  ],
+  "tracker": {
+    "repos": [
+      "acme/shop"
+    ],
+    "token": "ACME_GITHUB_TOKEN"
+  },
+  "roles": [
+    {
+      "instance": "board",
+      "role": "board",
+      "secret": "ACME_BOARD"
+    },
+    {
+      "instance": "dev1",
+      "role": "developer",
+      "secret": "ACME_DEV1"
+    },
+    {
+      "instance": "tester",
+      "role": "tester",
+      "secret": "ACME_TESTER"
+    },
+    {
+      "instance": "sec",
+      "role": "security",
+      "secret": "ACME_SEC"
+    },
+    {
+      "instance": "owner",
+      "role": "owner",
+      "secret": "ACME_OWNER"
+    }
+  ],
+  "owners": [
+    {
+      "name": "Ann",
+      "tracker": "ann"
+    }
+  ]
+}
+```
+
 ## 6. A managed instance
 
 The instance document of a managed deployment (`flowee.config.local.json`, which `bun run deploy` uploads as the

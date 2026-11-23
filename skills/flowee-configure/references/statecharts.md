@@ -79,7 +79,7 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `originIs` | selector | `from` | the recorded origin (`recordOrigin`) is `from` | — |
 | `dependenciesClosed` | selector | | every `Depends on: #n` ticket is closed | — |
 | `holdsClaim` | check | | the caller's instance holds the claim | 409 `not_claimed` `#12 is not claimed by dev2.` |
-| `notClaimedBy` | check | `roles` | no instance of these roles holds the claim | 409 `claimed` `#12 is claimed by dev1.` |
+| `notClaimedBy` | check | `roles` or `except` | no instance of these roles holds the claim (`except`: of any role but these, so an extension's roles count too) | 409 `claimed` `#12 is claimed by dev1.` |
 | `hasAcceptance` | check | `heading` (`Acceptance`) | the body has a `## <heading>` section | 400 `bad_request` `#12 has no ## Acceptance section; add one with spec first.` |
 | `commitsOnMain` | check | | a commit on the main branch for the ticket that no earlier handoff listed (kept for `recordHanded`) | 422 `no_commits` `No new commit on main ends with (#12); push first.` |
 | `gatesMatchBuild` | check | | `gates.sha == build` and `gates.ok` | 422 `gates_mismatch` `The gates ran on 1a2b3c4, not on the build 5d6e7f8.` / `The gates failed on 5d6e7f8; pass needs them green.` |
@@ -97,7 +97,8 @@ Selectors return false (try the next transition); checks refuse with the error s
 | `awaitsRelease` | selector | | `releases.hold`, the card is `Kind: test` and the published build lacks a commit of the ticket (nothing published: all) | — |
 | `cardKind` | selector | `kinds` | the card checked by the command's input is of one of these kinds | — |
 | `hasCard` | selector | | the newest comment with a valid owner card (kept for `sendCard`) | — |
-| `samplesGiven` | check | | `paths` are given, start with `samples.root` and exist on the main branch (or a container they point into does), or the ticket has `samples.notNeededLabel`; the paths go to the comment as `{paths}` | 422 `no_samples` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
+| `pathsExist` | check | `field` (`paths`), `root`, `unlessLabel`, `heading`, `code`, `what` | the paths in input `field` exist on the main branch under `root` (or a container they point into does), or the ticket carries `unlessLabel`; the paths go to the comment as `{paths}` under `heading` (the samples extension's `found` and `triage`) | 422 `<code>` `#12 needs sample paths (or the 'not file related' label).` / `Not on main yet: Samples/a.png.`; 400 `bad_request` `Sample paths start with Samples/: a.png.` |
+| `hasLabel` | selector | `label` | the ticket carries `label` | — |
 | `untrusted` | selector | | the ticket has the `userFeedback.label` | — |
 | `isUntrusted` | check | | the ticket has the label | 409 `not_untrusted` `#12 has no 'feedback' label.` |
 | `trusted` | selector | | no feedback label, or the caller is `userFeedback.role` and either `autoTriage` is on or the ticket is past the initial state (in `claimable.when`: other roles never get such a ticket, and without `autoTriage` nobody takes a new one) | — |
@@ -163,6 +164,16 @@ state has it, after the reaper; selector guards decide (e.g. `released` hands an
 once `inRelease` holds). Tick events need no entry in `options.commands`.
 
 **Input rule `paths`**: an optional array of non-empty strings (sample paths).
+
+## Extensions
+
+Prefer an extension over an inline chart: `"extensions": [ {…} ]` adds states, transitions, roles, commands,
+ticks and card kinds to the one chart, or `replace`s / `remove`s a named base transition explicitly. Parts:
+`name`, `states`, `on` (appended after the base's), `replace` (the base must have that event), `remove`, `roles`,
+`grant` (open `next`, `heartbeat`, `release`, `queue`, `show`, `whoami` to a new role), `inputs`, `commands`,
+`ticks`, `cards` (`sample` only). Each problem is one sentence with the extension's name and JSON path. A shipped
+one is named `"builtin:samples"`. The base chart is served at `/flows/flow.json`; `bun run flow <workspace.json>
+--merged` prints the merged chart. Example (a full workspace with a security review): `examples.md`, section 5b.
 
 ## Changing a flow for one workspace
 

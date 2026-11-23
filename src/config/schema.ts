@@ -1,11 +1,11 @@
 // The JSON Schema of a workspace document (committed as schema/workspace.schema.json by `bun run schema`) and a
 // validator of the schema subset it uses. Every problem is one sentence starting with its JSON path.
-import { loadFlow } from "../core/chart";
+import { flowProblems } from "../core/chart";
 import { ACTIONS } from "../core/actions";
 import { GUARDS } from "../core/guards";
 import type { InstanceDoc, WorkspaceDoc } from "./document";
 import { FEATURES_SCHEMA, featureProblems } from "./features";
-import { flowOf, PRESETS, rawFlow } from "./presets";
+import { BUILTIN, extensionsOf, flowOf, PRESETS, rawFlow } from "./presets";
 import { TRACKER_KINDS, TRACKER_TYPES, type TrackerKind } from "./trackers";
 
 type S = Record<string, unknown>;
@@ -77,6 +77,17 @@ export const SCHEMA: S = {
         ],
       },
       features: FEATURES_SCHEMA,
+      extensions: {
+        type: "array",
+        description: "Flow extensions merged into the chart in order (docs/flows.md, Extending the flow).",
+        items: {
+          description: "An extension: inline, or a shipped one by name.",
+          oneOf: [
+            { type: "string", pattern: "^builtin:[a-z0-9-]+$", description: "A shipped extension (flows/extensions/<name>.json), e.g. builtin:samples." },
+            { type: "object", required: ["name"], description: "An inline extension: name, states, on, replace, remove, roles, grant, inputs, commands, ticks, cards." },
+          ],
+        },
+      },
       tracker: obj(
         {
           type: KIND("The tracker of every repository that names none.", "github"),
@@ -290,18 +301,31 @@ export function check(schema: S, v: unknown, path = "$"): string[] {
   return out;
 }
 
+/** Where a flow problem belongs: the extension that added the state it names, else the flow. */
+function pathOf(d: WorkspaceDoc, problem: string): string {
+  const state = /^State '([^']+)'/.exec(problem)?.[1];
+  const exts = extensionsOf(d);
+  const i = state === undefined ? -1 : exts.findIndex((e) => e.states?.[state]);
+  return i < 0 ? "$.flow" : i < (d.extensions ?? []).length ? `$.extensions[${i}].states['${state}']` : "$.features.samples";
+}
+
 /** Every problem of a workspace document, schema first, then the cross-field rules. Empty when valid. */
 export function validate(doc: unknown): string[] {
   const errs = check(SCHEMA, doc);
   if (errs.length) return errs;
   const d = doc as WorkspaceDoc;
+  const raw = rawFlow(d);
+  (d.extensions ?? []).forEach((e, i) => {
+    if (typeof e === "string" && !BUILTIN[e.replace(/^builtin:/, "")]) errs.push(`$.extensions[${i}]: Flowee ships no extension '${e}'; it ships ${Object.keys(BUILTIN).map((x) => `builtin:${x}`).join(", ")}.`);
+  });
+  if (errs.length || raw.problems.length) return [...errs, ...raw.problems];
   const flow = flowOf(d);
-  try {
-    loadFlow(flow.chart, flow.options, Object.keys(GUARDS), Object.keys(ACTIONS));
-  } catch (e) {
-    return [`$.flow: ${(e as Error).message}`];
+  const bad = flowProblems(flow.chart, flow.options, Object.keys(GUARDS), Object.keys(ACTIONS));
+  if (bad.length) {
+    const own = bad.filter((x) => pathOf(d, x) === "$.flow");
+    return [...(own.length ? [`$.flow: ${own.join(" ")}`] : []), ...bad.filter((x) => !own.includes(x)).map((x) => `${pathOf(d, x)}: ${x}`)];
   }
-  errs.push(...featureProblems(d, rawFlow(d)));
+  errs.push(...featureProblems(d, raw));
   const repos = repoList(d);
   repos.forEach((r, i) => {
     const k = TRACKER_KINDS[r.type];

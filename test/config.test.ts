@@ -18,6 +18,7 @@ const FULL: Complete<Omit<WorkspaceDoc, "flow">> & { flow: { preset: string } } 
   id: "full",
   name: "Full",
   flow: { preset: "pr-release" },
+  extensions: ["builtin:samples"],
   features: {
     pullRequests: { branch: "t/{n}", checks: ["build"], method: "squash", merger: "developer", deleteBranch: false },
     releases: { source: "tag", tag: "stable", testedTag: "tested", checks: ["build"], skip: ["docs"], hold: true, versionLine: false },
@@ -141,6 +142,7 @@ describe("the schema", () => {
 
   it("validates an inline statechart with the engine's own loader", () => {
     const d = JSON.parse(JSON.stringify(FULL));
+    delete d.extensions;
     d.flow = { chart: { id: "x", initial: "a", states: { a: { meta: { label: "a" }, on: { go: "b" } } } }, options: { roles: {}, commands: {} } };
     const [e] = validate(d);
     expect(e).toMatch(/^\$\.flow: Exactly one state must have meta\.closed .* State 'a', event 'go': the target 'b' does not exist\./);

@@ -1,5 +1,5 @@
 // Guards, actions and housekeeping of the code features (docs/configuration.md, "Features"): branches and pull
-// requests, CI checks, releases and the tested tag, samples, UI review, dependency tickets, user feedback.
+// requests, CI checks, releases and the tested tag, paths on the main branch, UI review, dependency tickets, user feedback.
 // Each reaches the tracker of the ticket's repository through its optional capabilities.
 import { capability, type Change, type Issue, type PullRequest, type Release, type Tracker } from "../ports/tracker";
 import { type Card, parseCard } from "./card";
@@ -228,7 +228,7 @@ export const CODE_GUARDS: Record<string, Guard> = {
     async run(c) {
       for (const cm of [...(await c.f.tracker.comments(c.t.n))].reverse()) {
         try {
-          c.data.card = parseCard(cm.body, c.f.s.texts.cardHeading, !!c.f.s.features.samples);
+          c.data.card = parseCard(cm.body, c.f.s.texts.cardHeading, !!c.f.flow.options.cards?.includes("sample"));
           c.data.commentId = cm.id;
           return true;
         } catch {}
@@ -236,18 +236,25 @@ export const CODE_GUARDS: Record<string, Guard> = {
       return false;
     },
   },
-  samplesGiven: {
+  /**
+   * The paths in input `field` exist on the ticket's main branch, each under `root` (a path into a container, x.7z/a,
+   * needs the container); with none given, the ticket must carry `unlessLabel`. The paths go into the comment as
+   * `{paths}` under `heading`. Refusals use `code` and name the paths as `what`.
+   */
+  pathsExist: {
     kind: "check",
-    async run(c) {
-      const s = c.f.s.features.samples;
-      if (!s) return true;
-      const paths = (c.input.paths as string[] | undefined) ?? [];
+    async run(c, p) {
+      const root = String(p.root ?? "");
+      const unless = p.unlessLabel === undefined ? undefined : String(p.unlessLabel);
+      const code = String(p.code ?? "no_paths");
+      const what = String(p.what ?? "paths");
+      const paths = (c.input[String(p.field ?? "paths")] as string[] | undefined) ?? [];
       if (!paths.length) {
-        if (c.t.issue.labels.includes(s.notNeededLabel)) return true;
-        throw new Fail(422, "no_samples", `${c.f.label(c.t.n)} needs sample paths (or the '${s.notNeededLabel}' label).`);
+        if (unless !== undefined && c.t.issue.labels.includes(unless)) return true;
+        throw new Fail(422, code, `${c.f.label(c.t.n)} needs ${what}${unless !== undefined ? ` (or the '${unless}' label)` : ""}.`);
       }
-      const outside = paths.filter((x) => !x.startsWith(s.root));
-      if (outside.length) throw new Fail(400, "bad_request", `Sample paths start with ${s.root}: ${outside.join(", ")}.`);
+      const outside = paths.filter((x) => !x.startsWith(root));
+      if (outside.length) throw new Fail(400, "bad_request", `${what.replace(/^\w/, (x) => x.toUpperCase())} start with ${root}: ${outside.join(", ")}.`);
       const { repo } = local(c.f, c.t.n);
       const br = capability(repo.tracker, "branches");
       const missing: string[] = [];
@@ -257,12 +264,12 @@ export const CODE_GUARDS: Record<string, Guard> = {
         // a path may point into a container (x.7z/inner/file): the container itself must exist
         for (let i = parts.length; i > 0 && !found; i--) {
           const prefix = parts.slice(0, i).join("/");
-          if (prefix.length >= s.root.replace(/\/$/, "").length) found = await br.exists(repo.branch, prefix);
+          if (prefix.length >= root.replace(/\/$/, "").length) found = await br.exists(repo.branch, prefix);
         }
         if (!found) missing.push(x);
       }
-      if (missing.length) throw new Fail(422, "no_samples", `Not on ${repo.branch} yet: ${missing.join(", ")}.`);
-      vars(c).paths = `\n\nSamples:\n${paths.map((x) => `- \`${x}\``).join("\n")}`;
+      if (missing.length) throw new Fail(422, code, `Not on ${repo.branch} yet: ${missing.join(", ")}.`);
+      vars(c).paths = `\n\n${String(p.heading ?? "Paths")}:\n${paths.map((x) => `- \`${x}\``).join("\n")}`;
       return true;
     },
   },

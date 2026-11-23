@@ -168,7 +168,7 @@ A workspace is one JSON document. A minimal, complete one:
 |---|---|---|
 | **Branching**, exactly one | **Single branch**: the agents commit straight to the main branch, the tester tests the main branch. **Feature branches**: one branch and one pull (merge) request per ticket, its checks green before the hand-off, merged on the tester's pass. | `pullRequests` off / on |
 | **Versioning**, with either branching | Off, or on: the owner gets a test card only once a published version contains the ticket's code, the card says `📦 In <version> or later`, and the `tested` tag follows the tested tickets. | `releases` |
-| **More options**, each on its own | Samples (a `sampler` finds a real sample file first), UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), user feedback (triaged automatically, or by a human first). | `samples`, `uiReview`, `dependencyTickets`, `userFeedback` |
+| **More options**, each on its own | UI review (needs the paths that count as UI), dependency tickets (needs a tracker with pull requests), user feedback (triaged automatically, or by a human first). | `uiReview`, `dependencyTickets`, `userFeedback` |
 
 Two **named starting points** preset the switches of a new document: `trunk` starts as Single branch without
 Versioning (`features: {}`), `pr-release` as Feature branches with Versioning (`features: {"pullRequests": true,
@@ -184,13 +184,12 @@ name never switches anything on by itself and every document written before keep
 |---|---|
 | `pullRequests` | Feature branches: a branch and a pull request per ticket; hand-off needs the checks green; `pass` merges (or the developer does). |
 | `releases` | Versioning: which release contains a ticket; test cards held until it is released; a version line; a `tested` tag. |
-| `samples` | A `sampler` role that finds a real sample file before development starts. |
 | `uiReview` | A `pass` that changes the UI goes past the owner first. |
 | `dependencyTickets` | One ticket per dependency pull request (e.g. Dependabot). |
 | `userFeedback` | Tickets carrying the feedback label are triaged by the board automatically, or wait for a human first (`autoTriage`); formerly `untrustedReports`. |
 
-What each one does in detail: [docs/flow-features.md](docs/flow-features.md). Your own statechart (XState JSON,
-editable in Stately): [docs/flows.md](docs/flows.md).
+What each one does in detail: [docs/flow-features.md](docs/flow-features.md). Your own states and rules: an extension file merged into the chart
+([docs/flows.md](docs/flows.md), "Extending the flow"; `builtin:samples` is the shipped example).
 
 ## The client
 

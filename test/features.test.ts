@@ -90,8 +90,8 @@ describe("the workspace document's features", () => {
 
   it("refuse a feature the tracker cannot do", () => {
     const t = tagged();
-    expect(featureProblems(doc({ samples: true }) as never, t, { github: ["pulls"] })).toEqual(["$.features.samples: the tracker 'github' cannot do branches."]);
-    expect(featureProblems(doc({ samples: true }) as never, t)).toEqual([]);
+    expect(featureProblems(doc({ dependencyTickets: true }) as never, t, { github: ["branches"] })).toEqual(["$.features.dependencyTickets: the flow tags no 'dependencyTickets'.".replace("the flow tags no 'dependencyTickets'.", "the inline flow has no feature 'dependencyTickets'."), "$.features.dependencyTickets: the tracker 'github' cannot do pull requests."]);
+    expect(featureProblems(doc({ uiReview: { paths: ["ui/**"] } }) as never, t, { github: ["pulls"] })).toEqual(["$.features.uiReview: the inline flow has no feature 'uiReview'.", "$.features.uiReview: the tracker 'github' cannot do branches."]);
   });
 
   it("drop a switched-off feature's role from the flow, so an instance of it is refused", () => {

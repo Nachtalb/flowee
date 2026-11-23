@@ -102,6 +102,8 @@ export interface FlowOptions {
   ownerRole: string;
   /** Events the cron fires as `role` on every open ticket whose state has them (e.g. `released`). */
   ticks?: { event: string; role: string; features?: string | string[] }[];
+  /** Owner card kinds beyond test, question and decision, added by an extension (`sample`). */
+  cards?: string[];
 }
 
 /** Commands handled by the service itself rather than a chart event. */
@@ -136,6 +138,23 @@ const INPUTS = ["required", "optional", "card", "sha", "gates", "flag", "text", 
  * "bad_flow") whose message lists every problem, one sentence each.
  */
 export function loadFlow(chart: Chart, options: FlowOptions, guards: string[], actions: string[]): Flow {
+  const errs = flowProblems(chart, options, guards, actions);
+  if (errs.length) throw new Fail(400, "bad_flow", errs.join(" "));
+  const states = Object.keys(chart.states ?? {});
+  const closed = states.filter((s) => chart.states[s].meta?.closed);
+  return {
+    chart,
+    options,
+    states,
+    initial: chart.initial,
+    closed: closed[0],
+    meta: (s) => chart.states[s]?.meta ?? {},
+    transitions: (s, ev) => list(chart.states[s]?.on?.[ev]).map((t) => (typeof t === "string" ? { target: t } : t)),
+  };
+}
+
+/** Every problem of a flow, one sentence each naming the state, event or option (none: it loads). */
+export function flowProblems(chart: Chart, options: FlowOptions, guards: string[], actions: string[]): string[] {
   const errs: string[] = [];
   const states = Object.keys(chart.states ?? {});
   if (!chart.id) errs.push("The chart has no id.");
@@ -187,16 +206,7 @@ export function loadFlow(chart: Chart, options: FlowOptions, guards: string[], a
     if (r && !roles.includes(r)) errs.push(`The options name the unknown role '${r}'.`);
   if (!(options.leaseHours > 0)) errs.push("options.leaseHours must be a positive number.");
   if (!options.commitSuffix?.includes("{n}")) errs.push("options.commitSuffix must contain {n}.");
-  if (errs.length) throw new Fail(400, "bad_flow", errs.join(" "));
-  return {
-    chart,
-    options,
-    states,
-    initial: chart.initial,
-    closed: closed[0],
-    meta: (s) => chart.states[s]?.meta ?? {},
-    transitions: (s, ev) => list(chart.states[s]?.on?.[ev]).map((t) => (typeof t === "string" ? { target: t } : t)),
-  };
+  return errs;
 }
 
 /** Roles a guard tree is limited to by `roleIs` (empty: any role). */

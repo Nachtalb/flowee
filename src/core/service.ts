@@ -202,7 +202,7 @@ export class Flowee {
       case "required":
       case "card":
         if (!t) throw new Fail(422, "comment_required", "This step needs a comment.");
-        if (rule === "card") data.card = parseCard(t, this.s.texts.cardHeading, !!this.s.features.samples);
+        if (rule === "card") data.card = parseCard(t, this.s.texts.cardHeading, !!this.flow.options.cards?.includes("sample"));
         return t;
       case "text":
         if (!t) throw new Fail(422, "comment_required", "The answer needs text.");

@@ -21,6 +21,7 @@ export const GUARDS: Record<string, Guard> = {
   },
   roleIs: { kind: "selector", run: (c, p) => ((p.roles as string[]) ?? []).includes(c.caller.role) },
   flag: { kind: "selector", run: (c, p) => c.input[String(p.name)] === true },
+  hasLabel: { kind: "selector", run: (c, p) => c.t.issue.labels.includes(String(p.label)) },
   answered: { kind: "selector", note: " (answered)", run: (c) => c.f.answered(c.t.n, c.from) },
   hasCommits: { kind: "selector", run: async (c) => (await c.f.commitsOf(c.t)).length > 0 },
   originIs: { kind: "selector", run: (c, p) => c.f.origin(c.t.n)?.from === p.from },
@@ -43,7 +44,9 @@ export const GUARDS: Record<string, Guard> = {
     kind: "check",
     run(c, p) {
       const cl = c.f.claim(c.t.n);
-      if (cl && ((p.roles as string[]) ?? []).includes(cl.role)) throw new Fail(409, "claimed", `${c.f.label(c.t.n)} is claimed by ${cl.instance}.`);
+      // `roles`: refused while one of them holds it; `except`: while any other role holds it (extension roles too)
+      const by = cl && (p.except ? !(p.except as string[]).includes(cl.role) : ((p.roles as string[]) ?? []).includes(cl.role));
+      if (cl && by) throw new Fail(409, "claimed", `${c.f.label(c.t.n)} is claimed by ${cl.instance}.`);
       return true;
     },
   },
@@ -100,7 +103,7 @@ export const GUARDS: Record<string, Guard> = {
   cardValid: {
     kind: "check",
     run(c, p) {
-      c.data.card = parseCard(String(c.input[String(p.field ?? "comment")] ?? ""), c.f.s.texts.cardHeading, !!c.f.s.features.samples);
+      c.data.card = parseCard(String(c.input[String(p.field ?? "comment")] ?? ""), c.f.s.texts.cardHeading, !!c.f.flow.options.cards?.includes("sample"));
       return true;
     },
   },

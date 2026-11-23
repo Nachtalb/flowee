@@ -176,7 +176,7 @@ describe("the root document", () => {
     expect(md).toContain("- New workspaces by the user: no:");
     expect(md).toContain("1. Get the material: `curl -fsSL https://flowee.test/bundle.tar.gz | tar -xz`");
     expect(md).toContain("ALL IN ONE MESSAGE");
-    for (const q of ["Which repository", "feature branch", "Versioning", "optional parts", "tickets appear", "own bot", "agents per role", "clones and secrets", "how often"])
+    for (const q of ["Which repository", "feature branch", "Versioning", "optional parts", "tickets appear", "own bot", "Which agents", "clones and secrets", "how often"])
       expect(md, q).toContain(q);
     expect(md).toContain("hand the validated document to its operator");
     expect(md).toMatch(/\n7\. Never: print, log or echo a secret/);
