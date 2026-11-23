@@ -88,6 +88,8 @@ export interface Session {
   wide?: string[];
   /** The value the next typed message is for, on a values screen. */
   typing?: string;
+  /** A values screen shows its rarely needed rows too. */
+  advanced?: boolean;
   /** The message carrying the reply keyboard of the bot step, removed when the step is left. */
   helper?: number;
   /** Further imported workspaces, set up one after the other. */
@@ -172,17 +174,18 @@ export function aliasesOf(repos: string[]): string[] {
 }
 export const aliasOf = (repo: string) => (repo.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 32) || "repo";
 const code = (s: string) => `<code>${esc(s)}</code>`;
+const empty = (x: unknown) => x === undefined || x === "" || (Array.isArray(x) && !x.length);
 
 const BRANCHING: Record<"single" | "feature", [string, string, string]> = {
-  single: ["🌿", "Single branch", "The agents commit straight to the main branch; the tester tests the main branch."],
-  feature: ["🔀", "Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it."],
+  single: ["🌿", "Single branch", "The agents commit straight to the main branch, and testing happens there."],
+  feature: ["🔀", "Feature branches", "Each ticket gets its own branch and pull request, merged once its checks pass and the ticket passed testing."],
 };
-/** Versioning first, then the more options; each works with either branching. A third text: the row when off. */
+/** Releases first, then the more options; each works with either branching. A third text: the row when off. */
 const OPTIONS: Record<string, [string, string, string?]> = {
-  releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
-  uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
-  dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
-  userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
+  releases: ["Releases", "Each request to test a ticket says which release has its change."],
+  uiReview: ["UI review", "A change to the screens comes to you before its ticket is closed."],
+  dependencyTickets: ["Dependency updates", "Each update pull request (e.g. from Dependabot) becomes a ticket an agent checks and merges."],
+  userFeedback: ["User feedback", "An agent sorts tickets with the feedback label like any other, reading them as text from outside.", "Tickets with the feedback label wait for you before an agent works on them."],
 };
 const ROLES: Record<string, string> = { board: "🧭 Board", developer: "🛠 Developer", tester: "🧪 Tester", owner: "👤 Owner" };
 /** The way of working in words: the branching, then every option switched on. */
@@ -530,6 +533,7 @@ export class Wizard {
     const f = this.optionOf(s.state);
     delete s.typing;
     delete s.extProblems;
+    delete s.advanced;
     if (f) s.before = structuredClone(s.draft.inputs?.[f]);
     else if (s.state === "ext") s.before = structuredClone(s.draft.extensions);
   }
@@ -553,7 +557,10 @@ export class Wizard {
   private async read(s: Session, event: string, value: string | undefined, raw: Input | undefined): Promise<string | null | undefined> {
     const d = s.draft;
     const f = this.optionOf(s.state);
-    if (f) return event === "apply" ? this.apply(s, f) : event === "text" || event === "file" ? this.inputText(s, f, value ?? "", event === "file") : event === "back" ? undefined : this.editValue(s, f, event, value);
+    if (f) {
+      if (event === "advanced") s.advanced = !s.advanced;
+      return event === "apply" ? this.apply(s, f) : event === "text" || event === "file" ? this.inputText(s, f, value ?? "", event === "file") : event === "back" || event === "advanced" ? undefined : this.editValue(s, f, event, value);
+    }
     switch (`${s.state}.${event}`) {
       case "repos.next":
         return value === undefined ? (d.repos.length ? undefined : null) : this.readRepos(s, value);
@@ -702,7 +709,7 @@ export class Wizard {
       }
       case "branching":
         return {
-          body: [top, question("How should the agents bring in their code?"), text("Choose one. Versioning and the other options come next; each works with either.")],
+          body: [top, question("How should the agents bring in their code?")],
           rows: [
             options(...(["single", "feature"] as const).map((k) => option(`${BRANCHING[k][0]} ${BRANCHING[k][1]}`, BRANCHING[k][2], b(d.branching === k ? "● Chosen" : `${BRANCHING[k][0]} Choose`, `next:${k}`)))),
             nav,
@@ -722,12 +729,12 @@ export class Wizard {
         const more = offered.filter((f) => f !== "releases");
         const feature = d.branching === "feature" && INPUTS.pullRequests;
         return {
-          body: [top, question("What else should the flow do?"), text(`With <b>${BRANCHING[d.branching ?? "single"][1]}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.`)],
+          body: [top, question("What else should Flowee do?")],
           rows: [
             ...(feature ? [options(option(`⚙️ ${BRANCHING.feature[1]}`, this.inputLine(d, "pullRequests"), b("⚙️ Change", "configure:pullRequests")))] : []),
             ...(offered.includes("releases") ? [options(toggle("releases"))] : []),
             ...(more.length ? [text("<b>More options</b>"), options(...more.map(toggle))] : []),
-            options(option("🧩 Custom steps", `Add your own states and rules with an extension file${d.extensions?.length ? `: ${d.extensions.map((e) => code(extName(e))).join(", ")}` : ""}.`, b(d.extensions?.length ? "🧩 Change" : "🧩 Add", "extensions"))),
+            options(option("🧩 Custom steps", `Steps and rules of your own, from an extension file${d.extensions?.length ? `: ${d.extensions.map((e) => code(extName(e))).join(", ")}` : ""}.`, b(d.extensions?.length ? "🧩 Change" : "🧩 Add", "extensions"))),
             this.nav(s, true),
           ],
         };
@@ -825,7 +832,7 @@ export class Wizard {
       body: [
         this.top(s),
         question("Custom steps"),
-        text(`An extension adds your own states, roles and rules to the flow, written as a small chart file (${code(`${this.host.publicUrl}/docs/flows.md`)}, “Extending the flow”). Send its ${code(".json")} file here; an agent can write one from the base chart at ${code(`${this.host.publicUrl}/flows/flow.json`)}.`),
+        text(`An extension file adds steps, agent roles and rules of your own to how tickets move (${code(`${this.host.publicUrl}/docs/flows.md`)}, “Extending the flow”). Send the ${code(".json")} file here; an agent can write it from ${code(`${this.host.publicUrl}/flows/flow.json`)}.`),
         ...(s.extProblems?.length ? [warning(`The file was not added: ${s.extProblems.length > 1 ? `${s.extProblems.length} problems` : "one problem"}.`), facts(s.extProblems.map((x) => [esc(x)]))] : []),
         ...(exts.length ? [] : [text("None added yet.")]),
       ],
@@ -863,39 +870,58 @@ export class Wizard {
     return valuesOf(f, d.base?.features?.[f as keyof NonNullable<WorkspaceDoc["features"]>], d.inputs?.[f]);
   }
 
-  /** The asked values in one line, for the option's row. */
+  /** The asked values in one line, for the option's row (the advanced ones only when set). */
   private inputLine(d: Draft, f: string): string {
     const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
     const v = this.values(d, f);
-    const say = (x: unknown, i: OptionSpec["inputs"][number]) =>
-      i.type === "flag" ? (x ? "on" : "off") : i.type === "choice" ? (i.choices?.find(([c]) => c === x)?.[1] ?? String(x)) : Array.isArray(x) ? (x.length ? x.map((y) => code(String(y))).join(", ") : "none") : x === undefined || x === "" ? "none" : code(String(x));
-    return shown(spec, v).map((i) => `${esc(i.name)}: ${say(v[i.key], i)}`).join("; ");
+    return shown(spec, v)
+      .filter((i) => !i.advanced || !empty(v[i.key]))
+      .map((i) => `${esc(i.name)}: ${this.say(i, v[i.key])}`)
+      .join("; ");
   }
 
-  /** The values screen of an option: one row per value with its suggestions, Type, and a sent file. */
+  /** A value in words: on or off, a choice's label, the values as code, or how an empty one reads. */
+  private say(i: OptionSpec["inputs"][number], x: unknown): string {
+    if (i.type === "flag") return x ? "on" : "off";
+    if (i.type === "choice") return i.choices?.find(([c]) => c === x)?.[1] ?? String(x);
+    if (empty(x)) return (i.none ?? "none").toLowerCase();
+    return Array.isArray(x) ? x.map((y) => code(String(y))).join(", ") : code(String(x));
+  }
+
+  /** The values screen of an option: one row per value with its current value and buttons; Advanced holds the rare ones. */
   private inputScreen(s: Session): Screen {
     const d = s.draft;
     const f = this.optionOf(s.state) as string;
     const spec = INPUTS[f as keyof typeof INPUTS] as OptionSpec;
     const v = this.values(d, f);
-    const rows = shown(spec, v).flatMap((i) => {
-      const x = v[i.key];
-      const type = b(s.typing === i.key ? "✏️ Typing…" : "✏️ Type", `type:${i.key}`);
-      if (i.type === "choice") return [option(esc(i.name), esc(i.ask), ...(i.choices ?? []).map(([c, l]) => b(x === c ? `● ${l}` : l, `set:${i.key}:${c}`)))];
-      if (i.type === "flag") return [option(`${x ? "✅" : "⬜"} ${esc(i.name)}`, esc(i.ask), b(x ? "Switch off" : "Switch on", `flag:${i.key}`))];
-      if (i.type === "list") {
-        const now = (x as string[]) ?? [];
-        const offer = [...new Set([...(i.suggest ?? []), ...now])];
-        return [
-          option(esc(i.name), `${esc(i.ask)} Now: ${now.length ? now.map((y) => code(y)).join(", ") : "none"}.`, type, ...(now.length ? [b("✖ Clear", `clear:${i.key}`)] : [])),
-          ...offer.map((y, k) => option(`${now.includes(y) ? "✅" : "⬜"} ${code(y)}`, now.includes(y) ? "chosen" : "suggested", b(now.includes(y) ? "Remove" : "Add", `tog:${i.key}:${k}`))),
-        ];
-      }
-      return [option(esc(i.name), `${esc(i.ask)} Now: ${x === undefined || x === "" ? "none" : code(String(x))}.`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ None", `clear:${i.key}`)] : []))];
-    });
+    const ask = (i: OptionSpec["inputs"][number]) => esc(i.ask.replace("{tracker}", this.host.trackerName(d.tracker?.kind)));
+    const all = shown(spec, v);
+    const hidden = s.advanced ? [] : all.filter((i) => i.advanced && empty(v[i.key]));
+    const rows = all
+      .filter((i) => !hidden.includes(i))
+      .flatMap((i) => {
+        const x = v[i.key];
+        const type = b(s.typing === i.key ? "✏️ Typing…" : "✏️ Type", `type:${i.key}`);
+        if (i.type === "choice") return [option(esc(i.name), ask(i), ...(i.choices ?? []).map(([c, l]) => b(x === c ? `● ${l}` : l, `set:${i.key}:${c}`)))];
+        if (i.type === "flag") return [option(`${x ? "✅" : "⬜"} ${esc(i.name)}`, x || !i.off ? ask(i) : esc(i.off), b(x ? "Switch off" : "Switch on", `flag:${i.key}`))];
+        const now = `Now: ${this.say(i, x)}.`;
+        if (i.type === "list") {
+          const list = (x as string[]) ?? [];
+          const offer = [...new Set([...(i.suggest ?? []), ...list])];
+          return [
+            option(esc(i.name), `${ask(i)} ${now}`, type, ...(list.length ? [b("✖ Clear", `clear:${i.key}`)] : [])),
+            ...offer.map((y, k) => option(`${list.includes(y) ? "✅" : "⬜"} ${code(y)}`, list.includes(y) ? "added" : "not added", b(list.includes(y) ? "Remove" : "Add", `tog:${i.key}:${k}`))),
+          ];
+        }
+        return [option(esc(i.name), `${ask(i)} ${now}`, ...(i.suggest ?? []).filter((y) => y !== x).map((y) => b(y, `set:${i.key}:${y}`)), type, ...(x && !i.required ? [b("✖ Clear", `clear:${i.key}`)] : []))];
+      });
+    const more = all.filter((i) => i.advanced && empty(v[i.key]));
     return {
       body: [this.top(s), question(esc(spec.question))],
-      rows: [options(...rows), row(b("◀ Back", "back"), b("✅ Apply", "apply"), b("✖ Cancel", "cancel"))],
+      rows: [
+        options(...rows, ...(more.length ? [option("⚙️ Advanced", `Rarely needed: ${more.map((i) => esc(i.name)).join(", ")}.`, b(s.advanced ? "Hide" : "Show", "advanced"))] : [])),
+        row(b("◀ Back", "back"), b("✅ Apply", "apply"), b("✖ Cancel", "cancel")),
+      ],
     };
   }
 

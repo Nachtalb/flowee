@@ -197,7 +197,7 @@ export class Manager {
     const seen = (ms?: number) => (ms ? `seen ${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC` : "never seen");
     return this.show(user, at, [
       heading("👥", "Agents", code(d.id)),
-      text(`Agents create themselves with the project key (${code("flowee.py agents add")}); here you see them, and pause or remove one.`),
+      text(`Agents add themselves with the project key (${code("flowee.py agents add")}).`),
       ...(note ? [text(note)] : []),
       ...(list.length
         ? [

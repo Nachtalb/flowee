@@ -50,7 +50,7 @@ async function create(c: Scripted) {
   await c.sync({ text: { text: "https://github.com/acme/app" } });
   expect(c.screen()).toContain("Single branch");
   await tap(c, /Choose|Single branch/);
-  if (c.screen().includes("Versioning")) await tap(c, "▶ Next");
+  if (c.screen().includes("What else should Flowee do?")) await tap(c, "▶ Next");
   expect(c.screen()).toContain("token");
   await c.sync({ text: { text: TOKEN } });
   // the token was read and removed: no trace of it in the conversation

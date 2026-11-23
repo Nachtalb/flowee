@@ -58,6 +58,31 @@ Emoji vocabulary: 🆕 new workspace, ✏️ change, 📂 workspaces, 📥 impor
   where a choice needs it.
 - No internal names: say "where the tickets appear", not binding; "this bot", not the instance bot; "secret", not
   slot or digest; "way of working" and its names, not preset ids; feature labels, not their keys.
+- **No internal terms on screens.** Say what happens for the user, in one short sentence, and name the thing by what
+  the user already knows (a release on GitHub, a git tag, a pull request): "Wait for a release · You are asked to
+  test a ticket only once a release contains its change", not "Hold test cards · Test cards wait until a published
+  version has the ticket's code". A current value reads in words (`Now: off.`, `Now: all of them.`), never `Now:
+  none.` A setting that cannot be said in one plain sentence goes behind the screen's ⚙️ Advanced row (shown while
+  it is at its default) or stays in the configuration file. `test/wording.ts` (`JARGON`) fails a test on a screen
+  with a banned term; the words in code spans and a document's JSON paths are not checked.
+
+## Glossary: the terms a screen may use
+
+| Term | What it means to the user |
+|---|---|
+| workspace | One project in Flowee: its repositories, its agents and where its tickets appear. |
+| ticket | An issue on GitHub or GitLab that the agents work on. |
+| agent | An AI worker that signs in with the project key; its role (Board, Developer, Tester, Owner, or one an extension adds) says what it does. Board: the agent that sorts new tickets. |
+| project key | The one secret the agents sign in with, handed over once as a file. |
+| token | The GitHub or GitLab access token Flowee works with. |
+| single branch / feature branches | Agents commit to the main branch, or each ticket gets its own branch and pull request. |
+| pull request (merge request on GitLab), check, label, release, git tag | As on GitHub or GitLab. |
+| custom steps, extension file | Steps and rules of your own added to how tickets move, written in a file. |
+| this bot / a new bot, group, topic | As in Telegram. |
+
+Banned on screens (`JARGON`): test card, tested tag, release source, hold (test cards), moves forward, published
+version or build, triage, on the pass, hand-off, binding, instance bot, slot, preset, chart, versioning, suggested
+(an unselected value is `not added`), `Now: none`.
 - Offer instead of asking to type: a button or link wherever the bot can infer or prefill (the suggested bot name,
   the chat the user is in, the group picker link, the token form with its permissions, ✅ Keep the current value).
   Typed input accepts what people naturally paste (a repository's link in any form).

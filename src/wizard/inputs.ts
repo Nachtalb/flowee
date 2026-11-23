@@ -22,6 +22,12 @@ export interface OptionInput {
   when?: (v: Values) => boolean;
   /** One sentence when the value is not usable. */
   check?: (x: unknown, v: Values) => string | undefined;
+  /** How an empty value reads (`Off`, `All of them`). */
+  none?: string;
+  /** A flag's line while it is off (else `ask`). */
+  off?: string;
+  /** Rarely needed: behind the screen's Advanced row while at its default. */
+  advanced?: boolean;
 }
 
 export type Values = Record<string, unknown>;
@@ -34,33 +40,34 @@ export interface OptionSpec {
   check?: (v: Values) => string | undefined;
 }
 
-/** The options that ask for something, in the order of the options screen. */
+/** The options that ask for something, in the order of the options screen. `{tracker}`: GitHub or GitLab. */
 export const INPUTS: Partial<Record<FeatureName, OptionSpec>> = {
   pullRequests: {
     question: "How should feature branches work?",
     inputs: [
-      { key: "branch", name: "Branch name", ask: "Each ticket's branch; {n} is the ticket number.", type: "text", suggest: ["flowee/{n}", "ticket-{n}"], check: (x) => (String(x).includes("{n}") ? undefined : "The branch name needs {n}, the ticket number.") },
-      { key: "checks", name: "Required checks", ask: "Checks that must be green; none listed: every check of the pull request.", type: "list" },
-      { key: "method", name: "Merge method", ask: "How a pull request is merged.", type: "choice", choices: [["merge", "Merge"], ["squash", "Squash"], ["rebase", "Rebase"]] },
-      { key: "merger", name: "Who merges", ask: "The tester's pass merges it, or the developer merges before the hand-off.", type: "choice", choices: [["flow", "On the pass"], ["developer", "The developer"]] },
+      { key: "branch", name: "Branch name", ask: "The branch made for each ticket; {n} becomes the ticket's number.", type: "text", suggest: ["flowee/{n}", "ticket-{n}"], check: (x) => (String(x).includes("{n}") ? undefined : "The branch name needs {n}, the ticket's number.") },
+      { key: "checks", name: "Required checks", ask: "The checks that must pass before a pull request is merged.", none: "All of them", type: "list" },
+      { key: "method", name: "Merge method", ask: "How the pull request is merged on {tracker}.", type: "choice", choices: [["merge", "Merge"], ["squash", "Squash"], ["rebase", "Rebase"]] },
+      { key: "merger", name: "Who merges", ask: "Flowee merges once the ticket passed testing, or the developer agent merges before it is tested.", type: "choice", choices: [["flow", "Flowee, after testing"], ["developer", "The developer"]] },
     ],
   },
   releases: {
-    question: "How should versioning work?",
+    question: "How do releases work?",
     inputs: [
-      { key: "source", name: "Release source", ask: "What counts as published: the latest release, or the commit a tag points at.", type: "choice", choices: [["release", "Latest release"], ["tag", "A tag"]] },
-      { key: "tag", name: "Release tag", ask: "The tag that marks the published build.", type: "text", suggest: ["stable", "latest"], required: true, when: (v) => v.source === "tag" },
-      { key: "testedTag", name: "Tested tag", ask: "A tag Flowee moves forward over tested commits; none: no such tag.", type: "text", suggest: ["tested"], check: (x, v) => (x && x === v.tag ? "The tested tag must differ from the release tag." : undefined) },
-      { key: "hold", name: "Hold test cards", ask: "Test cards wait until a published version has the ticket's code.", type: "flag" },
+      { key: "hold", name: "Wait for a release", ask: "You are asked to test a ticket only once a release contains its change.", off: "You are asked right away; the request names the release once one has the change.", type: "flag" },
+      { key: "source", name: "What counts as released", ask: "The newest release on {tracker}, or a git tag you move yourself (e.g. stable).", type: "choice", choices: [["release", "The newest release"], ["tag", "A git tag"]] },
+      { key: "tag", name: "Release tag", ask: "The git tag you move onto each released commit.", none: "Not set yet", type: "text", suggest: ["stable", "latest"], required: true, when: (v) => v.source === "tag" },
+      { key: "testedTag", name: "Mark tested code with a tag", ask: "Flowee keeps a git tag on the newest commit whose tickets all passed testing.", none: "Off", type: "text", suggest: ["tested"], advanced: true, check: (x, v) => (x && x === v.tag ? "The tag for tested code must differ from the release tag." : undefined) },
     ],
   },
   uiReview: {
-    question: "Which paths count as UI?",
+    question: "Which files are UI?",
     inputs: [
       {
         key: "paths",
-        name: "UI paths",
-        ask: "A change under one of these comes to you before it closes.",
+        name: "UI files",
+        ask: "A change to one of these comes to you before its ticket is closed.",
+        none: "No files yet",
         type: "list",
         suggest: ["src/components/**", "src/ui/**", "**/*.css", "**/*.html", "**/*.tsx", "**/*.vue", "**/res/layout/**"],
         required: true,
@@ -70,13 +77,13 @@ export const INPUTS: Partial<Record<FeatureName, OptionSpec>> = {
   dependencyTickets: {
     question: "Which update pull requests become tickets?",
     inputs: [
-      { key: "authors", name: "Authors", ask: "Pull requests by these accounts become tickets.", type: "list", suggest: ["dependabot[bot]", "renovate[bot]"], required: true },
-      { key: "labels", name: "Labels", ask: "Labels the filed ticket gets; none: no extra label.", type: "list" },
+      { key: "authors", name: "Opened by", ask: "Pull requests from these accounts become tickets.", none: "No account yet", type: "list", suggest: ["dependabot[bot]", "renovate[bot]"], required: true },
+      { key: "labels", name: "Labels", ask: "Labels each of these tickets gets.", none: "No labels", type: "list", advanced: true },
     ],
   },
   userFeedback: {
     question: "Which label marks user feedback?",
-    inputs: [{ key: "label", name: "Feedback label", ask: "Tickets carrying this label hold a user's text.", type: "label", suggest: ["feedback", "user-report"], required: true }],
+    inputs: [{ key: "label", name: "Feedback label", ask: "The label on tickets your users wrote.", none: "Not set yet", type: "label", suggest: ["feedback", "user-report"], required: true }],
   },
 };
 
@@ -94,7 +101,7 @@ export function problem(spec: OptionSpec, v: Values): string | undefined {
   for (const i of shown(spec, v)) {
     const x = v[i.key];
     const empty = x === undefined || x === "" || (Array.isArray(x) && !x.length);
-    if (i.required && empty) return i.type === "list" ? `${i.name}: add at least one.` : `${i.name}: choose one.`;
+    if (i.required && empty) return i.type === "list" ? `${i.name}: add at least one.` : `The ${i.name.toLowerCase()} is not set yet.`;
     const why = !empty && i.check?.(x, v);
     if (why) return why;
   }

@@ -505,7 +505,7 @@ def managed_walk(scratch, gh, out, w, h):
         c.until(r"Single branch")
         c.shot("22-wizard-flow")
         c.click("🔀 Choose")
-        c.until(r"Versioning")
+        c.until(r"What else should Flowee do")
         c.shot("23-wizard-options")
         c.keys("G")
         c.click("Next")

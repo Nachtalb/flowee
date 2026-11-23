@@ -875,16 +875,16 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 🆕 New workspace · Step 2 of 5                                               ┃
 ┃ How should the agents bring in their code?                                   ┃
-┃ Choose one. Versioning and the other options come next; each works with      ┃
-┃ either.                                                                      ┃
 ┃                                                                              ┃
 ┃ 🌿 Single branch · The agents commit straight to the main                    ┃
-┃ branch; the tester tests the main branch.                      [ 🌿 Choose ] ┃
-┃ 🔀 Feature branches · One branch and one pull request per                    ┃
-┃ ticket; its checks must be green, and it is merged when the                  ┃
-┃ tester passes it.                                              [ 🔀 Choose ] ┃
+┃ branch, and testing happens there.                             [ 🌿 Choose ] ┃
+┃ 🔀 Feature branches · Each ticket gets its own branch and                    ┃
+┃ pull request, merged once its checks pass and the ticket                     ┃
+┃ passed testing.                                                [ 🔀 Choose ] ┃
 ┃                                                                              ┃
 ┃                           [ ◀ Back ] [ ✖ Cancel ]                            ┃
+┃                                                                              ┃
+┃                                                                              ┃
 ┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -901,18 +901,18 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 🆕 New workspace · Step 3 of 5                                               ▐
-┃ What else should the flow do?                                                ┃
-┃ With Feature branches. Each switch works on its own; one that needs details  ┃
-┃ asks for them next. You can change them later.                               ┃
+┃ What else should Flowee do?                                                  ┃
 ┃                                                                              ┃
 ┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required                      ┃
-┃ checks: none; Merge method: Merge; Who merges: On the pass     [ ⚙️ Change ] ┃
+┃ checks: all of them; Merge method: Merge; Who merges: Flowee,                ┃
+┃ after testing                                                  [ ⚙️ Change ] ┃
 ┃                                                                              ┃
-┃ ⬜ Versioning · You get a test card only once a published                    ┃
-┃ version has the ticket's code; the card says “In 1.4 or                      ┃
-┃ later”.                                                     [ ⚙️ Configure ] ┃
+┃ ⬜ Releases · Each request to test a ticket says which                       ┃
+┃ release has its change.                                     [ ⚙️ Configure ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
+┃                                                                              ┃
+┃ ⬜ UI review · A change to the screens comes to you before                   ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1036,18 +1036,18 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 🆕 New workspace · Step 3 of 5                                               ▐
-┃ What else should the flow do?                                                ┃
-┃ With Single branch. Each switch works on its own; one that needs details     ┃
-┃ asks for them next. You can change them later.                               ┃
+┃ What else should Flowee do?                                                  ┃
 ┃                                                                              ┃
-┃ ⬜ Versioning · You get a test card only once a published                    ┃
-┃ version has the ticket's code; the card says “In 1.4 or                      ┃
-┃ later”.                                                     [ ⚙️ Configure ] ┃
+┃ ⬜ Releases · Each request to test a ticket says which                       ┃
+┃ release has its change.                                     [ ⚙️ Configure ] ┃
 ┃                                                                              ┃
 ┃ More options                                                                 ┃
 ┃                                                                              ┃
-┃ ⬜ UI review · A pass that changes the screens comes to                      ┃
-┃ you first; it needs the paths that count as UI.             [ ⚙️ Configure ] ┃
+┃ ⬜ UI review · A change to the screens comes to you before                   ┃
+┃ its ticket is closed.                                       [ ⚙️ Configure ] ┃
+┃ ⬜ Dependency updates · Each update pull request (e.g.                       ┃
+┃ from Dependabot) becomes a ticket an agent checks and                        ┃
+┃ merges.                                                     [ ⚙️ Configure ] ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ more ━┛
 
  ? shows every key."
@@ -1225,12 +1225,12 @@ exports[`every view in the terminal > 80x24: no overflow, no cut button, every b
 └──────────────────────────────────────────────────────────────────────────────┘
 ┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 👥 Agents · app                                                              ┃
-┃ Agents create themselves with the project key (flowee.py agents add); here   ┃
-┃ you see them, and pause or remove one.                                       ┃
+┃ Agents add themselves with the project key (flowee.py agents add).           ┃
 ┃                                                                              ┃
 ┃ dev1 · 🛠 Developer · never seen · holds nothing   [ ⏸ Pause ] [ ➖ Remove ] ┃
 ┃                                                                              ┃
 ┃                                  [ « Back ]                                  ┃
+┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
@@ -2704,14 +2704,14 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🆕 New workspace · Step 2 of 5                                                         ┃
 │                                                │┃ How should the agents bring in their code?                                             ┃
-│                                                │┃ Choose one. Versioning and the other options come next; each works with either.        ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ 🌿 Single branch · The agents commit straight to the main branch; the                  ┃
-│                                                │┃ tester tests the main branch.                                            [ 🌿 Choose ] ┃
-│                                                │┃ 🔀 Feature branches · One branch and one pull request per ticket; its                  ┃
-│                                                │┃ checks must be green, and it is merged when the tester passes it.        [ 🔀 Choose ] ┃
+│                                                │┃ 🌿 Single branch · The agents commit straight to the main branch, and                  ┃
+│                                                │┃ testing happens there.                                                   [ 🌿 Choose ] ┃
+│                                                │┃ 🔀 Feature branches · Each ticket gets its own branch and pull request,                ┃
+│                                                │┃ merged once its checks pass and the ticket passed testing.               [ 🔀 Choose ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                [ ◀ Back ] [ ✖ Cancel ]                                 ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -2746,28 +2746,28 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🆕 New workspace · Step 3 of 5                                                         ┃
-│                                                │┃ What else should the flow do?                                                          ┃
-│                                                │┃ With Feature branches. Each switch works on its own; one that needs details asks for   ┃
-│                                                │┃ them next. You can change them later.                                                  ┃
+│                                                │┃ What else should Flowee do?                                                            ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: none;                  ┃
-│                                                │┃ Merge method: Merge; Who merges: On the pass                             [ ⚙️ Change ] ┃
+│                                                │┃ ⚙️ Feature branches · Branch name: flowee/{n}; Required checks: all of                 ┃
+│                                                │┃ them; Merge method: Merge; Who merges: Flowee, after testing             [ ⚙️ Change ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version                      ┃
-│                                                │┃ has the ticket's code; the card says “In 1.4 or later”.               [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ Releases · Each request to test a ticket says which release has                     ┃
+│                                                │┃ its change.                                                           [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first;                     ┃
-│                                                │┃ it needs the paths that count as UI.                                  [ ⚙️ Configure ] ┃
-│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
-│                                                │┃ becomes a ticket the developers merge.                                [ ⚙️ Configure ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a                      ┃
-│                                                │┃ human first.                                                          [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ UI review · A change to the screens comes to you before its                         ┃
+│                                                │┃ ticket is closed.                                                     [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. from                            ┃
+│                                                │┃ Dependabot) becomes a ticket an agent checks and merges.              [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ User feedback · Tickets with the feedback label wait for you                        ┃
+│                                                │┃ before an agent works on them.                                        [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
+│                                                │┃ 🧩 Custom steps · Steps and rules of your own, from an extension file.      [ 🧩 Add ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -2961,25 +2961,25 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 🆕 New workspace · Step 3 of 5                                                         ┃
-│                                                │┃ What else should the flow do?                                                          ┃
-│                                                │┃ With Single branch. Each switch works on its own; one that needs details asks for them ┃
-│                                                │┃ next. You can change them later.                                                       ┃
+│                                                │┃ What else should Flowee do?                                                            ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ Versioning · You get a test card only once a published version                      ┃
-│                                                │┃ has the ticket's code; the card says “In 1.4 or later”.               [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ Releases · Each request to test a ticket says which release has                     ┃
+│                                                │┃ its change.                                                           [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ More options                                                                           ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ ⬜ UI review · A pass that changes the screens comes to you first;                     ┃
-│                                                │┃ it needs the paths that count as UI.                                  [ ⚙️ Configure ] ┃
-│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. Dependabot)                     ┃
-│                                                │┃ becomes a ticket the developers merge.                                [ ⚙️ Configure ] ┃
-│                                                │┃ ⬜ User feedback · Tickets carrying the feedback label wait for a                      ┃
-│                                                │┃ human first.                                                          [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ UI review · A change to the screens comes to you before its                         ┃
+│                                                │┃ ticket is closed.                                                     [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ Dependency updates · Each update pull request (e.g. from                            ┃
+│                                                │┃ Dependabot) becomes a ticket an agent checks and merges.              [ ⚙️ Configure ] ┃
+│                                                │┃ ⬜ User feedback · Tickets with the feedback label wait for you                        ┃
+│                                                │┃ before an agent works on them.                                        [ ⚙️ Configure ] ┃
 │                                                │┃                                                                                        ┃
-│                                                │┃ 🧩 Custom steps · Add your own states and rules with an extension file.     [ 🧩 Add ] ┃
+│                                                │┃ 🧩 Custom steps · Steps and rules of your own, from an extension file.      [ 🧩 Add ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                           [ ◀ Back ] [ ▶ Next ] [ ✖ Cancel ]                           ┃
+│                                                │┃                                                                                        ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
@@ -3262,12 +3262,12 @@ exports[`every view in the terminal > 140x40: no overflow, no cut button, every 
 " Flowee · Shop                                                                                                         ◌ connecting  ? help
 ┌─ Inbox ────────────────────────────────────────┐┏━ Flowee ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Loading…                                       │┃ 👥 Agents · app                                                                        ┃
-│                                                │┃ Agents create themselves with the project key (flowee.py agents add); here you see     ┃
-│                                                │┃ them, and pause or remove one.                                                         ┃
+│                                                │┃ Agents add themselves with the project key (flowee.py agents add).                     ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃ dev1 · 🛠 Developer · never seen · holds nothing             [ ⏸ Pause ] [ ➖ Remove ] ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                       [ « Back ]                                       ┃
+│                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃
 │                                                │┃                                                                                        ┃

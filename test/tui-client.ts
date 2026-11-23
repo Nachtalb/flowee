@@ -92,7 +92,7 @@ export async function setUp(c: Scripted, repo = "https://github.com/acme/app", b
   await c.press(/Set up a workspace/);
   await c.sync({ text: { text: repo } });
   await c.pressRow(branching);
-  if (c.screen().includes("Versioning")) await c.press("▶ Next");
+  if (c.screen().includes("What else should Flowee do?")) await c.press("▶ Next");
   await c.sync({ text: { text: TOKEN } });
   if (/Agents|agents/.test(c.screen()) && !/Last check/.test(c.screen())) await c.press("▶ Next");
   await c.press(/Create/);

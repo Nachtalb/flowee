@@ -141,24 +141,23 @@ const BOT = [
 const FLOW = [
   "<p>🆕 <b>New workspace</b> · Step 3 of 7</p>",
   "<p><b>How should the agents bring in their code?</b></p>",
-  "<p>Choose one. Versioning and the other options come next; each works with either.</p>",
   TABLE(
-    OPT("🌿 Single branch", "The agents commit straight to the main branch; the tester tests the main branch.", CB("🌿 Choose", "w:next:single")),
-    OPT("🔀 Feature branches", "One branch and one pull request per ticket; its checks must be green, and it is merged when the tester passes it.", CB("🔀 Choose", "w:next:feature")),
+    OPT("🌿 Single branch", "The agents commit straight to the main branch, and testing happens there.", CB("🌿 Choose", "w:next:single")),
+    OPT("🔀 Feature branches", "Each ticket gets its own branch and pull request, merged once its checks pass and the ticket passed testing.", CB("🔀 Choose", "w:next:feature")),
   ),
   NAV,
 ].join("");
 const OPTION_TEXT: Record<string, [string, string, string?]> = {
-  releases: ["Versioning", "You get a test card only once a published version has the ticket's code; the card says “In 1.4 or later”."],
-  uiReview: ["UI review", "A pass that changes the screens comes to you first; it needs the paths that count as UI."],
-  dependencyTickets: ["Dependency updates", "Each update pull request (e.g. Dependabot) becomes a ticket the developers merge."],
-  userFeedback: ["User feedback", "Tickets carrying the feedback label are triaged by the board automatically.", "Tickets carrying the feedback label wait for a human first."],
+  releases: ["Releases", "Each request to test a ticket says which release has its change."],
+  uiReview: ["UI review", "A change to the screens comes to you before its ticket is closed."],
+  dependencyTickets: ["Dependency updates", "Each update pull request (e.g. from Dependabot) becomes a ticket an agent checks and merges."],
+  userFeedback: ["User feedback", "An agent sorts tickets with the feedback label like any other, reading them as text from outside.", "Tickets with the feedback label wait for you before an agent works on them."],
 };
 /** The values an option asked for, in its row once it is on (the defaults here). */
 const LINES: Record<string, string> = {
-  pullRequests: "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Merge; Who merges: On the pass",
-  releases: "Release source: Latest release; Tested tag: none; Hold test cards: on",
-  dependencyTickets: "Authors: <code>dependabot[bot]</code>; Labels: none",
+  pullRequests: "Branch name: <code>flowee/{n}</code>; Required checks: all of them; Merge method: Merge; Who merges: Flowee, after testing",
+  releases: "Wait for a release: on; What counts as released: The newest release",
+  dependencyTickets: "Opened by: <code>dependabot[bot]</code>",
   userFeedback: "Feedback label: <code>feedback</code>",
 };
 const ASKS = new Set(["releases", "uiReview", "dependencyTickets", "userFeedback"]);
@@ -173,14 +172,13 @@ const TOGGLE = (f: string, on: Record<string, boolean>, lines: Record<string, st
 const OPTIONS = (branching: string, on: Record<string, boolean> = {}, note = "", lines: Record<string, string> = {}) =>
   [
     "<p>🆕 <b>New workspace</b> · Step 4 of 7</p>",
-    "<p><b>What else should the flow do?</b></p>",
-    `<p>With <b>${branching}</b>. Each switch works on its own; one that needs details asks for them next. You can change them later.</p>`,
+    "<p><b>What else should Flowee do?</b></p>",
     note,
     branching === "Feature branches" ? TABLE(OPT("⚙️ Feature branches", lines.pullRequests ?? LINES.pullRequests, CB("⚙️ Change", "w:configure:pullRequests"))) : "",
     TABLE(TOGGLE("releases", on, lines)),
     "<p><b>More options</b></p>",
     TABLE(...["uiReview", "dependencyTickets", "userFeedback"].map((f) => TOGGLE(f, on, lines))),
-    TABLE(OPT("🧩 Custom steps", `Add your own states and rules with an extension file${lines.ext ? `: ${lines.ext}` : ""}.`, CB(lines.ext ? "🧩 Change" : "🧩 Add", "w:extensions"))),
+    TABLE(OPT("🧩 Custom steps", `Steps and rules of your own, from an extension file${lines.ext ? `: ${lines.ext}` : ""}.`, CB(lines.ext ? "🧩 Change" : "🧩 Add", "w:extensions"))),
     NEXT("w:next"),
   ].join("");
 const WHERE_HERE = [
@@ -504,29 +502,37 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:configure:releases");
     expect(screen()).toBe(
       [
-        "<p>🆕 <b>New workspace</b> · Versioning</p>",
-        "<p><b>How should versioning work?</b></p>",
+        "<p>🆕 <b>New workspace</b> · Releases</p>",
+        "<p><b>How do releases work?</b></p>",
         TABLE(
-          OPT("Release source", "What counts as published: the latest release, or the commit a tag points at.", CB("● Latest release", "w:set:source:release"), CB("A tag", "w:set:source:tag")),
-          OPT("Tested tag", "A tag Flowee moves forward over tested commits; none: no such tag. Now: none.", CB("tested", "w:set:testedTag:tested"), CB("✏️ Type", "w:type:testedTag")),
-          OPT("✅ Hold test cards", "Test cards wait until a published version has the ticket&#39;s code.".replace("&#39;", "'"), CB("Switch off", "w:flag:hold")),
+          OPT("✅ Wait for a release", "You are asked to test a ticket only once a release contains its change.", CB("Switch off", "w:flag:hold")),
+          OPT("What counts as released", "The newest release on GitHub, or a git tag you move yourself (e.g. stable).", CB("● The newest release", "w:set:source:release"), CB("A git tag", "w:set:source:tag")),
+          OPT("⚙️ Advanced", "Rarely needed: Mark tested code with a tag.", CB("Show", "w:advanced")),
         ),
         ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
     );
     // a tag as the source asks for that tag, which is required
     await tap(100, "w:set:source:tag");
-    expect(screen()).toContain(OPT("Release tag", "The tag that marks the published build. Now: none.", CB("stable", "w:set:tag:stable"), CB("latest", "w:set:tag:latest"), CB("✏️ Type", "w:type:tag")));
+    // switched off, the row says what happens instead
+    await tap(100, "w:flag:hold");
+    expect(screen()).toContain(OPT("⬜ Wait for a release", "You are asked right away; the request names the release once one has the change.", CB("Switch on", "w:flag:hold")));
+    await tap(100, "w:flag:hold");
+    // the rare setting behind Advanced, its value in words
+    await tap(100, "w:advanced");
+    expect(screen()).toContain(OPT("Mark tested code with a tag", "Flowee keeps a git tag on the newest commit whose tickets all passed testing. Now: off.", CB("tested", "w:set:testedTag:tested"), CB("✏️ Type", "w:type:testedTag")));
+    expect(screen()).toContain(OPT("⚙️ Advanced", "Rarely needed: Mark tested code with a tag.", CB("Hide", "w:advanced")));
+    expect(screen()).toContain(OPT("Release tag", "The git tag you move onto each released commit. Now: not set yet.", CB("stable", "w:set:tag:stable"), CB("latest", "w:set:tag:latest"), CB("✏️ Type", "w:type:tag")));
     await tap(100, "w:apply");
-    expect(screen()).toContain("<p>⚠️ Release tag: choose one.</p>");
+    expect(screen()).toContain("<p>⚠️ The release tag is not set yet.</p>");
     await tap(100, "w:set:source:release");
     await tap(100, "w:apply");
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true }));
-    // UI review: suggested paths as rows, typed ones, a sent file; on only once it has one
+    // UI review: common paths as rows, typed ones, a sent file; on only once it has one
     await tap(100, "w:configure:uiReview");
     await tap(100, "w:apply");
-    expect(screen()).toContain("<p>⚠️ UI paths: add at least one.</p>");
-    expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "suggested", CB("Add", "w:tog:paths:0")));
+    expect(screen()).toContain("<p>⚠️ UI files: add at least one.</p>");
+    expect(screen()).toContain(OPT("⬜ <code>src/components/**</code>", "not added", CB("Add", "w:tog:paths:0")));
     await tap(100, "w:tog:paths:0");
     await tap(100, "w:type:paths");
     expect(screen()).toContain(CB("✏️ Typing…", "w:type:paths"));
@@ -534,9 +540,9 @@ describe("the setup wizard: one living message", () => {
     expect(tg.of("deleteMessage").at(-1)).toEqual({ chat_id: "100", message_id: uid });
     files["paths-0"] = JSON.stringify({ paths: ["src/components/**", "app/ui/**", "web/views/**", "**/*.css"] });
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "paths-0", file_name: "ui.json", file_size: 10 } }));
-    expect(screen()).toContain(OPT("UI paths", "A change under one of these comes to you before it closes. Now: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>.", CB("✏️ Type", "w:type:paths"), CB("✖ Clear", "w:clear:paths")));
+    expect(screen()).toContain(OPT("UI files", "A change to one of these comes to you before its ticket is closed. Now: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>.", CB("✏️ Type", "w:type:paths"), CB("✖ Clear", "w:clear:paths")));
     await tap(100, "w:apply");
-    const UI = "UI paths: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>";
+    const UI = "UI files: <code>src/components/**</code>, <code>app/ui/**</code>, <code>web/views/**</code>, <code>**/*.css</code>";
     expect(screen()).toBe(OPTIONS("Feature branches", { releases: true, uiReview: true }, "", { uiReview: UI }));
     // switched off and on again, the values are kept
     await tap(100, "w:switch:uiReview");
@@ -547,7 +553,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:configure:pullRequests");
     await tap(100, "w:set:method:squash");
     await tap(100, "w:apply");
-    expect(screen()).toContain(OPT("⚙️ Feature branches", "Branch name: <code>flowee/{n}</code>; Required checks: none; Merge method: Squash; Who merges: On the pass", CB("⚙️ Change", "w:configure:pullRequests")));
+    expect(screen()).toContain(OPT("⚙️ Feature branches", "Branch name: <code>flowee/{n}</code>; Required checks: all of them; Merge method: Squash; Who merges: Flowee, after testing", CB("⚙️ Change", "w:configure:pullRequests")));
     await tap(100, "w:switch:uiReview");
     // back to the branching: the choice is marked, versioning stays on with the other branching
     await tap(100, "w:back");
@@ -572,7 +578,7 @@ describe("the setup wizard: one living message", () => {
       URL_("🔑 Create a token", "https://github.com/settings/personal-access-tokens/new?name=Flowee+app&description=Flowee%3A+acme%2Fapp&target_name=acme&expires_in=366&issues=write&contents=write&pull_requests=write&checks=read&statuses=read&repository_hooks=write"),
     );
     await dm(100, TOKEN);
-    expect(screen()).toContain(FACT("🔀 Way of working", "Feature branches, Versioning"));
+    expect(screen()).toContain(FACT("🔀 Way of working", "Feature branches, Releases"));
     await tap(100, "w:confirm");
     const doc = (await admin("GET", "/admin/workspaces/app")).body.workspace;
     expect(doc).toMatchObject({ flow: { preset: "pr-release" }, features: { pullRequests: { method: "squash" }, releases: true } });
@@ -586,7 +592,7 @@ describe("the setup wizard: one living message", () => {
     await tap(100, "w:next:single");
     await tap(100, "w:configure:userFeedback");
     expect(screen()).toContain("<p><b>Which label marks user feedback?</b></p>");
-    expect(screen()).toContain(OPT("Feedback label", "Tickets carrying this label hold a user&#39;s text. Now: <code>feedback</code>.".replace("&#39;", "'"), CB("user-report", "w:set:label:user-report"), CB("✏️ Type", "w:type:label")));
+    expect(screen()).toContain(OPT("Feedback label", "The label on tickets your users wrote. Now: <code>feedback</code>.", CB("user-report", "w:set:label:user-report"), CB("✏️ Type", "w:type:label")));
     await tap(100, "w:type:label");
     await dm(100, "from users");
     await tap(100, "w:apply");
@@ -609,7 +615,7 @@ describe("the setup wizard: one living message", () => {
       [
         "<p>🆕 <b>New workspace</b> · Custom steps</p>",
         "<p><b>Custom steps</b></p>",
-        "<p>An extension adds your own states, roles and rules to the flow, written as a small chart file (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send its <code>.json</code> file here; an agent can write one from the base chart at <code>https://flowee.test/flows/flow.json</code>.</p>",
+        "<p>An extension file adds steps, agent roles and rules of your own to how tickets move (<code>https://flowee.test/docs/flows.md</code>, “Extending the flow”). Send the <code>.json</code> file here; an agent can write it from <code>https://flowee.test/flows/flow.json</code>.</p>",
         "<p>None added yet.</p>",
         ROW(CB("◀ Back", "w:back"), CB("✅ Apply", "w:apply"), CB("✖ Cancel", "w:cancel")),
       ].join(""),
@@ -974,7 +980,7 @@ describe("the setup wizard's navigation: Back is the screen shown before, Keep g
     await press(/Chosen/);
     expect(screen()).toContain("How should the agents bring in their code?");
     await press(/Chosen/);
-    expect(screen()).toContain("What else should the flow do?");
+    expect(screen()).toContain("What else should Flowee do?");
     await press(/^▶ Next$/);
     expect(screen()).toBe(seen[4].replace(">💬 Choose<", ">● Chosen<"));
     await press(/Chosen/);
@@ -1106,7 +1112,7 @@ describe("the management menu: one living message", () => {
     const agents = (dev1: string, more = "") =>
       [
         "<p>👥 <b>Agents</b> · <code>app</code></p>",
-        "<p>Agents create themselves with the project key (<code>flowee.py agents add</code>); here you see them, and pause or remove one.</p>",
+        "<p>Agents add themselves with the project key (<code>flowee.py agents add</code>).</p>",
         more,
         TABLE(
           row("board", "🧭 Board", "never seen · holds nothing", CB("⏸ Pause", "m:agp:app:board"), CB("➖ Remove", "m:agrm:app:board")),
@@ -1206,7 +1212,7 @@ describe("the management menu: one living message", () => {
     expect(screen()).toContain("<p><b>How should the agents bring in their code?</b></p>");
     expect(screen()).not.toContain("◀ Back");
     await tap(100, "w:next:feature");
-    expect(screen()).toContain("<p><b>What else should the flow do?</b></p>");
+    expect(screen()).toContain("<p><b>What else should Flowee do?</b></p>");
     await tap(100, "w:back");
     expect(screen()).toContain(CB("● Chosen", "w:next:feature"));
     await tap(100, "w:next:feature");
@@ -1320,7 +1326,7 @@ describe("groups, topics and preconfigured workspaces", () => {
     expect(screen()).toContain("<p>✏️ <b>Change <code>other</code></b></p><p><b>How should the agents bring in their code?</b></p>");
     expect(screen()).toContain(CB("● Chosen", "w:next:single"));
     await tap(100, "w:next:single");
-    expect(screen()).toContain("<p><b>What else should the flow do?</b></p>");
+    expect(screen()).toContain("<p><b>What else should Flowee do?</b></p>");
     await tap(100, "w:cancel");
     expect(screen()).toContain("<p>📂 <b><code>other</code></b> · ▶ running</p><p>Nothing changed.</p>");
   });
