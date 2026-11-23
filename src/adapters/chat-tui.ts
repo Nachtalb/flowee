@@ -16,17 +16,29 @@ export const MAX_FILE = 20 * 1024 * 1024;
 const stripButtons = (v: View): View =>
   v.filter((b) => !("buttons" in b)).map((b) => ("table" in b ? { table: { ...b.table, rows: b.table.rows.map((r) => ({ cells: r.cells })) } } : b));
 
+/** The tables of one conversation; `ns` prefixes them where a store holds several (the instance: one per person). */
+export const tuiTables = (ns = "") => `CREATE TABLE IF NOT EXISTS ${ns}tui_messages (id INTEGER PRIMARY KEY, ord INTEGER NOT NULL, msg TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ${ns}tui_log (seq INTEGER PRIMARY KEY, ev TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ${ns}tui_frames (id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ${ns}tui_files (id TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ${ns}tui_state (k TEXT PRIMARY KEY, v TEXT NOT NULL);`;
+
 export class Terminal implements Chat {
+  private t: Record<"messages" | "log" | "frames" | "files" | "state", string>;
   constructor(
     private db: Store,
     private at: ChatRef,
     /** Called with the newest sequence number after every event (the runtime rings the connected terminals). */
     private ring?: (seq: number) => void,
     private now: () => number = () => Date.now(),
-  ) {}
+    ns = "",
+  ) {
+    if (!/^[a-z0-9_]*$/.test(ns)) throw new Error("bad conversation namespace");
+    this.t = { messages: `${ns}tui_messages`, log: `${ns}tui_log`, frames: `${ns}tui_frames`, files: `${ns}tui_files`, state: `${ns}tui_state` };
+  }
 
-  private state = (k: string) => this.db.rows<{ v: string }>("SELECT v FROM tui_state WHERE k = ?", k)[0]?.v;
-  private setState = (k: string, v: string | number) => void this.db.exec("INSERT OR REPLACE INTO tui_state VALUES (?, ?)", k, String(v));
+  private state = (k: string) => this.db.rows<{ v: string }>(`SELECT v FROM ${this.t.state} WHERE k = ?`, k)[0]?.v;
+  private setState = (k: string, v: string | number) => void this.db.exec(`INSERT OR REPLACE INTO ${this.t.state} VALUES (?, ?)`, k, String(v));
   private counter(k: string) {
     const n = Number(this.state(k) ?? 0) + 1;
     this.setState(k, n);
@@ -38,22 +50,22 @@ export class Terminal implements Chat {
 
   private log(ev: TuiEvent extends infer E ? (E extends { seq: number } ? Omit<E, "seq"> : never) : never) {
     const seq = this.counter("seq");
-    this.db.exec("INSERT INTO tui_log (seq, ev) VALUES (?, ?)", seq, JSON.stringify({ seq, ...ev }));
-    if (seq % 100 === 0) this.db.exec("DELETE FROM tui_log WHERE seq <= ?", seq - KEEP_EVENTS);
+    this.db.exec(`INSERT INTO ${this.t.log} (seq, ev) VALUES (?, ?)`, seq, JSON.stringify({ seq, ...ev }));
+    if (seq % 100 === 0) this.db.exec(`DELETE FROM ${this.t.log} WHERE seq <= ?`, seq - KEEP_EVENTS);
     this.ring?.(seq);
   }
 
   private msg = (id: number) => {
-    const r = this.db.rows<{ msg: string }>("SELECT msg FROM tui_messages WHERE id = ?", id)[0];
+    const r = this.db.rows<{ msg: string }>(`SELECT msg FROM ${this.t.messages} WHERE id = ?`, id)[0];
     return r ? (JSON.parse(r.msg) as TuiMessage) : undefined;
   };
 
   private store(m: TuiMessage, fresh: boolean) {
     if (fresh) {
       const ord = this.counter("ord");
-      this.db.exec("INSERT OR REPLACE INTO tui_messages (id, ord, msg) VALUES (?, ?, ?)", m.id, ord, JSON.stringify(m));
-      if (ord % 50 === 0) this.db.exec("DELETE FROM tui_messages WHERE ord <= ?", ord - KEEP_MESSAGES);
-    } else this.db.exec("UPDATE tui_messages SET msg = ? WHERE id = ?", JSON.stringify(m), m.id);
+      this.db.exec(`INSERT OR REPLACE INTO ${this.t.messages} (id, ord, msg) VALUES (?, ?, ?)`, m.id, ord, JSON.stringify(m));
+      if (ord % 50 === 0) this.db.exec(`DELETE FROM ${this.t.messages} WHERE ord <= ?`, ord - KEEP_MESSAGES);
+    } else this.db.exec(`UPDATE ${this.t.messages} SET msg = ? WHERE id = ?`, JSON.stringify(m), m.id);
     this.log({ op: "put", msg: m });
   }
 
@@ -83,7 +95,9 @@ export class Terminal implements Chat {
 
   drop(id: number) {
     if (!this.msg(id)) return;
-    this.db.exec("DELETE FROM tui_messages WHERE id = ?", id);
+    this.db.exec(`DELETE FROM ${this.t.messages} WHERE id = ?`, id);
+    // a message removed after reading (a typed token) leaves nothing behind in the log either
+    if (id < 0) this.db.exec(`DELETE FROM ${this.t.log} WHERE ev LIKE ?`, `%"op":"put","msg":{"id":${id},%`);
     this.log({ op: "del", id });
   }
 
@@ -93,9 +107,9 @@ export class Terminal implements Chat {
    */
   frame(f: TuiFrame, p: TuiPerson): Record<string, unknown> | null {
     if (typeof f?.id !== "string" || !f.id || f.id.length > 100) return null;
-    if (this.db.rows("SELECT 1 FROM tui_frames WHERE id = ?", f.id).length) return null;
-    this.db.exec("INSERT INTO tui_frames VALUES (?, ?)", f.id, this.now());
-    this.db.exec("DELETE FROM tui_frames WHERE ts < ?", this.now() - 7 * 86400e3);
+    if (this.db.rows(`SELECT 1 FROM ${this.t.frames} WHERE id = ?`, f.id).length) return null;
+    this.db.exec(`INSERT INTO ${this.t.frames} VALUES (?, ?)`, f.id, this.now());
+    this.db.exec(`DELETE FROM ${this.t.frames} WHERE ts < ?`, this.now() - 7 * 86400e3);
     const update = -this.counter("update");
     if (f.press && typeof f.press.data === "string") return { tui: { press: f.press }, person: p, update };
     const said = (text: string, replyTo?: number) => {
@@ -107,8 +121,8 @@ export class Terminal implements Chat {
     if (f.file && typeof f.file.name === "string" && typeof f.file.data === "string") {
       const size = Math.floor((f.file.data.length * 3) / 4);
       const fid = `tui:${-update}`;
-      if (size <= MAX_FILE) this.db.exec("INSERT OR REPLACE INTO tui_files VALUES (?, ?, ?)", fid, f.file.data, this.now());
-      this.db.exec("DELETE FROM tui_files WHERE ts < ?", this.now() - 86400e3);
+      if (size <= MAX_FILE) this.db.exec(`INSERT OR REPLACE INTO ${this.t.files} VALUES (?, ?, ?)`, fid, f.file.data, this.now());
+      this.db.exec(`DELETE FROM ${this.t.files} WHERE ts < ?`, this.now() - 86400e3);
       const words = [f.file.caption?.trim(), `📎 ${f.file.name}`].filter(Boolean).join("\n");
       return { tui: { file: { ...f.file, data: undefined, id: fid, size } }, person: p, update, message: said(words, f.file.replyTo) };
     }
@@ -118,14 +132,14 @@ export class Terminal implements Chat {
   /** The events after `after`, or the whole conversation when the log no longer reaches back that far. */
   since(after: number): TuiSync {
     const seq = this.seq;
-    const oldest = this.db.rows<{ s: number | null }>("SELECT MIN(seq) AS s FROM tui_log")[0]?.s ?? seq + 1;
+    const oldest = this.db.rows<{ s: number | null }>(`SELECT MIN(seq) AS s FROM ${this.t.log}`)[0]?.s ?? seq + 1;
     if (after === seq) return { seq, events: [] };
     if (after > seq || after < oldest - 1 || after < 0) {
-      const messages = this.db.rows<{ msg: string }>("SELECT msg FROM tui_messages ORDER BY ord").map((r) => JSON.parse(r.msg) as TuiMessage);
+      const messages = this.db.rows<{ msg: string }>(`SELECT msg FROM ${this.t.messages} ORDER BY ord`).map((r) => JSON.parse(r.msg) as TuiMessage);
       const panel = this.state("panel");
       return { seq, events: [], reset: { messages, menu: JSON.parse(this.state("menu") ?? "[]") as Command[], ...(panel ? { panel: JSON.parse(panel) as View } : {}) } };
     }
-    const events = this.db.rows<{ ev: string }>("SELECT ev FROM tui_log WHERE seq > ? ORDER BY seq LIMIT 500", after).map((r) => JSON.parse(r.ev) as TuiEvent);
+    const events = this.db.rows<{ ev: string }>(`SELECT ev FROM ${this.t.log} WHERE seq > ? ORDER BY seq LIMIT 500`, after).map((r) => JSON.parse(r.ev) as TuiEvent);
     return { seq: events.length ? events[events.length - 1].seq : seq, events };
   }
 
@@ -199,7 +213,7 @@ export class Terminal implements Chat {
     return n;
   }
   async download(file: FileRef): Promise<ArrayBuffer> {
-    const r = this.db.rows<{ data: string }>("SELECT data FROM tui_files WHERE id = ?", file.id)[0];
+    const r = this.db.rows<{ data: string }>(`SELECT data FROM ${this.t.files} WHERE id = ?`, file.id)[0];
     if (!r) throw new Error(file.size > MAX_FILE ? "the file is over 20 MB" : "the file is gone");
     return Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)).buffer;
   }

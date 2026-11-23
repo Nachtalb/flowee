@@ -9,6 +9,11 @@ import type { BotAccess } from "../ports/bots";
 import { chatLabel, ROLES, roleName, type Step, Wizard, type WizardHost, wayOf } from "./wizard";
 
 export interface ManageHost extends WizardHost {
+  /** Whether the user manages the document by other means than being its creator or a manager (a terminal key). */
+  manages?(user: string, d: WorkspaceDoc): boolean;
+  /** The terminal's people: a new one gets a key, handed over once; a removed one's key stops working. */
+  addPerson?(id: string, role: "member" | "manager"): Promise<{ person: string; key: string }>;
+  removePerson?(id: string, person: string): Promise<void>;
   owned(user: string): WorkspaceDoc[];
   doc(id: string): WorkspaceDoc | undefined;
   owner(id: string): string | undefined;
@@ -126,12 +131,12 @@ export class Manager {
 
   /** Managing (configuration, secrets, pause, delete, export) is the creator's and the document's managers' only. */
   private manages(user: string, d: WorkspaceDoc) {
-    return this.host.owner(d.id) === user || !!d.managers?.includes(user);
+    return this.host.owner(d.id) === user || !!d.managers?.includes(user) || !!this.host.manages?.(user, d);
   }
 
   private where(user: string, d: WorkspaceDoc) {
     const c = d.chat;
-    if (!c) return "nowhere: used through its API only";
+    if (!c) return d.tui ? "in the terminal (flowee-tui)" : "nowhere: used through its API only";
     if (c.chatId === user) return c.managed ? `your private chat with ${c.username ? `@${esc(c.username)}` : "its bot"}` : "your private chat with this bot";
     return chatLabel(c.chatId, c.topicId);
   }
@@ -148,9 +153,10 @@ export class Manager {
       ...(note ? [text(note)] : []),
       facts([
         { cells: ["📦 Repositories", d.tracker.repos.map((r) => code(typeof r === "string" ? r : r.repo)).join(", ")], buttons: [edit("repos")] },
-        ["🤖 Bot", own ? `its own${d.chat?.username ? `, @${esc(d.chat.username)}` : ""}` : "this bot"],
+        ...(d.chat ? [["🤖 Bot", own ? `its own${d.chat?.username ? `, @${esc(d.chat.username)}` : ""}` : "this bot"]] : []),
         { cells: ["🔀 Way of working", wayOf(d.features)], buttons: [edit("flow")] },
-        { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] },
+        d.chat || !d.tui ? { cells: ["💬 Tickets appear", this.where(user, d)], buttons: [edit("bind")] } : ["💬 Tickets appear", this.where(user, d)],
+        ...(d.tui ? [{ cells: ["🖥 Terminal people", d.tui.people.map((p) => esc(p.name ?? p.id)).join(", ")], buttons: [b("👥 People", `ppl:${d.id}`)] }] : []),
         { cells: [`🔑 ${this.host.trackerName(d.tracker.type)} token`, "never shown"], buttons: [edit("credential")] },
         ["👥 Agents", d.roles.filter((r) => r.role !== this.host.flow().ownerRole).map((r) => esc(r.instance)).join(", ") || "none"],
         ...(hooks ? [hooks.offer ? { cells: ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")], buttons: [b("⚡ Turn on", `hook:${d.id}`)] } : ["⚡ Instant updates", hooks.line.replace(/^⚡ Instant updates: /, "")]] : []),
@@ -172,6 +178,26 @@ export class Manager {
         option("🗑 Delete", "Its configuration, secrets and state go; the repositories stay.", b("🗑 Delete", `del:${d.id}`)),
       ),
       row(b("« All workspaces", "list")),
+    ]);
+  }
+
+  /** Who can use the workspace in the terminal: each person a row with its own button, adding one makes a key. */
+  private people(user: string, at: ChatRef, d: WorkspaceDoc, note?: string) {
+    const ppl = d.tui?.people ?? [];
+    return this.show(user, at, [
+      heading("👥", "Who can use this workspace", code(d.id)),
+      text("Each person signs in to the terminal (flowee-tui) with a key of their own; managers also manage the workspace here."),
+      ...(note ? [text(note)] : []),
+      options(
+        ...ppl.map((p) => option(esc(p.name ?? p.id), p.role === "manager" ? "manager" : "member", ...(ppl.length > 1 ? [b("➖ Remove", `pplrm:${d.id}:${p.id}`)] : []))),
+        ...(this.host.addPerson
+          ? [
+              option("➕ Add a member", "Answers the inbox: a new key, handed over as a file.", b("➕ Member", `ppladd:${d.id}:member`)),
+              option("➕ Add a manager", "Answers and manages the workspace.", b("➕ Manager", `ppladd:${d.id}:manager`)),
+            ]
+          : []),
+      ),
+      row(back(d.id)),
     ]);
   }
 
@@ -214,6 +240,31 @@ export class Manager {
       case "ws":
         await this.workspace(user, at, d);
         return;
+      case "ppl":
+      case "ppladd":
+      case "pplrm": {
+        if (k === "ppladd" && this.host.addPerson) {
+          const { person, key } = await this.host.addPerson(id, v === "manager" ? "manager" : "member");
+          // the key exists only in this file: whoever adds the person hands it over
+          const sent = this.chat.sendFile && (await this.chat.sendFile(at, `flowee-${id}-${person}.key`, `${key}\n`, `🔑 The key of ${person}: shown only this once.`).then(() => true, () => false));
+          const fresh = this.host.doc(id) as WorkspaceDoc;
+          await this.people(user, at, fresh, sent ? `${person} was added; the key file above is the only copy: hand it over (flowee-tui --key-file <file>).` : `${person} was added with the key ${code(key)} (shown only this once).`);
+          return;
+        }
+        if (k === "pplrm" && w === "yes" && this.host.removePerson) {
+          await this.host.removePerson(id, v);
+          await this.people(user, at, this.host.doc(id) as WorkspaceDoc, `${esc(v)} was removed; their key no longer opens ${code(id)}.`);
+          return;
+        }
+        if (k === "pplrm")
+          return void (await this.show(user, at, [
+            heading("👥", `Remove ${esc(v)}?`, code(id)),
+            text("Their key stops opening this workspace at once; their answers stay on the tickets."),
+            row(b("➖ Remove", `pplrm:${id}:${v}:yes`), b("« Back", `ppl:${id}`)),
+          ]));
+        await this.people(user, at, d);
+        return;
+      }
       case "edit": {
         const draft = this.host.draftOf(d);
         draft.replaces = d.id;

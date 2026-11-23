@@ -8,7 +8,7 @@ import { ALLOWED_UPDATES, INSTANCE_UPDATES, setTelegramApi } from "../../adapter
 import { bot, type Env, instanceDoc, mode, registry } from "../../adapters/instance";
 import { InstanceHost } from "../../adapters/instance-host";
 import { envSecrets, WorkspaceHost } from "../../adapters/workspace-host";
-import type { Platform, Room } from "../platform";
+import type { Platform, Room, Sockets } from "../platform";
 import { each, polled, route, tick } from "../router";
 import { Poller } from "./poller";
 import { Scheduler } from "./scheduler";
@@ -131,6 +131,19 @@ export class App {
     return s;
   }
 
+  /** A room's sockets: Bun upgrades in its own fetch handler, so `accept` names the socket and serve() upgrades it. */
+  private sockets_(room: string): Sockets {
+    return {
+      accept: (tag) => new Response(null, { status: 426, headers: { [SOCKET_HEADER]: `${room}/${tag}` } }),
+      ring: (tag, text) => {
+        for (const ws of this.sockets.get(`${room}/${tag}`) ?? [])
+          try {
+            ws.send(text);
+          } catch {}
+      },
+    };
+  }
+
   workspace(id: string): WorkspaceHost {
     if (!/^[a-z0-9-]+$/.test(id)) throw new Error(`'${id}' is no workspace id`);
     let h = this.hosts.get(id);
@@ -140,16 +153,7 @@ export class App {
         store,
         wake: (at) => this.scheduler.wake(id, at),
         clear: async () => store.clear(),
-        sockets: {
-          // Bun upgrades in its own fetch handler: the answer names the socket's key, serve() upgrades with it
-          accept: (tag) => new Response(null, { status: 426, headers: { [SOCKET_HEADER]: `${id}/${tag}` } }),
-          ring: (tag, text) => {
-            for (const ws of this.sockets.get(`${id}/${tag}`) ?? [])
-              try {
-                ws.send(text);
-              } catch {}
-          },
-        },
+        sockets: this.sockets_(id),
       };
       h = new WorkspaceHost(room, this.env);
       this.hosts.set(id, h);
@@ -160,7 +164,7 @@ export class App {
   instance(): InstanceHost {
     if (!this.inst) {
       const store = this.store("instance.sqlite");
-      this.inst = new InstanceHost({ store, wake: async () => {}, clear: async () => store.clear() }, this.env, this.platform);
+      this.inst = new InstanceHost({ store, wake: async () => {}, clear: async () => store.clear(), sockets: this.sockets_("@instance") }, this.env, this.platform);
     }
     return this.inst;
   }

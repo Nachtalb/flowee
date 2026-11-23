@@ -96,6 +96,25 @@ export class Instance extends DurableObject<CloudflareEnv> {
   constructor(ctx: DurableObjectState, env: CloudflareEnv) {
     super(ctx, env);
     this.host = new InstanceHost(room(ctx), env, platform(env));
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+  }
+  fetch(req: Request) {
+    return this.host.fetch(req);
+  }
+  tuiSeat(doc: InstanceDoc, digest: string) {
+    return this.host.tuiSeat(doc, digest);
+  }
+  tuiSync(doc: InstanceDoc, who: { digest: string; name: string }, body: string) {
+    return this.host.tuiSync(doc, who, body);
+  }
+  people(doc: InstanceDoc, digest: string) {
+    return this.host.people(doc, digest);
+  }
+  webSocketMessage() {}
+  webSocketClose(ws: WebSocket, code: number) {
+    try {
+      ws.close(code === 1005 ? 1000 : code);
+    } catch {}
   }
   mainUpdate(doc: InstanceDoc, update: unknown) {
     return this.host.mainUpdate(doc, update);

@@ -26,6 +26,12 @@ The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "insta
 | `instance.creators` | chat user ids | `[owner]` | Who may create workspaces (the wizard and imports). Everyone else gets one sentence saying so. |
 | `instance.limits.workspacesPerUser` | integer ≥ 1 | `5` | Workspaces one user may own. |
 | `instance.profile` | `{name, description, shortDescription, photo}` | Flowee's own texts, the bundled photo | The instance bot's profile (docs/telegram.md). |
+| `instance.tui` | object | | People who set up and manage workspaces in the terminal (`flowee-tui`, docs/tui.md): they see a seat *Setup and management* with the same wizard and menu as the instance bot. Workspaces they set up get the terminal as their inbox (`tui`, no chat). Every manager of a workspace's `tui.people` sees the seat too, to manage that workspace. |
+| `instance.tui.people` | array, ≥ 1 | required | The people. |
+| `instance.tui.people[].id` | string `^[a-z0-9][a-z0-9-]{0,31}$` | required | The person's id. |
+| `instance.tui.people[].name` | string | the id | The display name; the first person of a workspace they set up. |
+| `instance.tui.people[].role` | `member`, `manager` | `member` | `manager` may set up workspaces (as `creators` on Telegram); `member` only manages workspaces that name them as a manager. |
+| `instance.tui.people[].key` | SHA-256 hex | required | The digest of the person's key (`flowee-tui --new-key`). |
 | `instance.trackerApi` | URL | `https://api.github.com` | The tracker API of workspaces made in the wizard. |
 | `instance.tokenDays` | integer 1 to 366, or `"none"` | `366` | The token lifetime the wizard asks for when a workspace's `tracker.tokenDays` names none. |
 

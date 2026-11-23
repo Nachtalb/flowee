@@ -30,6 +30,29 @@ const REPO = str("The repository's path: owner/name (GitLab: group/subgroup/proj
 const KIND = (description: string, d?: string): S => ({ enum: TRACKER_TYPES, ...(d ? { default: d } : {}), description });
 export const ALIAS = "^[a-z0-9][a-z0-9-]{0,31}$";
 
+/** The terminal interface's people (docs/tui.md): a workspace's, or the managed instance's. */
+const TUI: S = obj(
+        {
+          people: {
+            type: "array",
+            minItems: 1,
+            description: "Who signs in with flowee-tui; more than one makes the inbox a team inbox (answers signed by name, the first answer wins).",
+            items: obj(
+              {
+                id: str("The person's id (in /admin paths).", { pattern: "^[a-z0-9][a-z0-9-]{0,31}$" }),
+                name: str("Display name: signs the person's answers in a team inbox."),
+                role: { enum: ["manager", "member"], default: "member", description: "member answers the inbox; manager also manages the workspace (managed mode)." },
+                key: str("SHA-256 hex digest of the person's key (flowee-tui --new-key prints it); never the key.", { pattern: "^[0-9a-f]{64}$" }),
+              },
+              ["id", "key"],
+              "One person.",
+            ),
+          },
+        },
+        ["people"],
+        "The terminal interface (docs/tui.md): with chat too, Telegram and the terminals show the same inbox.",
+      );
+
 export const SCHEMA: S = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://github.com/Nachtalb/flowee/schema/workspace.schema.json",
@@ -137,27 +160,7 @@ export const SCHEMA: S = {
         ["type", "token", "webhookSecret", "chatId"],
         "The owner's chat (the envoy).",
       ),
-      tui: obj(
-        {
-          people: {
-            type: "array",
-            minItems: 1,
-            description: "Who signs in with flowee-tui; more than one makes the inbox a team inbox (answers signed by name, the first answer wins).",
-            items: obj(
-              {
-                id: str("The person's id (in /admin paths).", { pattern: "^[a-z0-9][a-z0-9-]{0,31}$" }),
-                name: str("Display name: signs the person's answers in a team inbox."),
-                role: { enum: ["manager", "member"], default: "member", description: "member answers the inbox; manager also manages the workspace (managed mode)." },
-                key: str("SHA-256 hex digest of the person's key (flowee-tui --new-key prints it); never the key.", { pattern: "^[0-9a-f]{64}$" }),
-              },
-              ["id", "key"],
-              "One person.",
-            ),
-          },
-        },
-        ["people"],
-        "The terminal interface (docs/tui.md): with chat too, Telegram and the terminals show the same inbox.",
-      ),
+      tui: TUI,
       files: obj(
         { url: str("Upload endpoint (rustypaste compatible).", { pattern: "^https?://" }), token: secret("the upload token"), expire: str("Expiry header value.", { default: "90d" }) },
         ["url", "token"],
@@ -226,6 +229,7 @@ export const INSTANCE: S = {
           trackerApi: str("Tracker API base URL for new workspaces.", { pattern: "^https?://" }),
           tokenDays: { description: "Days a new tracker token lives: the token link asks for this lifetime (GitHub: 1 to 366, or none; GitLab caps it at 365).", oneOf: [{ type: "integer", minimum: 1, maximum: 366 }, { const: "none" }], default: 366 },
           transport: { enum: ["webhook", "polling"], description: "How the bots' updates arrive: webhook (the only one on Cloudflare) or polling (self-hosted)." },
+          tui: { ...TUI, description: "People who set up and manage workspaces in the terminal (docs/tui.md); a manager may create workspaces." },
         },
         ["bot", "publicUrl", "owner"],
         "The instance itself (managed mode).",

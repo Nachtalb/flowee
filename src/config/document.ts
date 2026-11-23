@@ -105,4 +105,6 @@ export interface InstanceConfig {
   tokenDays?: number | "none";
   /** How the bots' updates arrive; polling only in the self-hosted runtime. */
   transport?: "webhook" | "polling";
+  /** People who set up and manage workspaces in the terminal (flowee-tui): `manager` may create workspaces. */
+  tui?: { people: TuiPersonDoc[] };
 }

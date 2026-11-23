@@ -11,16 +11,18 @@ import { list } from "../core/chart";
 import { featuresOf } from "../core/features";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
-import type { ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
+import type { Chat, ChatEvent, ChatMessage, ChatRef, Command } from "../ports/chat";
 import type { Secrets } from "../ports/secrets";
 import type { Store } from "../ports/store";
 import type { InstanceApi, Platform, Room, Routed } from "../runtime/platform";
 import { Manager, type ManageHost } from "../wizard/manage";
 import { boundView, chatLabel, type Draft, failedView, fromDoc, type FlowInfo, type Session, slot, toDoc, Wizard } from "../wizard/wizard";
 import { INSTANCE_UPDATES, Telegram, TelegramBots } from "./chat-telegram";
+import { Terminal, type TuiFrame, tuiTables } from "./chat-tui";
 import type { Env } from "./instance";
 import { PHOTO } from "./photo";
-import { envSecrets, WORKSPACE_HEADER } from "./workspace-host";
+import { envSecrets, PERSON_HEADER, WORKSPACE_HEADER } from "./workspace-host";
+import { json } from "../api/http";
 import { TRACKER_KINDS } from "../config/trackers";
 import { recognise, TRACKERS } from "./trackers";
 import { randomSecret, seal, unseal, vaultKey } from "./vault";
@@ -40,7 +42,7 @@ export class InstanceHost implements InstanceApi {
   private cfg!: InstanceConfig;
 
   constructor(
-    room: Room,
+    private room: Room,
     public env: Env,
     private platform: Pick<Platform, "workspace">,
   ) {
@@ -122,7 +124,8 @@ export class InstanceHost implements InstanceApi {
 
   // ---- the wizard's host ----
 
-  private host(): ManageHost {
+  /** The wizard's and the menu's host; `person`: a terminal user (`tui:<key digest>`), whose workspaces get the terminal. */
+  private host(person?: { digest: string; name: string }): ManageHost {
     const reg = this.registry;
     const cfg = this.cfg;
     const tg = this.main();
@@ -131,8 +134,33 @@ export class InstanceHost implements InstanceApi {
     const self = this;
     const flow = this.flowInfo();
     const botOf = (id: string) => this.kv(`bot:${id}`);
+    const tuiOf = (user: string) => (user.startsWith("tui:") ? user.slice(4) : undefined);
     const host: ManageHost = {
-      ownBots: true,
+      ownBots: !person,
+      terminal: !!person,
+      manages: (user, d) => !!tuiOf(user) && !!d.tui?.people.some((p) => p.key === tuiOf(user) && p.role === "manager"),
+      async addPerson(id, role) {
+        const doc = structuredClone(reg.get(id) as WorkspaceDoc);
+        const people = doc.tui?.people ?? [];
+        let n = people.length + 1;
+        while (people.some((p) => p.id === `person-${n}`)) n++;
+        const key = `fwk_${randomSecret()}`;
+        const pid = `person-${n}`;
+        doc.tui = { people: [...people, { id: pid, name: `Person ${n}`, role, key: await digestOf(key) }] };
+        const errs = validate(doc);
+        if (errs.length) throw new Error(errs.join(" "));
+        reg.import(doc);
+        await self.push(id);
+        return { person: pid, key };
+      },
+      async removePerson(id, pid) {
+        const doc = structuredClone(reg.get(id) as WorkspaceDoc);
+        const people = (doc.tui?.people ?? []).filter((p) => p.id !== pid);
+        if (!people.length) throw new Error("The last person stays: add another one first.");
+        doc.tui = { people };
+        reg.import(doc);
+        await self.push(id);
+      },
       botUsername: cfg.bot.username,
       publicUrl: cfg.publicUrl,
       flow: () => flow,
@@ -146,7 +174,9 @@ export class InstanceHost implements InstanceApi {
       setLive: (user, id) => self.setKv(`live:${user}`, String(id)),
       expectImport: (user, on) => (on ? self.setKv(`import:${user}`, String(Date.now())) : void self.store.exec("DELETE FROM kv WHERE k = ?", `import:${user}`)),
       refusal(user, replacing) {
-        const creators = cfg.creators ?? [cfg.owner];
+        const t = tuiOf(user);
+        const creators = [...(cfg.creators ?? [cfg.owner]), ...(cfg.tui?.people ?? []).filter((p) => p.role === "manager").map((p) => `tui:${p.key}`)];
+        if (t && !replacing && !creators.includes(user)) return "Only the people this instance allows may set up workspaces; ask its owner.";
         // a manager the creator named may change the workspace without being allowed to create any
         if (!replacing && !creators.includes(user) && user !== cfg.owner) return "Only the people this instance allows may set up workspaces; ask its owner.";
         const max = cfg.limits?.workspacesPerUser ?? 5;
@@ -194,6 +224,15 @@ export class InstanceHost implements InstanceApi {
       async commit(s) {
         const d = s.draft;
         const doc = toDoc(d, s.user, flow, cfg.bot, cfg.publicUrl, cfg.trackerApi);
+        const t = tuiOf(s.user);
+        if (t) {
+          // made in the terminal: the inbox is the terminal, and the one who set it up is its first manager
+          doc.owners = doc.owners.filter((o) => !o.chat?.startsWith("tui:"));
+          if (!doc.owners.length) doc.owners = [{ name: person?.name ?? "Owner" }];
+          const people = doc.tui?.people ?? [];
+          if (!people.some((p) => p.key === t)) people.unshift({ id: (person?.name ?? "owner").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "owner", name: person?.name ?? "Owner", role: "manager", key: t });
+          doc.tui = { people };
+        }
         if (cfg.transport === "polling" && doc.chat) doc.chat.transport = "polling";
         const before = d.replaces ? reg.get(d.replaces) : undefined;
         const errs = validate(doc);
@@ -248,7 +287,8 @@ export class InstanceHost implements InstanceApi {
         return d;
       },
       // the creator's workspaces, and those whose document names the user among its managers
-      owned: (user) => [...new Set([...reg.ownedBy(user), ...reg.list().filter((d) => d.managers?.includes(user)).map((d) => d.id)])].flatMap((id) => reg.get(id) ?? []),
+      owned: (user) =>
+        [...new Set([...reg.ownedBy(user), ...reg.list().filter((d) => d.managers?.includes(user) || (!!tuiOf(user) && d.tui?.people.some((p) => p.key === tuiOf(user) && p.role === "manager"))).map((d) => d.id)])].flatMap((id) => reg.get(id) ?? []),
       doc: (id) => reg.get(id),
       owner: (id) => reg.owner(id),
       paused: (id) => reg.paused(id),
@@ -322,10 +362,10 @@ export class InstanceHost implements InstanceApi {
     this.plain?.delete(name);
   }
 
-  private tools(tg: Telegram) {
-    const host = this.host();
-    const wizard = new Wizard(tg, host, () => Date.now());
-    const manager = new Manager(wizard, host, tg);
+  private tools(chat: Chat, person?: { digest: string; name: string }) {
+    const host = this.host(person);
+    const wizard = new Wizard(chat, host, () => Date.now());
+    const manager = new Manager(wizard, host, chat);
     return { host, wizard, manager };
   }
 
@@ -338,7 +378,7 @@ export class InstanceHost implements InstanceApi {
   }
 
   /** `/bind <code>` sent in a group (or a topic of it) to the bot of a waiting setup. */
-  private async bind(m: ChatMessage, tg: Telegram): Promise<boolean> {
+  private async bind(m: ChatMessage, tg: Chat): Promise<boolean> {
     // `/start <code>` is what a group link (t.me/<bot>?startgroup=<code>) makes the user send when it adds the bot
     const c = /^\/(?:bind|start)(?:@\w+)?\s+([a-z0-9-]+)\s*$/.exec(m.text ?? "");
     if (!c || m.chatKind !== "group") return false;
@@ -352,6 +392,57 @@ export class InstanceHost implements InstanceApi {
     await tg.view(m.at, boundView(s.draft.id ?? "")).catch(() => {});
     await this.tools(this.main()).wizard.input(s.user, s.at, { kind: "bound", chat: m.at.chat, topic: m.at.topic, label });
     return true;
+  }
+
+  // ---- the terminal (docs/tui-protocol.md): setup and management for people with a key ----
+
+  /** The instance's seat for a terminal key: its people, and every manager of a workspace. */
+  async tuiSeat(doc: InstanceDoc, digest: string): Promise<{ name: string; role: "manager" | "member" } | null> {
+    await this.ready(doc);
+    const p = this.cfg.tui?.people.find((x) => x.key === digest);
+    if (p) return { name: p.name ?? p.id, role: p.role ?? "member" };
+    const m = this.registry.people(digest).find((x) => x.person.role === "manager");
+    return m ? { name: m.person.name ?? m.person.id, role: "member" } : null;
+  }
+
+  private terminal(digest: string) {
+    const ns = `p_${digest.slice(0, 16)}_`;
+    this.store.exec(tuiTables(ns));
+    const tag = `tui:${digest.slice(0, 16)}`;
+    return { term: new Terminal(this.store, { chat: `tui:${digest}` }, (seq) => this.room.sockets?.ring(tag, JSON.stringify({ seq })), () => Date.now(), ns), tag };
+  }
+
+  /** `/tui/socket` of the instance's conversation, behind the router's key check (the doorbell needs no document). */
+  async fetch(req: Request): Promise<Response> {
+    const who = JSON.parse(req.headers.get(PERSON_HEADER) ?? "null") as { digest: string } | null;
+    if (!who || !/^[0-9a-f]{64}$/.test(who.digest) || new URL(req.url).pathname !== "/tui/socket") return json({ ok: false, error: "not_found", message: "No such endpoint." }, 404);
+    const { tag } = this.terminal(who.digest);
+    return this.room.sockets ? this.room.sockets.accept(tag) : json({ ok: false, error: "unsupported", message: "This runtime has no sockets; poll sync instead." }, 501);
+  }
+
+  /** `/tui/sync` of the instance's conversation: the frames handled as the instance bot's private chat, then the events after `after`. */
+  async tuiSync(doc: InstanceDoc, who: { digest: string; name: string }, raw: string): Promise<string> {
+    await this.ready(doc);
+    const { term } = this.terminal(who.digest);
+    let body: { after?: unknown; send?: unknown } = {};
+    try {
+      body = JSON.parse(raw || "{}");
+    } catch {}
+    const after = typeof body.after === "number" && Number.isInteger(body.after) ? body.after : 0;
+    const person = { id: who.digest.slice(0, 16), name: who.name, role: "manager" as const };
+    for (const f of Array.isArray(body.send) ? (body.send as TuiFrame[]).slice(0, 50) : []) {
+      const u = term.frame(f, person);
+      const e = u && term.parse(u);
+      if (!e) continue;
+      // the instance's user is the key's digest: sessions, owners and the menu stay that person's
+      const ev = { ...e, from: `tui:${who.digest}`, ...("query" in e ? { query: `tui:${person.id}:${e.update}` } : {}) } as ChatEvent;
+      try {
+        await this.onMain(term, ev, who);
+      } catch (err) {
+        await this.failed(term, ev, err, who);
+      }
+    }
+    return JSON.stringify({ ok: true, ...term.since(after) });
   }
 
   // ---- RPC from the Worker ----
@@ -372,17 +463,17 @@ export class InstanceHost implements InstanceApi {
   }
 
   /** A failed update of the wizard or the menu reaches its user as one sentence, never as silence. */
-  private async failed(tg: Telegram, e: ChatEvent, err: unknown) {
+  private async failed(tg: Chat, e: ChatEvent, err: unknown, person?: { digest: string; name: string }) {
     console.error("update failed", err);
     const why = err instanceof Error ? err.message : String(err);
     const at = ("at" in e && e.at) || { chat: e.from };
     if (e.kind === "message" && e.chatKind !== "private") return void (await tg.view(at, failedView(why, false).slice(0, 2)).catch(() => {}));
-    const { wizard, host } = this.tools(this.main());
+    const { wizard, host } = this.tools(tg, person);
     await wizard.living.show(e.from, { chat: e.from }, failedView(why, !!host.load(e.from))).catch(() => {});
   }
 
-  private async onMain(tg: Telegram, e: ChatEvent): Promise<Routed> {
-    const { wizard, manager, host } = this.tools(tg);
+  private async onMain(tg: Chat, e: ChatEvent, person?: { digest: string; name: string }): Promise<Routed> {
+    const { wizard, manager, host } = this.tools(tg, person);
     const dm = (user: string): ChatRef => ({ chat: user });
     if (e.kind === "managed") {
       await wizard.input(e.from, dm(e.from), { kind: "managed", botId: e.bot.id, username: e.bot.username, name: e.bot.name });
@@ -527,6 +618,45 @@ export class InstanceHost implements InstanceApi {
     const m = /^\/admin\/workspaces(?:\/([a-z0-9-]+))?(\/secrets)?$/.exec(path);
     const ok = (b: Record<string, unknown>) => ({ status: 200, body: { ok: true, ...b } });
     const bad = (status: number, error: string, message: string) => ({ status, body: { ok: false, error, message } });
+    const pp = /^\/admin\/workspaces\/([a-z0-9-]+)\/people(?:\/([a-z0-9-]+))?$/.exec(path);
+    if (pp) {
+      // the terminal's people: a new one's key is answered once; the document keeps its digest only
+      const [, wid, pid] = pp;
+      const w = reg.get(wid);
+      if (!w) return bad(404, "not_found", `There is no workspace '${wid}'.`);
+      const host = this.host();
+      if (method === "POST" && !pid) {
+        const b = (body ?? {}) as { id?: unknown; name?: unknown; role?: unknown };
+        const role = b.role === "manager" ? "manager" : "member";
+        const r = await host.addPerson?.(wid, role);
+        if (!r) return bad(500, "internal", "People cannot be added here.");
+        if (typeof b.id === "string" || typeof b.name === "string") {
+          const d = structuredClone(reg.get(wid) as WorkspaceDoc);
+          const p = d.tui?.people.find((x) => x.id === r.person);
+          if (p && typeof b.id === "string") p.id = b.id;
+          if (p && typeof b.name === "string") p.name = b.name;
+          const errs = validate(d);
+          if (errs.length) {
+            await host.removePerson?.(wid, r.person);
+            return { status: 400, body: { ok: false, error: "bad_config", message: errs.join(" "), problems: errs } };
+          }
+          reg.import(d);
+          await this.push(wid);
+          r.person = p?.id ?? r.person;
+        }
+        return ok({ id: wid, person: r.person, key: r.key });
+      }
+      if (method === "DELETE" && pid) {
+        if (!w.tui?.people.some((x) => x.id === pid)) return bad(404, "not_found", `The workspace '${wid}' has no person '${pid}'.`);
+        try {
+          await host.removePerson?.(wid, pid);
+        } catch (e) {
+          return bad(409, "conflict", e instanceof Error ? e.message : String(e));
+        }
+        return ok({ id: wid, person: pid, removed: true });
+      }
+      return bad(405, "bad_request", "POST adds a person, DELETE …/people/<person> removes one.");
+    }
     if (!m) return bad(404, "not_found", "No such endpoint.");
     const [, id, secrets] = m;
     const missing = (w: WorkspaceDoc) => secretNames(w).filter((n) => !this.secrets.get(n));

@@ -24,15 +24,40 @@ function forward(p: Platform, id: string, req: Request, path?: string, person?: 
 }
 
 /** The terminal protocol (docs/tui-protocol.md): `/tui/v1/me`, `/tui/v1/w/<id>/sync`, `/tui/v1/w/<id>/socket`. */
-const TUI = /^\/tui\/v1\/(?:(me)|w\/([a-z0-9-]+)\/(sync|socket))$/;
+const TUI = /^\/tui\/v1\/(?:(me)|w\/([a-z0-9-]+)\/(sync|socket)|instance\/(sync|socket))$/;
+/** The seat id of the managed instance's own conversation: setup and management (never a workspace id). */
+export const INSTANCE_SEAT = "@instance";
 type Seat = { id: string; name?: string; paused: boolean; person: TuiPersonDoc };
 
-async function terminal(req: Request, p: Platform, m: RegExpExecArray, seats: (digest: string) => Promise<Seat[]>): Promise<Response> {
+async function terminal(
+  req: Request,
+  p: Platform,
+  m: RegExpExecArray,
+  seats: (digest: string) => Promise<Seat[]>,
+  instance?: { seat(digest: string): Promise<{ name: string; role: "manager" | "member" } | null>; sync(who: { digest: string; name: string }, body: string): Promise<string> },
+): Promise<Response> {
   const t = bearer(req);
-  const list = t ? await seats(await digestOf(t)) : [];
-  if (!list.length) return json({ ok: false, error: "unauthorized", message: "Unknown or missing key." }, 401);
+  const digest = t ? await digestOf(t) : "";
+  const list = t ? await seats(digest) : [];
+  const setup = t && instance ? await instance.seat(digest) : null;
+  if (!list.length && !setup) return json({ ok: false, error: "unauthorized", message: "Unknown or missing key." }, 401);
   const who = (s: Seat) => ({ id: s.person.id, name: s.person.name ?? s.person.id, role: s.person.role ?? "member" });
-  if (m[1]) return json({ ok: true, person: who(list[0]), workspaces: list.map((s) => ({ id: s.id, name: s.name ?? s.id, paused: s.paused, person: who(s) })) });
+  if (m[4]) {
+    if (!setup) return json({ ok: false, error: "forbidden", message: "Your key does not open the setup of this instance." }, 403);
+    const who = { digest, name: setup.name };
+    if (m[4] === "sync") {
+      if (req.method !== "POST") return json({ ok: false, error: "bad_request", message: "sync takes a POST." }, 405);
+      return new Response(await instance?.sync(who, await req.text()), { headers: { "content-type": "application/json" } });
+    }
+    const r = new Request(new URL("/tui/socket", req.url), req);
+    r.headers.set(PERSON_HEADER, JSON.stringify(who));
+    return p.instance().fetch(r);
+  }
+  if (m[1]) {
+    const ws = list.map((s) => ({ id: s.id, name: s.name ?? s.id, paused: s.paused, person: who(s) }));
+    const inst = setup ? [{ id: INSTANCE_SEAT, name: "Setup and management", paused: false, person: { id: digest.slice(0, 16), name: setup.name, role: setup.role } }] : [];
+    return json({ ok: true, person: ws[0]?.person ?? inst[0]?.person, workspaces: [...ws, ...inst] });
+  }
   const seat = list.find((s) => s.id === m[2]);
   if (!seat) return json({ ok: false, error: "forbidden", message: `Your key does not open the workspace '${m[2]}'.` }, 403);
   if (seat.paused) return paused(seat.id);
@@ -71,7 +96,7 @@ async function managed(req: Request, p: Platform): Promise<Response> {
     return r.forward ? forward(p, r.forward, req) : new Response("ok");
   }
   const tui = TUI.exec(pathname);
-  if (tui) return terminal(req, p, tui, (d) => inst.people(doc, d));
+  if (tui) return terminal(req, p, tui, (d) => inst.people(doc, d), { seat: (d) => inst.tuiSeat(doc, d), sync: (who, body) => inst.tuiSync(doc, who, body) });
   const h = HOOK.exec(pathname);
   if (h) {
     const hit = req.method === "POST" ? await inst.resolve(doc, { id: h[1] }) : null;
@@ -110,7 +135,7 @@ async function managed(req: Request, p: Platform): Promise<Response> {
   if (pathname.startsWith("/admin/")) {
     const t = bearer(req);
     if (!t || !env.FLOWEE_ADMIN_TOKEN || !(await same(t, env.FLOWEE_ADMIN_TOKEN))) return unauthorized();
-    const r = await inst.admin(doc, req.method, pathname, req.method === "PUT" ? await body() : null);
+    const r = await inst.admin(doc, req.method, pathname, req.method === "PUT" || req.method === "POST" ? await body() : null);
     return new Response(r.json, { status: r.status, headers: { "content-type": "application/json" } });
   }
   if (pathname === "/setup" && req.method === "GET") {

@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import type { TuiFrame, TuiSeat, TuiSync } from "../src/ports/tui";
-import { App, Editor, type Sys } from "./app";
+import { App, Editor, seatPath, type Sys } from "./app";
 import { parseInput } from "./input";
 import { Screen } from "./screen";
 
@@ -239,7 +239,7 @@ async function main() {
     const frames = app.take(ws);
     try {
       const after = app.convs.get(ws)?.seq ?? 0;
-      const r = await api(net, `w/${ws}/sync`, { after, send: frames });
+      const r = await api(net, `${seatPath(ws)}/sync`, { after, send: frames });
       if (r.status !== 200) {
         app.requeue(ws, r.status >= 500 ? frames : []);
         app.say(r.body?.message ?? `The instance answered ${r.status}.`, true);
@@ -269,7 +269,7 @@ async function main() {
     socket?.close();
     socket = undefined;
     socketFor = ws;
-    const wsUrl = `${url.replace(/^http/, "ws")}/tui/v1/w/${ws}/socket`;
+    const wsUrl = `${url.replace(/^http/, "ws")}/tui/v1/${seatPath(ws)}/socket`;
     let s: WebSocket;
     try {
       s = new (WebSocket as unknown as new (u: string, o: unknown) => WebSocket)(wsUrl, { headers: { authorization: `Bearer ${net.key}`, "user-agent": `flowee-tui/${VERSION}` } });
@@ -303,7 +303,7 @@ async function main() {
   const start = (seats: TuiSeat[]) => {
     app.signin = undefined;
     app.seats = seats;
-    const pick = seats.find((s) => s.id === (typeof o.workspace === "string" ? o.workspace : cfg.workspace)) ?? seats[0];
+    const pick = seats.find((s) => s.id === (typeof o.workspace === "string" ? o.workspace : cfg.workspace)) ?? seats.find((s) => s.id !== "@instance") ?? seats[0];
     app.ws = pick.id;
     cfg.workspace = pick.id;
     saveCfg();

@@ -106,6 +106,8 @@ export interface WizardHost {
   trackerName(kind?: TrackerKind): string;
   /** Does the shared bot / own bots exist in this chat (managed-bot support)? */
   ownBots: boolean;
+  /** The setup runs in the terminal: the workspace's inbox is the terminal too, so no chat is chosen. */
+  terminal?: boolean;
   botUsername?: string;
   seal(value: string): Promise<string>;
   /** Problems of the sealed token with the repositories on that tracker, one sentence each (none: usable). */
@@ -357,6 +359,7 @@ export class Wizard {
     if (why) return this.living.show(user, at, [heading("⚠️", "You cannot set up a workspace"), text(esc(why)), row(btn("📂 My workspaces", "m:list"))], bottom);
     const s = fresh(user, at, this.now());
     if (!this.host.ownBots) s.draft.bot = "shared";
+    if (this.host.terminal) s.draft.noChat = true;
     s.plan = COUNTED.filter((x) => this.needed(s, x));
     await this.go(s, this.first(s), false, { bottom });
   }

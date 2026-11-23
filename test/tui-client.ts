@@ -13,14 +13,18 @@ export class Scripted {
     public key: string,
     public ws: string,
     public person = "ann",
+    /** The instance's fetch (the managed mode passes its own environment). */
+    public fetcher: (req: Request) => Promise<Response> = (req) => SELF.fetch(req),
   ) {}
 
   private async post(path: string, body?: unknown) {
-    const res = await SELF.fetch(`https://flow.test/tui/v1/${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { authorization: `Bearer ${this.key}`, "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const res = await this.fetcher(
+      new Request(`https://flow.test/tui/v1/${path}`, {
+        method: body === undefined ? "GET" : "POST",
+        headers: { authorization: `Bearer ${this.key}`, "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    );
     return { status: res.status, body: (await res.json()) as Record<string, any> };
   }
 
@@ -30,7 +34,7 @@ export class Scripted {
 
   /** Sends frames (none: just catches up) and applies the answer. */
   async sync(...send: Omit<TuiFrame, "id">[]) {
-    const r = await this.post(`w/${this.ws}/sync`, { after: this.c.seq, send: send.map((f) => ({ id: `f${++frames}`, ...f })) });
+    const r = await this.post(`${this.ws === "@instance" ? "instance" : `w/${this.ws}`}/sync`, { after: this.c.seq, send: send.map((f) => ({ id: `f${++frames}`, ...f })) });
     if (r.status === 200) this.toasts.push(...this.c.apply(r.body as unknown as TuiSync, this.person));
     return r;
   }
@@ -52,6 +56,11 @@ export class Scripted {
   type(text: string) {
     const card = this.c.replyTarget();
     return this.sync({ text: { text, ...(card ? { replyTo: card.id } : {}) } });
+  }
+
+  /** The screen in focus as plain text (tests read it). */
+  screen() {
+    return (this.c.focus()?.view ?? []).map((b) => ("html" in b ? b.html : "buttons" in b ? b.buttons.map((x) => `[${x.label}]`).join(" ") : b.table.rows.map((r) => `${r.cells.join(" | ")} ${(r.buttons ?? []).map((x) => `[${x.label}]`).join(" ")}`).join("\n"))).join("\n").replace(/<[^>]+>/g, "");
   }
 
   file(name: string, bytes: string, caption?: string) {

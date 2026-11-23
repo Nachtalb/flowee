@@ -44,6 +44,11 @@ export interface InstanceApi {
   ownUpdate(doc: InstanceDoc, id: string, secret: string | true, update: unknown): Promise<Routed>;
   resolve(doc: InstanceDoc, q: { digest?: string; id?: string }): Promise<{ id: string; paused: boolean } | null>;
   active(doc: InstanceDoc): Promise<string[]>;
+  /** The instance's own terminal seat (setup and management) for a key digest. */
+  tuiSeat(doc: InstanceDoc, digest: string): Promise<{ name: string; role: "manager" | "member" } | null>;
+  /** The instance's terminal conversation: a sync (JSON in and out), and `/tui/socket` (the person in the router's header). */
+  tuiSync(doc: InstanceDoc, who: { digest: string; name: string }, body: string): Promise<string>;
+  fetch(req: Request): Promise<Response>;
   /** The terminal people with this key digest, one per workspace (paused workspaces included, marked). */
   people(doc: InstanceDoc, digest: string): Promise<{ id: string; name?: string; paused: boolean; person: TuiPersonDoc }[]>;
   admin(doc: InstanceDoc, method: string, path: string, body: unknown): Promise<{ status: number; json: string }>;

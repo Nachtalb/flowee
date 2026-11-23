@@ -133,6 +133,12 @@ export function hotkey(b: Button): string | undefined {
   return ({ t: "t", p: "p", k: "o", s: "s", n: "n", b: "b", f: "/", F: "f", X: "x" } as Record<string, string>)[d];
 }
 
+/** The seat id of the managed instance's setup and management (src/runtime/router.ts, INSTANCE_SEAT). */
+export const SETUP = "@instance";
+
+/** The sync and socket path of a seat. */
+export const seatPath = (id: string) => (id === SETUP ? "instance" : `w/${id}`);
+
 export const HELP: [string, string][] = [
   ["n  /  p", "Next item / previous item"],
   ["o", "OK: answer the card with OK"],
@@ -211,6 +217,18 @@ export class App {
     return this.seats.find((s) => s.id === this.ws);
   }
 
+  /** The managed instance's own conversation: setup and management, where typing always goes to the screen. */
+  get setup() {
+    return this.ws === SETUP;
+  }
+
+  /** What typing answers: the card or prompt on screen; in the setup, the setup itself. */
+  target(): Shown | undefined {
+    const t = this.conv.replyTarget();
+    if (t || !this.setup) return t;
+    return this.conv.focus() ?? ({ id: 0, at: 0, touched: 0, reply: "Type here: repositories, a token, a name…" } as Shown);
+  }
+
   say(text: string, error = false) {
     this.status = { text, at: this.sys.now(), error };
   }
@@ -241,7 +259,7 @@ export class App {
         this.say(`${f.name} could not be saved: ${e instanceof Error ? e.message : e}`, true);
       }
     }
-    if (this.area === "editor" && !c.replyTarget()) this.area = "view";
+    if (this.area === "editor" && !this.target()) this.area = "view";
   }
 
   /** The frames waiting for `ws`, taken; give them back with `requeue` when the request failed. */
@@ -283,7 +301,7 @@ export class App {
       if (this.signin?.mode === "paste") return this.signin.editor.insert(e.text.trim());
       if (this.overlay?.kind === "prompt") return this.overlay.value.insert(e.text.replace(/\n/g, " "));
       if (this.overlay?.kind === "files") return void (this.overlay.filter += e.text.trim());
-      if (!this.conv.replyTarget()) return;
+      if (!this.target()) return;
       this.area = "editor";
       return this.editor()?.insert(e.text);
     }
@@ -302,7 +320,7 @@ export class App {
     }
     const ch = k.ch ?? "";
     // the bar's keys work before the bar arrived, as the commands they stand for
-    const cmd = !bar && !k.ctrl && !k.alt ? ({ n: "/next", p: "/prev", s: "/skip", t: "/new", l: "/todo" } as Record<string, string>)[ch] : undefined;
+    const cmd = !bar && !this.setup && !k.ctrl && !k.alt ? ({ n: "/next", p: "/prev", s: "/skip", t: "/new", l: "/todo" } as Record<string, string>)[ch] : undefined;
     if (cmd) return this.command(cmd);
     if (!k.ctrl && !k.alt)
       switch (ch) {
@@ -338,12 +356,12 @@ export class App {
   }
 
   private cycle(d: number) {
-    const areas: ("inbox" | "view" | "editor")[] = ["inbox", "view", ...(this.conv.replyTarget() ? ["editor" as const] : [])];
+    const areas: ("inbox" | "view" | "editor")[] = ["inbox", "view", ...(this.target() ? ["editor" as const] : [])];
     this.area = areas[(areas.indexOf(this.area) + d + areas.length) % areas.length];
   }
 
   private toEditor() {
-    if (!this.conv.replyTarget()) return this.say("Nothing on screen takes an answer: open an item first (n, or Enter in the inbox).");
+    if (!this.target()) return this.say("Nothing on screen takes an answer: open an item first (n, or Enter in the inbox).");
     this.area = "editor";
   }
 
@@ -353,9 +371,9 @@ export class App {
 
   /** The editor of the card on screen: one draft per ticket, kept while you go elsewhere. */
   editor(): Editor | undefined {
-    const t = this.conv.replyTarget();
+    const t = this.target();
     if (!t) return undefined;
-    const k = `${this.ws}:${ticketOf(t)}`;
+    const k = `${this.ws}:${this.setup ? "setup" : ticketOf(t)}`;
     let e = this.drafts.get(k);
     if (!e) {
       e = new Editor();
@@ -386,18 +404,18 @@ export class App {
   }
 
   sendAnswer() {
-    const t = this.conv.replyTarget();
+    const t = this.target();
     const e = this.editor();
     if (!t || !e || e.empty) return this.say("Write something first.");
-    this.send({ text: { text: e.text.trim(), replyTo: t.id } });
+    this.send({ text: { text: e.text.trim(), ...(t.reply && t.id ? { replyTo: t.id } : {}) } });
     e.set("");
     this.area = "view";
-    this.say("Sent. n records it and moves on; o adds OK; a writes more.");
+    this.say(this.setup ? "Sent." : "Sent. n records it and moves on; o adds OK; a writes more.");
   }
 
   /** The file picker (Ctrl+O): a path typed or chosen; the file goes with the draft as its caption. */
   attach() {
-    if (!this.conv.replyTarget()) return this.say("Open an item first: a file answers the card on screen.");
+    if (!this.target()) return this.say("Open an item first: a file answers the card on screen.");
     this.openDir(this.sys.cwd);
   }
 
@@ -411,14 +429,14 @@ export class App {
   }
 
   private sendFile(path: string) {
-    const t = this.conv.replyTarget();
+    const t = this.target();
     if (!t) return;
     try {
       const f = this.sys.read(path);
       if (f.size > MAX_SEND) return this.say(`${f.name} is over 20 MB, which cannot be sent.`, true);
       const e = this.editor();
       const caption = e && !e.empty ? e.text.trim() : undefined;
-      this.send({ file: { name: f.name, data: f.data, ...(caption ? { caption } : {}), replyTo: t.id } });
+      this.send({ file: { name: f.name, data: f.data, ...(caption ? { caption } : {}), ...(t.reply && t.id ? { replyTo: t.id } : {}) } });
       e?.set("");
       this.overlay = undefined;
       this.area = "view";
@@ -712,7 +730,7 @@ export class App {
 
   private drawFocus(sc: Screen, x: number, y: number, w: number, h: number) {
     const f = this.conv.focus();
-    const target = f?.reply ? f : undefined;
+    const target = f?.reply ? f : this.setup ? this.target() : undefined;
     const said = target ? this.conv.said().filter((m) => m.replyTo === target.id).slice(-3) : [];
     const eh = target ? Math.max(4, Math.min(8, Math.floor(h * 0.32))) : 0;
     const vh = h - eh;
