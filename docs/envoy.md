@@ -3,7 +3,9 @@
 The Envoy (`src/envoy`, rendered by a chat adapter such as `src/adapters/chat-telegram.ts`) brings the tickets that
 wait for the owner into a chat as a todo list. This document specifies what the owner sees and what each message,
 command and button does. Each row is one user-visible behaviour; the tests in `test/envoy.test.ts`,
-`test/render.test.ts`, `test/render-features.test.ts` and `test/card.test.ts` hold the Envoy to it.
+`test/render.test.ts`, `test/render-features.test.ts` and `test/card.test.ts` hold the Envoy to it. Its look
+(heading line, bold title, centred button rows, toasts) is the grammar every other screen of the bot follows:
+docs/chat-style.md.
 
 Names used below:
 

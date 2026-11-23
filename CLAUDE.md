@@ -64,6 +64,7 @@ scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), de
 client/       flowee.py + test_flowee.py
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
 docs/         api.md, flows.md, adapters.md, configuration.md, envoy.md (the chat interface, row by row),
+              chat-style.md (how every screen looks, the living message, the reply-keyboard exception),
               flow-features.md (the feature catalogue), managed.md (wizard, management, import), telegram.md
               (profiles, setMySettings, groups and topics), agents/ (role templates for projects using Flowee)
 skills/       agent skills: flowee-install, flowee-use, flowee-configure (the full configuration spec)
@@ -130,6 +131,9 @@ tracker write leaves storage untouched). `xstate` is a dev dependency only.
   `plain()`; give the Worker a route for its updates (`index.ts`), add its `chat.type` to the schema and choose the
   adapter by it in `build()` (which builds Telegram directly today). For the managed mode also the optional methods
   the wizard uses (docs/adapters.md, "What the wizard needs") and, for own bots, the `Bots` port.
+- **a chat screen** (wizard, menu, any message a bot shows): docs/chat-style.md is the rule (blocks, wording, the
+  living message, when a new message is allowed); `test/chat-style.test.ts` and the exact payloads in
+  `test/managed.test.ts` hold it.
 - **a wizard step:** add it to `Step` and `STEPS` (and `COUNTED`) in `src/wizard/wizard.ts`, then its three parts:
   `needed()` (does a draft still lack it: imports and edits skip answered steps), `screen()` (the view, built from
   the blocks of `src/envoy/render.ts` as docs/chat-style.md says: heading with the progress, the question, one line
