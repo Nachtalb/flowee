@@ -173,10 +173,47 @@ secret; without it every call is 401). In the standalone mode every `/admin/` pa
 The documents keep the secret names they are given (the operator's API); the chat import gives a workspace its
 own slot names instead (docs/configuration.md, "Secrets in the managed mode").
 
+## Public material and validation (no authentication)
+
+Every instance serves the material of the version it runs, built from the repository at deploy (`served/`, the
+Worker's static assets), outside every workspace and Durable Object. No path needs a token; none holds a secret or a
+deployment value (the build refuses one). `GET` and `HEAD` only; each answer has a content type, `Cache-Control:
+public, max-age=60, must-revalidate` and an `ETag` (`If-None-Match` answers `304`).
+
+| Path | Answer |
+|---|---|
+| `/`, `/llms.txt`, `/index.md` | the root document for an agent told "use this URL to set Flowee up": this instance's facts (base URL, version and commit, mode, bot, trackers, chat backends, who may create workspaces and how), the questions to ask the user and the procedure. `text/markdown`; `/` with `Accept: text/html` answers the same as a small HTML page |
+| `/skills/`, `/skills/<skill>/SKILL.md`, `/skills/<skill>/references/<file>.md` | the three skills; `/skills/` is a generated index, one line per file |
+| `/docs/`, `/docs/<file>.md`, `/docs/agents/` (`README.md`), `/docs/agents/<role>.md` | the docs and the agent role templates; `/docs/` is a generated index |
+| `/client/flowee.py` | the client (`text/plain`) |
+| `/schema/workspace.schema.json`, `/schema/instance.schema.json`, `/flows/<file>.json` | the JSON Schemas, the flow and its options |
+| `/LICENSE`, `/assets/logo.svg` | the licence, the logo |
+| `/bundle.tar.gz` | all of the above but the logo under `flowee/` (`skills/`, `docs/`, `client/`, `schema/`, `flows/`, `LICENSE`) |
+| `/manifest.json` | `flowee` (version), `commit`, `client: {version, sha256}`, `files`, `bundle` (the archive's entries) |
+| `/version` | `{"ok": true, "flowee", "commit", "client": {"version", "sha256"}}`; `flowee.py version` reads it |
+
+`POST /validate` checks a workspace or instance document with the same validator as `bun run validate` and the
+import, against this instance's version. Nothing is stored, logged or changed; it does not know the instance's other
+workspaces (a repository another workspace already has is refused only at submission).
+
+| Request | Answer |
+|---|---|
+| a valid document (JSON body) | `200 {"ok": true, "kind": "workspace" \| "instance", "ids": ["acme"]}` |
+| an invalid one | `400 {"ok": false, "error": "bad_config", "message": "The document has 2 problems.", "problems": ["$.path: one sentence.", …]}` (`$: is not JSON (…).` when it is no JSON) |
+| more than 256 KiB | `413 too_large` |
+| more than 30 a minute from one address | `429 rate_limited` (counted per Worker isolate: a simple brake, not a quota) |
+| another method | `405 method_not_allowed` |
+
+```sh
+curl -fsS -H 'content-type: application/json' --data @workspace.json https://<instance>/validate
+```
+
 ## The client
 
 `client/flowee.py` (stdlib Python ≥ 3.11) is one subcommand per endpoint plus the local steps `gates`, `commit`,
-`push`, `busy`. It reads `.flowee.toml` in the repository root:
+`push`, `busy`, and `version` / `update` against the instance (`GET /version`, `GET /client/flowee.py`; no secret):
+`version` prints the client's and the instance's version and says when the served client is newer or differs;
+`update` replaces the file with the served one after checking it parses, atomically, and only when called. It reads `.flowee.toml` in the repository root:
 
 ```toml
 url = "https://flowee.example.workers.dev"

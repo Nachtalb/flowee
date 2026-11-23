@@ -53,6 +53,15 @@ sentence starting with its JSON path (`$.features.uiReview: name at least one of
 exit 2 when the file is no JSON. Fix every line and run it again. Without bun: the JSON Schema
 `schema/workspace.schema.json` checks the shape only, not the cross-field rules.
 
+Without a clone, against the instance that will run it (its own version; no token, nothing stored):
+
+```sh
+curl -fsS -H 'content-type: application/json' --data @workspace.json https://<instance>/validate
+```
+
+`{"ok": true, "kind": "workspace", "ids": ["acme"]}`, or `400` with the same sentences in `problems`
+([docs/api.md](../../docs/api.md), "Public material and validation").
+
 ## How the user submits it
 
 | Instance mode | Submit | Then |
