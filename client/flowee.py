@@ -23,13 +23,16 @@ Local commands:
   push                  fetch origin + signed rebase onto the main branch, push to origin; a rejected push is retried;
                         on a ticket branch: push that branch (fast-forward only), never the main branch
   busy                  'busy' (exit 2) when uncommitted changes younger than busy_hours exist, else 'idle'
+The instance (no secret needed):
+  version               this client's and the instance's version; says when the instance serves a newer client
+  update                replace this file with the instance's /client/flowee.py (checked to parse; never automatic)
 
 Configuration: .flowee.toml in the repository root (FLOWEE_CONFIG names another file), see docs/api.md.
   url, workspace, instance, secret_file, main_branch, commit_types, ticket_suffix, busy_hours, git_config, [[gates]]
 Environment wins over the file: FLOWEE_URL, FLOWEE_WORKSPACE, FLOWEE_AS (instance), FLOWEE_TOKEN (the secret).
 Exit: 0 ok, 2 refused, 1 failure, 3 `next` found nothing.
 """
-import json, os, re, subprocess, sys, tempfile, time, tomllib, urllib.error, urllib.parse, urllib.request, uuid
+import hashlib, json, os, re, subprocess, sys, tempfile, time, tomllib, urllib.error, urllib.parse, urllib.request, uuid
 from pathlib import Path
 from typing import Any
 
@@ -154,6 +157,73 @@ def api(method, path, body=None, tries=3):
             if attempt == tries - 1:
                 raise RuntimeError(f"Flowee unreachable: {e}")
     raise RuntimeError("no attempt made")
+
+
+def instance_url():
+    url = os.environ.get("FLOWEE_URL") or setting("url")
+    if not url:
+        raise Refused("set FLOWEE_URL or `url` in .flowee.toml")
+    return url.rstrip("/")
+
+
+def fetch(path):
+    """GET a public path of the instance (no secret)."""
+    req = urllib.request.Request(instance_url() + path, headers={"User-Agent": f"flowee/{VERSION}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"{path}: HTTP {e.code}")
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        raise RuntimeError(f"Flowee unreachable: {e}")
+
+
+def newer(a, b):
+    """Whether version a is above version b (numeric parts)."""
+    nums = lambda v: [int(x) for x in re.findall(r"\d+", v)]
+    return nums(a) > nums(b)
+
+
+def cmd_version(me=None):
+    me = Path(me or __file__).resolve()
+    mine = hashlib.sha256(me.read_bytes()).hexdigest()
+    print(f"client {VERSION} ({mine[:12]})")
+    try:
+        v = json.loads(fetch("/version"))
+        c = v["client"]
+    except (ValueError, KeyError, TypeError):
+        raise RuntimeError("the instance answered no version (it predates `GET /version`)")
+    print(f"server {v['flowee']} (commit {v['commit']}), serving client {c['version']} ({c['sha256'][:12]})")
+    if newer(c["version"], VERSION):
+        print(f"the instance serves a newer client: update with `python3 {sys.argv[0] or me} update`")
+    elif c["sha256"] != mine:
+        print(f"this file differs from the served client; `python3 {sys.argv[0] or me} update` replaces it with the served one")
+    else:
+        print("up to date")
+    return 0
+
+
+def cmd_update(me=None):
+    me = Path(me or __file__).resolve()
+    data = fetch("/client/flowee.py")
+    try:
+        text = data.decode()
+        compile(text, "flowee.py", "exec")
+    except (UnicodeDecodeError, SyntaxError, ValueError) as e:
+        raise Refused(f"the served client does not parse ({e}); {me} is unchanged")
+    m = re.search(r'^VERSION = "([^"]+)"', text, re.M)
+    if not m:
+        raise Refused(f"the served client names no VERSION; {me} is unchanged")
+    if data == me.read_bytes():
+        print(f"{me} is already the served client {m[1]}")
+        return 0
+    fd, tmp = tempfile.mkstemp(dir=me.parent, prefix=".flowee-", suffix=".py")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    os.chmod(tmp, me.stat().st_mode & 0o7777)
+    os.replace(tmp, me)
+    print(f"updated {me}: {VERSION} -> {m[1]}")
+    return 0
 
 
 def stdin_text():
@@ -390,6 +460,8 @@ def main(argv):
         return cmd_push()
     if c == "busy":
         return cmd_busy()
+    if c in ("version", "update"):
+        return cmd_version() if c == "version" else cmd_update()
     if c in ("branch", "pr", "checks"):
         return {"branch": cmd_branch, "pr": cmd_pr, "checks": cmd_checks}[c](num())
     if c in ("whoami", "queue"):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for client/flowee.py: the remote commands against a local stand-in server, the local commit / push /
 gates / busy steps in scratch repos only (each one's `origin` is asserted to be a scratch bare repo first)."""
-import contextlib, io, json, os, shutil, socket, subprocess, sys, tempfile, threading, unittest
+import contextlib, io, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -28,7 +28,7 @@ class Server:
                                "body": json.loads(raw) if raw else None})
                 q = me.replies.get(self.path.split("?")[0], [(200, {"ok": True})])
                 status, body = q.pop(0) if len(q) > 1 else q[0]
-                data = json.dumps(body).encode()
+                data = body if isinstance(body, bytes) else json.dumps(body).encode()
                 self.send_response(status)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
@@ -148,6 +148,56 @@ class Remote(unittest.TestCase):
         env["FLOWEE_CONFIG"] = str(self.d / "missing.toml")
         r = run("whoami")
         self.assertEqual((r.returncode, r.stderr.strip()), (2, "refused: set FLOWEE_URL or `url` in .flowee.toml"))
+
+
+class SelfCheck(Remote):
+    """`version` and `update` against the instance's GET /version and /client/flowee.py, on a copy of the client."""
+
+    def copy(self):
+        me = self.d / "flowee.py"
+        shutil.copy(HERE / "flowee.py", me)
+        return me
+
+    def served(self, version, data):
+        import hashlib
+        self.s.replies["/version"] = [(200, {"ok": True, "flowee": "9.9.9", "commit": "abc123def456",
+                                             "client": {"version": version, "sha256": hashlib.sha256(data).hexdigest()}})]
+        self.s.replies["/client/flowee.py"] = [(200, data)]
+
+    def test_version_says_up_to_date_newer_or_differs(self):
+        me = self.copy()
+        self.served(flowee.VERSION, me.read_bytes())
+        rc, out, _ = call("version")
+        lines = out.splitlines()
+        self.assertEqual(rc, 0)
+        self.assertRegex(lines[0], rf"^client {re.escape(flowee.VERSION)} \([0-9a-f]{{12}}\)$")
+        self.assertEqual(lines[1:], [f"server 9.9.9 (commit abc123def456), serving client {flowee.VERSION} ({lines[0][-13:-1]})", "up to date"])
+        self.assertNotIn("Authorization", self.s.got[-1]["headers"])
+        self.assertEqual(self.s.got[-1]["path"], "/version")
+        self.served("99.0.0", b"VERSION = \"99.0.0\"\n")
+        self.assertIn("the instance serves a newer client: update with `python3 ", call("version")[1])
+        self.served(flowee.VERSION, b"VERSION = \"0.0.1\"\n")
+        self.assertIn("this file differs from the served client", call("version")[1])
+        self.s.replies["/version"] = [(404, {"ok": False})]
+        self.assertEqual(call("version")[0], 1)
+
+    def test_update_replaces_the_file_only_with_a_client_that_parses(self):
+        me = self.copy()
+        run = lambda: subprocess.run([sys.executable, str(me), "update"], env=dict(os.environ), capture_output=True, text=True)
+        before = me.read_bytes()
+        self.served("99.0.0", b"def broken(:\n")
+        r = run()
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("refused: the served client does not parse", r.stderr)
+        self.assertEqual(me.read_bytes(), before)
+        new = before.replace(f'VERSION = "{flowee.VERSION}"'.encode(), b'VERSION = "99.0.0"')
+        self.served("99.0.0", new)
+        r = run()
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, f"updated {me}: {flowee.VERSION} -> 99.0.0"))
+        self.assertEqual(me.read_bytes(), new)
+        self.assertEqual(oct(me.stat().st_mode & 0o777), oct((HERE / "flowee.py").stat().st_mode & 0o777))
+        self.assertEqual([p.name for p in self.d.glob(".flowee-*")], [])
+        self.assertIn("is already the served client 99.0.0", run().stdout)
 
 
 class Local(unittest.TestCase):

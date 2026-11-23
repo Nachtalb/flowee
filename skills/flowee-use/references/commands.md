@@ -15,6 +15,8 @@ come on stdin. Output is the API's JSON without `ok`. Which commands exist depen
 | `heartbeat N` | long work, before ending a run without hand-over | renews your claim |
 | `release N` | give a ticket back without a question | developer: back to `ready` (or `back to development` with commits); tester: `ready for testing`; comment required |
 | `file TITLE [--repo ALIAS]` | an unrelated problem you found | new ticket in `needs triage`, body on stdin |
+| `version` | after setup, or when a command behaves unexpectedly | the client's and the instance's version (`GET /version`, no secret); names `update` when the instance serves a newer client |
+| `update` | only when asked to update the client | replaces this file with the instance's `/client/flowee.py` after checking it parses; never runs by itself |
 
 ## Developer
 
