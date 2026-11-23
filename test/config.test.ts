@@ -160,10 +160,18 @@ describe("export and import", () => {
     const r = new StaticRegistry(secrets({ TOKEN_DEV1: "AB12" }), workspaces);
     expect(r.byDigest("ab12")).toMatchObject({ instance: "dev1", role: "developer", doc: { id: "livedu" } });
     expect(r.byChat({ chat: "555" })?.id).toBe("other");
-    const t = { ...livedu, id: "topic", chat: { ...livedu.chat, chatId: "-100", topicId: 3 } } as WorkspaceDoc;
+    const t = { ...livedu, id: "topic", tracker: { ...livedu.tracker, repos: ["acme/topic"] }, chat: { ...livedu.chat, chatId: "-100", topicId: 3 } } as WorkspaceDoc;
     r.import(t);
     expect(r.byChat({ chat: "-100", topic: 3 })?.id).toBe("topic");
     expect(r.byChat({ chat: "-100", topic: 4 })).toBeUndefined();
+  });
+
+  it("refuses a repository that is already in another workspace", () => {
+    const r = new StaticRegistry(secrets({}), workspaces);
+    const { chat: _c, files: _f, profile: _p, ...rest } = livedu;
+    const again = { ...rest, id: "again" } as WorkspaceDoc;
+    expect(() => r.import(again)).toThrow(`$.workspaces[5].tracker.repos[0]: '${livedu.tracker.repos[0]}' is already in workspace '${livedu.id}'; a repository belongs to one workspace only.`);
+    expect(r.get("again")).toBeUndefined();
   });
 });
 

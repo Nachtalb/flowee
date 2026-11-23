@@ -274,7 +274,16 @@ export function validate(doc: unknown): string[] {
   return errs;
 }
 
-/** Every problem of an instance document (all workspaces); ids and chat bindings must be unique. */
+/** A repository already in another workspace (claims and tickets would clash): one sentence per repository. */
+export function repoClashes(others: WorkspaceDoc[], doc: WorkspaceDoc): string[] {
+  const owner = new Map(others.filter((w) => w.id !== doc.id).flatMap((w) => repoList(w).map((r) => [r.repo.toLowerCase(), w.id] as const)));
+  return repoList(doc).flatMap((r, j) => {
+    const w = owner.get(r.repo.toLowerCase());
+    return w ? [`$.tracker.repos[${j}]: '${r.repo}' is already in workspace '${w}'; a repository belongs to one workspace only.`] : [];
+  });
+}
+
+/** Every problem of an instance document (all workspaces); ids, chat bindings and repositories must be unique. */
 export function validateInstance(doc: unknown): string[] {
   const d = doc as InstanceDoc;
   if (kind(d) !== "object" || d.flowee !== 1 || !Array.isArray(d.workspaces)) return ["$: must be {\"flowee\": 1, \"workspaces\": [...]}."];
@@ -290,6 +299,8 @@ export function validateInstance(doc: unknown): string[] {
     if (c && chats.has(c)) errs.push(`$.workspaces[${i}].chat: another workspace is bound to the same chat and topic.`);
     if (c) chats.add(c);
   });
+  if (errs.length) return errs;
+  d.workspaces.forEach((w, i) => errs.push(...repoClashes(d.workspaces.slice(0, i), w).map((e) => e.replace(/^\$/, `$.workspaces[${i}]`))));
   return errs;
 }
 

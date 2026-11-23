@@ -26,8 +26,8 @@ The instance document is `{"flowee": 1, "workspaces": [<workspace>, …], "insta
 | `instance.profile` | `{name, description, shortDescription, photo}` | Flowee's own texts, the bundled photo | The instance bot's profile (docs/telegram.md). |
 | `instance.trackerApi` | URL | `https://api.github.com` | The tracker API of workspaces made in the wizard. |
 
-Workspace ids must be unique, and no Workspace ids must be unique, and no
-two workspaces may bind the same chat and topic. In standalone mode every workspace with a chat must name the
+Workspace ids must be unique, no two workspaces may bind the same chat and topic, and a repository belongs to one
+workspace only. In standalone mode every workspace with a chat must name the
 same `chat.token` and `chat.webhookSecret` (one bot).
 
 ## Secrets
@@ -181,8 +181,8 @@ docs/adapters.md lists the token permission each one needs; docs/anyfile-parity.
   feature 'samples'.`); `releases.source: "tag"` without `releases.tag`; `releases.testedTag` equal to `releases.tag`;
   `uiReview` without any of `paths`, `addedFiles`, `addedLines`, or with an `addedLines` entry that is no regular
   expression; `untrustedReports.role` that is no role of the flow; an instance of a role whose feature is off.
-- In an instance document: a workspace id twice; two workspaces bound to the same chat and topic; (standalone)
-  two different bots.
+- In an instance document: a workspace id twice; two workspaces bound to the same chat and topic; one repository
+  in two workspaces (their claims and tickets would clash); (standalone) two different bots.
 
 ### Example
 

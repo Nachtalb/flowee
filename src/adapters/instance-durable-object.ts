@@ -6,7 +6,7 @@ import { DurableObject } from "cloudflare:workers";
 import type { InstanceConfig, InstanceDoc, WorkspaceDoc } from "../config/document";
 import { PRESETS } from "../config/presets";
 import { digestOf, StoredRegistry } from "../config/registry";
-import { secretNames, validate } from "../config/schema";
+import { repoClashes, repoList, secretNames, validate } from "../config/schema";
 import { Fail } from "../core/errors";
 import { hex, same, sha256 } from "../core/text";
 import type { BotAccess } from "../ports/bots";
@@ -159,6 +159,7 @@ export class Instance extends DurableObject<Env> {
         }
         return out;
       },
+      repoTaken: (repo, except) => reg.list().find((w) => w.id !== except && repoList(w).some((r) => r.repo.toLowerCase() === repo.toLowerCase()))?.id,
       async adoptBot(s, botId) {
         const token = await bots.token(botId);
         const hook = randomSecret();
@@ -248,7 +249,10 @@ export class Instance extends DurableObject<Env> {
       },
       access: (id) => bots.access(botOf(id) ?? ""),
       setAccess: (id, a: BotAccess) => bots.setAccess(botOf(id) ?? "", a),
-      validate: (doc) => validate(doc),
+      validate: (doc) => {
+        const errs = validate(doc);
+        return errs.length ? errs : repoClashes(reg.list(), doc as WorkspaceDoc);
+      },
     };
     return host;
   }

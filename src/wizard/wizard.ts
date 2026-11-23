@@ -78,6 +78,8 @@ export interface WizardHost {
   seal(value: string): Promise<string>;
   /** Problems of the sealed token with the repositories, one sentence each (none: usable). */
   checkRepos(sealed: string, repos: string[]): Promise<string[]>;
+  /** The workspace other than `except` that already has this repository. */
+  repoTaken(repo: string, except?: string): string | undefined;
   /** The managed bot just created: its token stored for the draft, its webhook set. */
   adoptBot(s: Session, botId: string): Promise<void>;
   /** Creates or replaces the workspace; returns the role secrets to hand over once. */
@@ -470,6 +472,11 @@ export class Wizard {
       const bad = repos.filter((r) => !REPO.test(r));
       if (!repos.length || bad.length) {
         await this.show(s, `${bad.map((x) => `'${x}'`).join(", ") || "That"} ${bad.length > 1 ? "are" : "is"} not owner/name.`);
+        return true;
+      }
+      const taken = repos.find((r) => this.host.repoTaken(r, d.replaces));
+      if (taken) {
+        await this.show(s, `'${taken}' is already in workspace '${this.host.repoTaken(taken, d.replaces)}'; a repository belongs to one workspace only.`);
         return true;
       }
       const aliases = repos.map(aliasOf);

@@ -381,7 +381,12 @@ describe("export and import", () => {
     const out = JSON.parse(await (tg.of("sendDocument").at(-1)?.document as File).text());
     expect(out).toMatchObject({ flowee: 1, workspaces: [{ id: "app" }] });
     expect(JSON.stringify(out)).not.toContain(TOKEN);
-    const copy = { ...out.workspaces[0], id: "app-copy", texts: { project: "Copy" } };
+    const twin = { ...out.workspaces[0], id: "app-copy" };
+    delete twin.chat;
+    files["doc-0"] = JSON.stringify(twin);
+    await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "doc-0", file_name: "twin.json", file_size: 10 } }));
+    expect(said()).toBe("⚠️ Not imported, 1 problem:\n• $.tracker.repos[0]: 'acme/app' is already in workspace 'app'; a repository belongs to one workspace only.");
+    const copy = { ...out.workspaces[0], id: "app-copy", tracker: { ...out.workspaces[0].tracker, repos: ["acme/lib"] }, texts: { project: "Copy" } };
     delete copy.chat;
     files["doc-1"] = JSON.stringify(copy);
     await post("/telegram", msg(100, undefined, undefined, { document: { file_id: "doc-1", file_name: "app-copy.json", file_size: 10 } }));
@@ -416,6 +421,18 @@ describe("export and import", () => {
     await dm(100, "/import");
     await dm(100, "{not json");
     expect(said()).toMatch(/^⚠️ Not imported: \$: is not JSON \(/);
+  });
+
+  it("a repository already in a workspace is refused in the wizard and over the API", async () => {
+    await sharedSetup(100);
+    await dm(200, "/setup");
+    await tap(200, "w:bot:shared");
+    await dm(200, "acme/app");
+    expect(said()).toContain("⚠️ 'acme/app' is already in workspace 'app'; a repository belongs to one workspace only.");
+    const doc = { flowee: 1, id: "twin", flow: { preset: "trunk" }, tracker: { type: "github", repos: ["acme/app"], token: "X" }, roles: [{ instance: "owner", role: "owner", secret: "Y" }], owners: [{ name: "A" }] };
+    const r = await admin("PUT", "/admin/workspaces/twin", doc);
+    expect(r.status).toBe(400);
+    expect(r.body.message).toBe("$.workspaces[1].tracker.repos[0]: 'acme/app' is already in workspace 'app'; a repository belongs to one workspace only.");
   });
 
   it("pasted JSON is imported only as the answer to /import", async () => {
