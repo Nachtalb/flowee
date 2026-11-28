@@ -1,13 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512" role="img" aria-label="Flowee">
-  <rect width="128" height="128" fill="#ecfdf5"/>
-  <g transform="translate(13.6 15.6) scale(0.8)">
-    <path d="M16 84 C 36 84, 40 56, 64 56 S 92 84, 112 84" fill="none" stroke="#14b8a6" stroke-width="9" stroke-linecap="round"/>
-    <circle cx="16" cy="84" r="10" fill="#ecfdf5" stroke="#14b8a6" stroke-width="7"/>
-    <circle cx="112" cy="84" r="11.5" fill="#14b8a6"/>
-    <g transform="rotate(-6 64 48)">
-      <rect x="40" y="28" width="48" height="38" rx="8" fill="#f59e0b"/>
-      <rect x="49" y="38" width="30" height="7" rx="3.5" fill="#ffffff"/>
-      <rect x="49" y="50" width="19" height="7" rx="3.5" fill="#ffffff"/>
-    </g>
+  <rect width="128" height="128" fill="#0f766e"/>
+  <g transform="rotate(-10 62 44)">
+    <rect x="44" y="28" width="40" height="32" rx="7" fill="#f59e0b"/>
+    <rect x="51" y="36" width="26" height="6" rx="3" fill="#ffffff"/>
+    <rect x="51" y="47" width="16" height="6" rx="3" fill="#ffffff"/>
   </g>
+  <path d="M0 68 C 22 50, 42 50, 64 68 S 106 86, 128 68 V128 H0 Z" fill="#14b8a6"/>
+  <path d="M0 88 C 22 72, 42 72, 64 88 S 106 104, 128 88 V128 H0 Z" fill="#5eead4"/>
+  <path d="M0 106 C 22 94, 42 94, 64 106 S 106 118, 128 106 V128 H0 Z" fill="#ccfbf1"/>
 </svg>
