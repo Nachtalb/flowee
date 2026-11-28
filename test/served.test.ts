@@ -1,7 +1,7 @@
 // The instance serves its own material: every served file equals its repository source, with its content type,
 // caching headers and ETag; nothing of the repository's skills or docs is missing; the bundle holds exactly the
 // expected files; every link in served markdown resolves to a served path; no secret or deployment value is served;
-// the root document for an agent (standalone, managed, markdown, HTML); POST /validate.
+// the root document for an agent (standalone, managed, markdown) and the landing page for a browser; POST /validate.
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { deploymentValues, SECRET_PATTERNS } from "../scripts/bundle";
@@ -10,14 +10,23 @@ import { VALIDATE_MAX, VALIDATE_PER_MINUTE } from "../src/adapters/served";
 import worker from "../src/index";
 import workspaces from "./workspaces.json";
 
-const raw = import.meta.glob(["../INSTALL.md", "../skills/**/*", "../docs/**/*", "../client/flowee.py", "../schema/*.json", "../flows/*.json", "../LICENSE", "../assets/*.svg"], {
+const raw = import.meta.glob(["../INSTALL.md", "../skills/**/*", "../docs/**/*", "../client/flowee.py", "../schema/*.json", "../flows/*.json", "../LICENSE", "../assets/*.svg", "../site/*"], {
   query: "?raw",
   import: "default",
   eager: true,
 }) as Record<string, string>;
 const sources = new Map(Object.entries(raw).map(([p, t]) => [p.replace(/^\.\.\//, ""), t]));
 const GENERATED = ["skills/index.md", "docs/index.md"];
-const TYPE: Record<string, string> = { md: "text/markdown; charset=utf-8", py: "text/plain; charset=utf-8", json: "application/json; charset=utf-8", svg: "image/svg+xml" };
+const TYPE: Record<string, string> = {
+  md: "text/markdown; charset=utf-8",
+  py: "text/plain; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  svg: "image/svg+xml",
+  html: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+};
+const bundled = (p: string) => !/^(assets|site)\//.test(p);
 const typeOf = (p: string) => (p === "LICENSE" ? "text/plain; charset=utf-8" : TYPE[p.split(".").at(-1) ?? ""]);
 const get = (p: string, headers: Record<string, string> = {}) => SELF.fetch(`https://flowee.test${p}`, { headers });
 const manifest = async () => (await (await get("/manifest.json")).json()) as Manifest;
@@ -96,10 +105,10 @@ describe("served material", () => {
     expect(r.headers.get("content-type")).toBe("application/gzip");
     expect(r.headers.get("content-disposition")).toContain("flowee.tar.gz");
     const files = await untar(await r.arrayBuffer());
-    const want = [...sources.keys(), ...GENERATED].filter((p) => !p.startsWith("assets/")).map((p) => `flowee/${p}`).sort();
+    const want = [...sources.keys(), ...GENERATED].filter(bundled).map((p) => `flowee/${p}`).sort();
     expect([...files.keys()].sort()).toEqual(want);
     expect((await manifest()).bundle).toEqual(want);
-    for (const [p, t] of sources) if (!p.startsWith("assets/")) expect(files.get(`flowee/${p}`), p).toBe(t);
+    for (const [p, t] of sources) if (bundled(p)) expect(files.get(`flowee/${p}`), p).toBe(t);
   });
 
   it("no served file holds a secret-looking value, a test secret or a value of the test workspaces' documents", async () => {
@@ -199,18 +208,53 @@ describe("the root document", () => {
     expect(md).not.toContain("100");
   });
 
-  it("a browser gets the same content as a small HTML page with the logo, links and nothing from elsewhere", async () => {
+  it("a browser gets the landing page with this instance's facts filled in, and loads nothing from elsewhere", async () => {
     const r = await get("/", { accept: "text/html,application/xhtml+xml" });
-    expect(r.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect([r.headers.get("content-type"), r.headers.get("vary")]).toEqual(["text/html; charset=utf-8", "accept"]);
     const html = await r.text();
+    const m = await manifest();
     expect(html).toMatch(/^<!doctype html>/);
-    expect(html).toContain('<img src="/assets/logo.svg"');
-    expect(html).toContain('<a href="https://flowee.test/INSTALL.md">');
-    expect(html).toContain("<h1>Flowee: set it up from this URL</h1>");
-    expect(html).toContain("<ol>");
-    expect(html).toContain("<code>trunk</code>");
-    expect([...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((x) => x[1]).filter((u) => !u.startsWith("/") && !u.startsWith("https://flowee.test"))).toEqual([]);
-    expect(html).not.toMatch(/<script|<link rel="stylesheet"/);
+    expect(html).toContain('<link rel="alternate" type="text/markdown" href="/llms.txt"');
+    expect(html).toContain('<a href="/llms.txt">');
+    expect(html).toContain('<img class="logo" src="/assets/logo.svg"');
+    expect(html).toContain('<img src="/assets/logo.svg" alt=""');
+    expect(html).toContain('<canvas class="wave"');
+    expect(html).toContain("<code id=\"prompt\">Use https://flowee.test to set up Flowee for this project.</code>");
+    expect(html).toContain(`Version ${m.flowee}, commit <code>${m.commit}</code>`);
+    expect(html).toContain("<dt>Mode</dt><dd>standalone</dd>");
+    expect(html).toContain("<dd>GitHub, GitLab</dd>");
+    expect(html).toContain("<dd>Telegram, Terminal</dd>");
+    expect(html).toContain("This instance serves only the workspaces its operator configured.");
+    expect(html).toContain('<a class="btn primary" href="https://t.me/ShopEnvoyBot">Open @ShopEnvoyBot on Telegram</a>');
+    expect(html).toContain('<a class="btn secondary" href="#agents">');
+    expect(html).not.toMatch(/\{\{|<!--if|<!--end/);
+    // every resource the page loads is this instance's; links elsewhere are only anchors
+    const loads = [...html.matchAll(/<(?:script|img|link|source|iframe)\b[^>]*?(?:src|href)="([^"]+)"/g)].map((x) => x[1]);
+    expect(loads.length).toBeGreaterThan(4);
+    for (const u of loads) expect(u, u).toMatch(/^\//);
+    for (const p of ["/site/landing.css", "/site/landing.js"]) {
+      const a = await get(p);
+      expect(a.status, p).toBe(200);
+      expect(await a.text(), p).not.toMatch(/https?:\/\/|@import|url\((?!#)/);
+    }
+    expect((await get("/", { accept: "text/html", "if-none-match": r.headers.get("etag") ?? "" })).status).toBe(304);
+  });
+
+  it("without a bot: no button to one, the agent prompt is the primary action", async () => {
+    const e = { ...env, FLOWEE_CONFIG: JSON.stringify({ flowee: 1, workspaces: [] }) } as typeof env;
+    const html = await (await worker.fetch(new Request("https://flowee.test/", { headers: { accept: "text/html" } }), e)).text();
+    expect(html).not.toContain("t.me/");
+    expect(html).toContain('<a class="btn primary" href="#agents">');
+    expect(html).toContain("<dt>Chat bot</dt><dd>none configured</dd>");
+  });
+
+  it("managed with a bot: the landing page opens the bot and says how a workspace is made", async () => {
+    const html = await (await mget("/", { accept: "text/html" })).text();
+    expect(html).toContain('<a class="btn primary" href="https://t.me/flowee_test_bot">Open @flowee_test_bot on Telegram</a>');
+    expect(html).toContain("This instance is managed: in a private chat with");
+    expect(html).toContain("<dt>Mode</dt><dd>managed</dd>");
+    expect(html).not.toContain("This instance serves only the workspaces");
+    expect(html).not.toMatch(/\b100\b/);
   });
 
   it("GET /version names the server and the client it serves", async () => {

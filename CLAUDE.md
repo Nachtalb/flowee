@@ -107,7 +107,7 @@ scripts/      schema.ts (`bun run schema`), validate.ts (`bun run validate`), fl
               bundle.ts (`bun run bundle`: served/ from SOURCES, the skills/ and docs/ indexes, manifest.json,
               bundle.tar.gz; the secret and deployment-value check)
 served/       generated, git-ignored: the Worker's static assets (`[assets]`, binding ASSETS, run_worker_first),
-              answered by src/adapters/served.ts (the root document, headers, /version, POST /validate)
+              answered by src/adapters/served.ts (the root document, the landing page, headers, /version, POST /validate)
 client/       flowee.py + test_flowee.py
 tui/          flowee-tui, the terminal client (no dependency): screen.ts (the cell grid, widths, the ANSI diff; the
               tests' headless screen), html.ts (a View laid out: lines and the targets keys and clicks reach),
@@ -115,6 +115,9 @@ tui/          flowee-tui, the terminal client (no dependency): screen.ts (the ce
               SGR mouse, paste), app.ts (screens, keys, overlays: everything drawn), main.ts (terminal, config
               dir and key file, sync, the socket, reconnect), node.d.ts
 assets/       logo.svg, logo-square.svg (the default bot photo's source)
+site/         the landing page a browser gets at `/`: index.html (a template: `{{fact}}`, `<!--if bot-->…<!--end bot-->`,
+              filled by `fill()` in src/adapters/served.ts), landing.css, landing.js (the WebGL particle wave, no library);
+              served at /site/ like every served file, loads nothing from elsewhere
 docs/         api.md, flows.md, adapters.md, configuration.md, gitlab.md (GitLab's mapping and token scopes),
               tui.md (the terminal interface: keys, pairing, people), tui-protocol.md (its client protocol),
               webhooks.md (events per feature, permissions, health and fallback, the alarm/cron split),

@@ -10,5 +10,6 @@ export default defineConfig({
     }),
   ],
   // test/bun/ holds the bun runtime's own suites (bun:sqlite, timers, polling): vitest.bun.config.ts runs them
-  test: { exclude: [...configDefaults.exclude, "test/bun/**"] },
+  // css: the landing page's stylesheet is read ?raw by test/served.test.ts, not emptied
+  test: { exclude: [...configDefaults.exclude, "test/bun/**"], css: true },
 });

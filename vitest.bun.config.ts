@@ -12,5 +12,5 @@ export default defineConfig({
       { find: /^\.\.\/src\/index$/, replacement: at("./test/bun/worker.ts") },
     ],
   },
-  test: { pool: "threads", include: ["test/**/*.test.ts"] },
+  test: { pool: "threads", include: ["test/**/*.test.ts"], css: true },
 });

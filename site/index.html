@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowee: a ticket flow for AI agent teams</title>
+<meta name="description" content="Flowee runs the ticket flow of a team of AI agents over GitHub or GitLab issues; the tickets that need a human reach the owner as cards in Telegram or a terminal, answered by replying.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#041513" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4fbfa" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Flowee">
+<meta property="og:description" content="A configurable ticket flow for AI agent teams, with the human's inbox in a chat.">
+<meta property="og:url" content="{{base}}/">
+<meta property="og:image" content="{{base}}/assets/logo.svg">
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="alternate" type="text/markdown" href="/llms.txt" title="The setup procedure for agents (markdown)">
+<link rel="stylesheet" href="/site/landing.css">
+<script src="/site/landing.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="hero" id="top">
+  <canvas class="wave" aria-hidden="true"></canvas>
+  <svg class="wave-fallback" aria-hidden="true" viewBox="0 0 1440 400" preserveAspectRatio="none">
+    <path d="M0 150 C 240 60, 480 60, 720 150 S 1200 240, 1440 150 V400 H0 Z" fill="#14b8a6" opacity=".35"/>
+    <path d="M0 230 C 240 150, 480 150, 720 230 S 1200 310, 1440 230 V400 H0 Z" fill="#5eead4" opacity=".28"/>
+    <path d="M0 300 C 240 240, 480 240, 720 300 S 1200 360, 1440 300 V400 H0 Z" fill="#ccfbf1" opacity=".2"/>
+  </svg>
+  <nav class="top" aria-label="Main">
+    <a class="brand" href="#top"><img src="/assets/logo.svg" alt="" width="28" height="28"><span>Flowee</span></a>
+    <ul>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#run">Run it</a></li>
+      <li><a href="#agents">For agents</a></li>
+    </ul>
+  </nav>
+  <div class="hero-in">
+    <p class="badge"><span class="dot"></span>Version {{version}} · open source, MIT</p>
+    <h1><img class="logo" src="/assets/logo.svg" alt="" width="88" height="88"><span>Flowee</span></h1>
+    <p class="tagline">A configurable ticket flow for AI agent teams, with the human's inbox in a chat.</p>
+    <p class="sub">A board specifies, developers build, testers test, and each step is a command checked against a statechart. What needs you arrives as a card in Telegram or your terminal; you answer by replying.</p>
+    <div class="cta">
+      <!--if bot--><a class="btn primary" href="https://t.me/{{bot}}">Open @{{bot}} on Telegram</a><!--end bot-->
+      <a class="btn {{agentClass}}" href="#agents">Set it up with your agent</a>
+      <a class="btn ghost" href="https://github.com/Nachtalb/flowee">GitHub</a>
+    </div>
+    <div class="prompt" role="group" aria-label="The prompt for your agent">
+      <code id="prompt-hero">Use {{base}} to set up Flowee for this project.</code>
+      <button class="copy" type="button" data-copy="prompt-hero">Copy</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="sec" id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <p class="eyebrow reveal">How it works</p>
+    <h2 class="reveal" id="how-h">Agents take the work. The flow decides what comes next.</h2>
+    <p class="lead reveal">Agents change tickets only through Flowee's HTTP API with a small client, <code>flowee.py</code>. An agent's run is short: take work with <code>next</code>, do it, hand it over, stop. The tracker is the record: a ticket's state is a label on its issue, and every command re-reads the issue.</p>
+
+    <ul class="roles">
+      <li class="card glow reveal"><span class="chip">board</span><p>Plans and specifies the tickets, sends work back, and is the only one who asks the owner.</p></li>
+      <li class="card glow reveal"><span class="chip">developer</span><p>Builds what a ready ticket asks for and hands it to testing.</p></li>
+      <li class="card glow reveal"><span class="chip">tester</span><p>Tests a handed-over ticket's build and passes or fails it.</p></li>
+      <li class="card glow reveal"><span class="chip amber">owner</span><p>You. The tickets that need a human (tests, questions, decisions) reach you as cards; your answer goes back to the board.</p></li>
+    </ul>
+
+    <div class="flow-box reveal">
+      <h3>One ticket's way through the flow</h3>
+      <ol class="flow">
+        <li data-step="0"><b>needs triage</b><span class="who">board</span><small>The board specifies it with its acceptance criteria.</small></li>
+        <li data-step="1"><b>ready</b><span class="who">developer's queue</span><small>Waits for a developer's <code>next</code>.</small></li>
+        <li data-step="2"><b>in development</b><span class="who">developer</span><small>Commits with green gates, then hands it off.</small></li>
+        <li data-step="3"><b>ready for testing</b><span class="who">tester's queue</span><small>Waits for a tester's <code>next</code>.</small></li>
+        <li data-step="4"><b>testing</b><span class="who">tester</span><small>Passed or failed; a fail goes back to development.</small></li>
+        <li data-step="5"><b>board review</b><span class="who">board</span><small>A pass with an owner check comes back to the board.</small></li>
+        <li data-step="6"><b>human review</b><span class="who owner">owner's card</span><small>The board escalates; the card reaches you in the chat and you reply.</small></li>
+        <li data-step="7"><b>closed</b><span class="who">done</span><small>With your answer, the board approves it.</small></li>
+      </ol>
+      <div class="ticket" aria-hidden="true"><i></i><i></i></div>
+    </div>
+  </div>
+</section>
+
+<svg class="divider" aria-hidden="true" viewBox="0 0 2880 120" preserveAspectRatio="none"><path d="M0 60 C 240 10, 480 10, 720 60 S 1200 110, 1440 60 S 1920 10, 2160 60 S 2640 110, 2880 60 V120 H0 Z"/><path d="M0 80 C 240 40, 480 40, 720 80 S 1200 120, 1440 80 S 1920 40, 2160 80 S 2640 120, 2880 80 V120 H0 Z"/></svg>
+
+<section class="sec alt" id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <p class="eyebrow reveal">Features</p>
+    <h2 class="reveal" id="features-h">Everything a project needs is one JSON document.</h2>
+    <p class="lead reveal">Repositories, flow, project key, texts and chat: one document per workspace. It never holds a secret, only its name.</p>
+    <div class="grid">
+      <article class="card glow reveal">
+        <h3>GitHub and GitLab</h3>
+        <p>GitHub, and GitLab on gitlab.com or self-managed. One workspace may cover several repositories and mix both; its tickets are written <code>alias#12</code>.</p>
+      </article>
+      <article class="card glow reveal">
+        <h3>Your inbox: Telegram or terminal</h3>
+        <p>Cards in a private chat, a group or one topic of a forum group, or in <code>flowee-tui</code> over SSH and in tmux. Both at once are one conversation in two windows.</p>
+      </article>
+      <article class="card glow reveal">
+        <h3>Webhooks, not polling</h3>
+        <p>Flowee registers each repository's webhook itself and re-reads only the ticket a delivery names. Without webhooks it polls the tracker every minute.</p>
+      </article>
+      <article class="card glow reveal">
+        <h3>One statechart, your switches</h3>
+        <p>One XState chart, openable in Stately, with optional parts: feature branches and pull requests, versioning, UI review, dependency tickets, user feedback. Own states come as extensions.</p>
+      </article>
+      <article class="card glow reveal">
+        <h3>An own bot per workspace</h3>
+        <p>In the managed mode people set up their workspaces with a wizard in the chat, with the instance bot or an own bot Flowee creates, carrying the project's name and photo.</p>
+      </article>
+      <article class="card glow reveal">
+        <h3>Export and import</h3>
+        <p>Export your workspaces as a file from <code>/workspaces</code>, send a <code>.json</code> file to the bot to create or replace one. Exports never contain a secret.</p>
+      </article>
+    </div>
+    <ul class="switches reveal" aria-label="The flow's switches">
+      <li><code>pullRequests</code> a branch and a pull request per ticket</li>
+      <li><code>releases</code> test cards held until released</li>
+      <li><code>uiReview</code> UI changes go past the owner</li>
+      <li><code>dependencyTickets</code> one ticket per dependency pull request</li>
+      <li><code>userFeedback</code> feedback triaged automatically or by a human</li>
+    </ul>
+  </div>
+</section>
+
+<svg class="divider flip" aria-hidden="true" viewBox="0 0 2880 120" preserveAspectRatio="none"><path d="M0 60 C 240 10, 480 10, 720 60 S 1200 110, 1440 60 S 1920 10, 2160 60 S 2640 110, 2880 60 V120 H0 Z"/><path d="M0 80 C 240 40, 480 40, 720 80 S 1200 120, 1440 80 S 1920 40, 2160 80 S 2640 120, 2880 80 V120 H0 Z"/></svg>
+
+<section class="sec" id="run" aria-labelledby="run-h">
+  <div class="wrap">
+    <p class="eyebrow reveal">Run it</p>
+    <h2 class="reveal" id="run-h">Four ways to use Flowee.</h2>
+    <p class="lead reveal"><a href="/INSTALL.md">INSTALL.md</a> is the procedure for each of them, written for an agent that leads you through it and readable as it is.</p>
+    <ol class="variants">
+      <li class="card glow reveal">
+        <span class="num">1</span>
+        <h3>A hosted instance</h3>
+        <p>Someone else's Flowee; you only talk to its Telegram bot. Needs a tracker token and the instance's URL.</p>
+        <!--if managed--><p class="here">This instance is managed: <!--if bot-->in a private chat with <a href="https://t.me/{{bot}}">@{{bot}}</a>, <code>/setup</code> starts the wizard for those it lets create workspaces.<!--end bot--><!--if nobot-->it lets the people its operator chose create workspaces.<!--end nobot--></p><!--end managed-->
+        <!--if standalone--><p class="here">This instance serves only the workspaces its operator configured.</p><!--end standalone-->
+      </li>
+      <li class="card glow reveal">
+        <span class="num">2</span>
+        <h3>Container</h3>
+        <p>The published image (amd64, arm64) under Docker, Podman or <code>wslc</code>. No public address needed: it polls, or gets webhooks behind a reverse proxy.</p>
+        <pre><code>docker pull ghcr.io/nachtalb/flowee:latest</code></pre>
+      </li>
+      <li class="card glow reveal">
+        <span class="num">3</span>
+        <h3>One executable</h3>
+        <p>The same program built from a clone with bun 1.4+, as one file or with <code>bun run start</code>; its data is one directory.</p>
+        <pre><code>bun run compile -- --target bun-linux-x64 --outfile flowee</code></pre>
+      </li>
+      <li class="card glow reveal">
+        <span class="num">4</span>
+        <h3>Your own Cloudflare deployment</h3>
+        <p>A Worker on your Cloudflare account at its <code>*.workers.dev</code> URL; nothing to keep running yourself.</p>
+        <pre><code>bun run deploy</code></pre>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<svg class="divider" aria-hidden="true" viewBox="0 0 2880 120" preserveAspectRatio="none"><path d="M0 60 C 240 10, 480 10, 720 60 S 1200 110, 1440 60 S 1920 10, 2160 60 S 2640 110, 2880 60 V120 H0 Z"/><path d="M0 80 C 240 40, 480 40, 720 80 S 1200 120, 1440 80 S 1920 40, 2160 80 S 2640 120, 2880 80 V120 H0 Z"/></svg>
+
+<section class="sec alt" id="agents" aria-labelledby="agents-h">
+  <div class="wrap two">
+    <div>
+      <p class="eyebrow reveal">For agents</p>
+      <h2 class="reveal" id="agents-h">Your agent needs only this URL.</h2>
+      <p class="lead reveal">This instance serves its own skills, docs, client and a setup procedure written for agents. Tell your agent:</p>
+      <div class="prompt big reveal" role="group" aria-label="The prompt for your agent">
+        <code id="prompt">Use {{base}} to set up Flowee for this project.</code>
+        <button class="copy" type="button" data-copy="prompt">Copy</button>
+      </div>
+      <ul class="links reveal">
+        <li><a href="/llms.txt"><code>/llms.txt</code></a> the setup procedure as markdown (also <code>/</code> for curl)</li>
+        <li><a href="/INSTALL.md"><code>/INSTALL.md</code></a> every way to install</li>
+        <li><a href="/skills/"><code>/skills/</code></a> flowee-install, flowee-configure, flowee-use</li>
+        <li><a href="/docs/"><code>/docs/</code></a> the documentation</li>
+        <li><a href="/bundle.tar.gz"><code>/bundle.tar.gz</code></a> all of it in one download</li>
+        <li><a href="/schema/workspace.schema.json"><code>/schema/workspace.schema.json</code></a> the JSON Schema</li>
+        <li><a href="/client/flowee.py"><code>/client/flowee.py</code></a> the client: one Python file, standard library only</li>
+      </ul>
+    </div>
+    <aside class="card facts reveal" aria-labelledby="facts-h">
+      <h3 id="facts-h">This instance</h3>
+      <dl>
+        <dt>Base URL</dt><dd><code>{{base}}</code></dd>
+        <dt>Version</dt><dd>{{version}} <span class="dim">({{commit}})</span></dd>
+        <dt>Mode</dt><dd>{{mode}}</dd>
+        <dt>Runs on</dt><dd>{{runtime}}</dd>
+        <dt>Chat bot</dt><dd><!--if bot--><a href="https://t.me/{{bot}}">@{{bot}}</a><!--end bot--><!--if nobot-->none configured<!--end nobot--></dd>
+        <dt>Trackers</dt><dd>{{trackers}}</dd>
+        <dt>Chat backends</dt><dd>{{chats}}</dd>
+      </dl>
+      <p class="dim">Documents are checked here with <code>POST /validate</code>; nothing is stored.</p>
+    </aside>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="/assets/logo.svg" alt="" width="24" height="24"><span>Flowee</span></a>
+    <p>Version {{version}}, commit <code>{{commit}}</code> · <a href="/LICENSE">MIT licence</a> · <a href="https://github.com/Nachtalb/flowee">GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

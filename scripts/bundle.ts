@@ -1,5 +1,5 @@
 // bun scripts/bundle.ts: builds served/ (git-ignored), the Worker's static assets: the repository's own INSTALL.md,
-// skills, docs, client, schema, flow presets, licence and logo at their repository paths, plus generated indexes, manifest.json and
+// skills, docs, client, schema, flow presets, licence, logo and landing page at their repository paths, plus generated indexes, manifest.json and
 // bundle.tar.gz. wrangler runs it before `dev` and `deploy` ([build] in wrangler.toml), `bun run test` before vitest.
 // Refuses to build when a file looks like it holds a secret or a value of this deployment's document.
 declare const Bun: {
@@ -12,9 +12,9 @@ declare const Bun: {
 declare const process: { exit(code: number): never };
 
 /** What is served, as globs over the repository; the served path is the repository path. */
-export const SOURCES = ["INSTALL.md", "skills/**/*", "docs/**/*", "client/flowee.py", "schema/*.json", "flows/*.json", "LICENSE", "assets/*.svg"];
-/** The bundle's files: everything served but the logo, under `flowee/`. */
-export const IN_BUNDLE = (p: string) => !p.startsWith("assets/");
+export const SOURCES = ["INSTALL.md", "skills/**/*", "docs/**/*", "client/flowee.py", "schema/*.json", "flows/*.json", "LICENSE", "assets/*.svg", "site/*"];
+/** The bundle's files: everything served but the logo and the landing page, under `flowee/`. */
+export const IN_BUNDLE = (p: string) => !/^(assets|site)\//.test(p);
 export const OUT = "served";
 /** Paths the Worker answers itself; a served file must never shadow them. */
 const RESERVED = /^(v1|w|admin|hooks|telegram|tui|setup|validate|version|llms\.txt|index\.md|bundle\.tar\.gz|manifest\.json)(\/|$)/;

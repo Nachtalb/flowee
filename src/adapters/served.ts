@@ -1,6 +1,6 @@
 // The instance's public material, outside every Durable Object: the static assets scripts/bundle.ts builds from the
 // repository (skills, docs, client, schema, presets, the bundle) with this Worker's headers, the root document for an
-// agent told "use this URL to set Flowee up" (markdown, or HTML for a browser), and POST /validate.
+// agent told "use this URL to set Flowee up" (markdown; a browser gets the landing page, site/), and POST /validate.
 import committed from "../../flowee.config.json";
 import pkg from "../../package.json";
 import { problems } from "../config/schema";
@@ -34,10 +34,13 @@ const TYPES: Record<string, string> = {
   py: "text/plain; charset=utf-8",
   json: "application/json; charset=utf-8",
   svg: "image/svg+xml",
+  html: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
   gz: "application/gzip",
 };
 const CACHE = "public, max-age=60, must-revalidate";
-const MATERIAL = /^\/(skills|docs|client|schema|flows|assets)\/|^\/(INSTALL\.md|LICENSE|bundle\.tar\.gz|manifest\.json)$/;
+const MATERIAL = /^\/(skills|docs|client|schema|flows|assets|site)\/|^\/(INSTALL\.md|LICENSE|bundle\.tar\.gz|manifest\.json)$/;
 const INDEXES: Record<string, string> = {
   "/skills": "/skills/index.md",
   "/skills/": "/skills/index.md",
@@ -206,57 +209,35 @@ export function rootDoc(f: Awaited<ReturnType<typeof facts>>): string {
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-function inline(s: string) {
-  const codes: string[] = [];
-  let t = esc(s).replace(/`([^`]+)`/g, (_, c) => `\0${codes.push(c) - 1}\0`);
-  t = t.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(https?:\/\/[^\s)<,]+[^\s)<,.:;])/g, '<a href="$1">$1</a>');
-  return t.replace(/\0(\d+)\0/g, (_, i) => `<code>${codes[Number(i)]}</code>`);
+
+let pageCache: string | null = null;
+/** The landing page for a browser: site/index.html with this instance's facts; null when the build serves none. */
+async function landing(env: ServedEnv, f: Awaited<ReturnType<typeof facts>>): Promise<string | null> {
+  if (!pageCache && env.ASSETS) {
+    const r = await env.ASSETS.fetch("https://assets.local/site/index.html");
+    if (r.ok) pageCache = await r.text();
+  }
+  return pageCache && fill(pageCache, f);
 }
 
-/** The root document as a page: headings, paragraphs, two list levels, code; nothing loaded from elsewhere. */
-export function rootHtml(md: string): string {
-  const out: string[] = [];
-  let list: string | null = null;
-  let sub = false;
-  const close = () => {
-    if (sub) out.push("</ul></li>");
-    else if (list) out.push("</li>");
-    if (list) out.push(`</${list}>`);
-    list = null;
-    sub = false;
+/** `<!--if k-->…<!--end k-->` kept when k holds, `{{k}}` replaced by the escaped fact. */
+function fill(page: string, f: Awaited<ReturnType<typeof facts>>): string {
+  const on: Record<string, boolean> = { bot: !!f.bot, nobot: !f.bot, managed: f.mode === "managed", standalone: f.mode !== "managed" };
+  const v: Record<string, string> = {
+    base: f.base,
+    version: f.version,
+    commit: f.commit,
+    mode: f.mode,
+    runtime: f.runtime === "self-hosted" ? "a self-hosted Flowee process" : "Cloudflare Workers",
+    bot: f.bot ?? "",
+    trackers: f.trackers.join(", "),
+    chats: f.chats.join(", "),
+    agentClass: f.bot ? "secondary" : "primary",
   };
-  for (const line of md.split("\n")) {
-    let m: RegExpExecArray | null;
-    if ((m = /^(#{1,3}) (.*)$/.exec(line))) {
-      close();
-      out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
-    } else if ((m = /^(- |\d+\. )(.*)$/.exec(line))) {
-      const kind = m[1] === "- " ? "ul" : "ol";
-      if (list !== kind) close();
-      else out.push(sub ? "</ul></li>" : "</li>");
-      if (list !== kind) out.push(`<${kind}>`);
-      list = kind;
-      sub = false;
-      out.push(`<li>${inline(m[2])}`);
-    } else if ((m = /^ {2,}- (.*)$/.exec(line)) && list) {
-      if (!sub) out.push("<ul>");
-      sub = true;
-      out.push(`<li>${inline(m[1])}</li>`);
-    } else if (line.trim()) {
-      close();
-      out.push(`<p>${inline(line)}</p>`);
-    }
-  }
-  close();
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flowee</title><link rel="icon" href="/assets/logo.svg">
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#222}code{background:#f2f2f2;padding:0 .2em;border-radius:3px;word-break:break-word}li{margin:.3em 0}a{color:#0b5cad}</style>
-</head><body><img src="/assets/logo.svg" alt="Flowee logo" width="96" height="96">
-${out.join("\n")}
-<p>The same document as markdown: <a href="/llms.txt">/llms.txt</a>.</p>
-</body></html>
-`;
+  let out = page;
+  // innermost first, so blocks nest
+  for (let prev = ""; prev !== out; ) (prev = out), (out = out.replace(/<!--if (\w+)-->((?:(?!<!--if )[\s\S])*?)<!--end \1-->/g, (_, k: string, s: string) => (on[k] ? s : "")));
+  return out.replace(/\{\{(\w+)\}\}/g, (_, k: string) => esc(v[k] ?? ""));
 }
 
 const hits = new Map<string, { n: number; at: number }>();
@@ -307,7 +288,7 @@ export async function served(req: Request, env: ServedEnv): Promise<Response | n
     });
   }
   if (!root) return asset(req, env, p.replace(/\/+/g, "/"));
-  const md = rootDoc(await facts(env, url.origin));
-  const html = p === "/" && /text\/html/.test(req.headers.get("accept") ?? "");
-  return html ? text(req, rootHtml(md), "text/html; charset=utf-8", { vary: "accept" }) : text(req, md, MD, p === "/" ? { vary: "accept" } : {});
+  const f = await facts(env, url.origin);
+  const page = p === "/" && /text\/html/.test(req.headers.get("accept") ?? "") ? await landing(env, f) : null;
+  return page ? text(req, page, "text/html; charset=utf-8", { vary: "accept" }) : text(req, rootDoc(f), MD, p === "/" ? { vary: "accept" } : {});
 }
