@@ -20,6 +20,7 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
+<svg hidden><defs><symbol id="i-board" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 11h6M9 15h4"/></symbol><symbol id="i-dev" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/></symbol><symbol id="i-test" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol><symbol id="i-owner" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol><symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 5-12 2-12 7"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol><symbol id="i-switch" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol><symbol id="i-bot" viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4.5V8M9 16.5h6"/><circle cx="12" cy="3.5" r="1"/><circle cx="9.5" cy="12.5" r="1"/><circle cx="14.5" cy="12.5" r="1"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4v13M3 13l4 4 4-4M17 20V7M13 11l4-4 4 4"/></symbol><symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 17.5 18z"/></symbol><symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></symbol><symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10l3 2-3 2M12.5 15h4"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol></defs></svg>
 
 <header class="hero" id="top">
   <canvas class="wave" aria-hidden="true"></canvas>
@@ -60,26 +61,26 @@
   <div class="wrap">
     <p class="eyebrow reveal">How it works</p>
     <h2 class="reveal" id="how-h">Agents take the work. The flow decides what comes next.</h2>
-    <p class="lead reveal">Agents change tickets only through Flowee's HTTP API with a small client, <code>flowee.py</code>. An agent's run is short: take work with <code>next</code>, do it, hand it over, stop. The tracker is the record: a ticket's state is a label on its issue, and every command re-reads the issue.</p>
+    <p class="lead reveal">Agents change tickets only through Flowee. A run is short: take work, do it, hand it over, stop.</p>
 
     <ul class="roles">
-      <li class="card glow reveal"><span class="chip">board</span><p>Plans and specifies the tickets, sends work back, and is the only one who asks the owner.</p></li>
-      <li class="card glow reveal"><span class="chip">developer</span><p>Builds what a ready ticket asks for and hands it to testing.</p></li>
-      <li class="card glow reveal"><span class="chip">tester</span><p>Tests a handed-over ticket's build and passes or fails it.</p></li>
-      <li class="card glow reveal"><span class="chip amber">owner</span><p>You. The tickets that need a human (tests, questions, decisions) reach you as cards; your answer goes back to the board.</p></li>
+      <li class="card glow reveal"><svg class="ic" aria-hidden="true"><use href="#i-board"/></svg><span class="chip">board</span><p>Specifies the tickets; the only one who asks the owner.</p></li>
+      <li class="card glow reveal"><svg class="ic" aria-hidden="true"><use href="#i-dev"/></svg><span class="chip">developer</span><p>Builds what a ready ticket asks for.</p></li>
+      <li class="card glow reveal"><svg class="ic" aria-hidden="true"><use href="#i-test"/></svg><span class="chip">tester</span><p>Tests the build: pass or fail.</p></li>
+      <li class="card glow reveal"><svg class="ic amber" aria-hidden="true"><use href="#i-owner"/></svg><span class="chip amber">owner</span><p>You. What needs a human reaches you as a card.</p></li>
     </ul>
 
     <div class="flow-box reveal">
       <h3>One ticket's way through the flow</h3>
       <ol class="flow">
-        <li data-step="0"><b>needs triage</b><span class="who">board</span><small>The board specifies it with its acceptance criteria.</small></li>
-        <li data-step="1"><b>ready</b><span class="who">developer's queue</span><small>Waits for a developer's <code>next</code>.</small></li>
-        <li data-step="2"><b>in development</b><span class="who">developer</span><small>Commits with green gates, then hands it off.</small></li>
-        <li data-step="3"><b>ready for testing</b><span class="who">tester's queue</span><small>Waits for a tester's <code>next</code>.</small></li>
-        <li data-step="4"><b>testing</b><span class="who">tester</span><small>Passed or failed; a fail goes back to development.</small></li>
-        <li data-step="5"><b>board review</b><span class="who">board</span><small>A pass with an owner check comes back to the board.</small></li>
-        <li data-step="6"><b>human review</b><span class="who owner">owner's card</span><small>The board escalates; the card reaches you in the chat and you reply.</small></li>
-        <li data-step="7"><b>closed</b><span class="who">done</span><small>With your answer, the board approves it.</small></li>
+        <li data-step="0"><b>needs triage</b><span class="who">board</span></li>
+        <li data-step="1"><b>ready</b><span class="who">developer's queue</span></li>
+        <li data-step="2"><b>in development</b><span class="who">developer</span></li>
+        <li data-step="3"><b>ready for testing</b><span class="who">tester's queue</span></li>
+        <li data-step="4"><b>testing</b><span class="who">tester</span></li>
+        <li data-step="5"><b>board review</b><span class="who">board</span></li>
+        <li data-step="6"><b>human review</b><span class="who owner">owner's card</span></li>
+        <li data-step="7"><b>closed</b><span class="who">done</span></li>
       </ol>
       <div class="ticket" aria-hidden="true"><i></i><i></i></div>
     </div>
@@ -92,40 +93,39 @@
   <div class="wrap">
     <p class="eyebrow reveal">Features</p>
     <h2 class="reveal" id="features-h">Everything a project needs is one JSON document.</h2>
-    <p class="lead reveal">Repositories, flow, project key, texts and chat: one document per workspace. It never holds a secret, only its name.</p>
+    <p class="lead reveal">One document per workspace. It never holds a secret.</p>
     <div class="grid">
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-git"/></svg>
         <h3>GitHub and GitLab</h3>
-        <p>GitHub, and GitLab on gitlab.com or self-managed. One workspace may cover several repositories and mix both; its tickets are written <code>alias#12</code>.</p>
+        <p>GitLab on gitlab.com or self-managed. One workspace may cover several repositories.</p>
       </article>
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg>
         <h3>Your inbox: Telegram or terminal</h3>
-        <p>Cards in a private chat, a group or one topic of a forum group, or in <code>flowee-tui</code> over SSH and in tmux. Both at once are one conversation in two windows.</p>
+        <p>Cards in a private chat, a group or a topic, or in the terminal with <code>flowee-tui</code>.</p>
       </article>
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg>
         <h3>Webhooks, not polling</h3>
-        <p>Flowee registers each repository's webhook itself and re-reads only the ticket a delivery names. Without webhooks it polls the tracker every minute.</p>
+        <p>Flowee registers the webhooks itself. Without them it polls every minute.</p>
       </article>
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-switch"/></svg>
         <h3>One statechart, your switches</h3>
-        <p>One XState chart, openable in Stately, with optional parts: feature branches and pull requests, versioning, UI review, dependency tickets, user feedback. Own states come as extensions.</p>
+        <p>Pull requests, versioning, UI review, dependency tickets, user feedback: each optional.</p>
       </article>
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-bot"/></svg>
         <h3>An own bot per workspace</h3>
-        <p>In the managed mode people set up their workspaces with a wizard in the chat, with the instance bot or an own bot Flowee creates, carrying the project's name and photo.</p>
+        <p>Set up with a wizard in the chat, on the instance bot or a bot of the project's own.</p>
       </article>
       <article class="card glow reveal">
+        <svg class="ic" aria-hidden="true"><use href="#i-swap"/></svg>
         <h3>Export and import</h3>
-        <p>Export your workspaces as a file from <code>/workspaces</code>, send a <code>.json</code> file to the bot to create or replace one. Exports never contain a secret.</p>
+        <p>A workspace is a <code>.json</code> file: export it, send it back to replace it.</p>
       </article>
     </div>
-    <ul class="switches reveal" aria-label="The flow's switches">
-      <li><code>pullRequests</code> a branch and a pull request per ticket</li>
-      <li><code>releases</code> test cards held until released</li>
-      <li><code>uiReview</code> UI changes go past the owner</li>
-      <li><code>dependencyTickets</code> one ticket per dependency pull request</li>
-      <li><code>userFeedback</code> feedback triaged automatically or by a human</li>
-    </ul>
   </div>
 </section>
 
@@ -135,31 +135,31 @@
   <div class="wrap">
     <p class="eyebrow reveal">Run it</p>
     <h2 class="reveal" id="run-h">Four ways to use Flowee.</h2>
-    <p class="lead reveal"><a href="/INSTALL.md">INSTALL.md</a> is the procedure for each of them, written for an agent that leads you through it and readable as it is.</p>
+    <p class="lead reveal"><a href="/INSTALL.md">INSTALL.md</a> has the procedure for each.</p>
     <ol class="variants">
       <li class="card glow reveal">
-        <span class="num">1</span>
+        <svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>
         <h3>A hosted instance</h3>
-        <p>Someone else's Flowee; you only talk to its Telegram bot. Needs a tracker token and the instance's URL.</p>
+        <p>Someone else's Flowee; you only talk to its bot.</p>
         <!--if managed--><p class="here">This instance is managed: <!--if bot-->in a private chat with <a href="https://t.me/{{bot}}">@{{bot}}</a>, <code>/setup</code> starts the wizard for those it lets create workspaces.<!--end bot--><!--if nobot-->it lets the people its operator chose create workspaces.<!--end nobot--></p><!--end managed-->
         <!--if standalone--><p class="here">This instance serves only the workspaces its operator configured.</p><!--end standalone-->
       </li>
       <li class="card glow reveal">
-        <span class="num">2</span>
+        <svg class="ic" aria-hidden="true"><use href="#i-box"/></svg>
         <h3>Container</h3>
-        <p>The published image (amd64, arm64) under Docker, Podman or <code>wslc</code>. No public address needed: it polls, or gets webhooks behind a reverse proxy.</p>
+        <p>The published image under Docker or Podman. No public address needed.</p>
         <pre><code>docker pull ghcr.io/nachtalb/flowee:latest</code></pre>
       </li>
       <li class="card glow reveal">
-        <span class="num">3</span>
+        <svg class="ic" aria-hidden="true"><use href="#i-term"/></svg>
         <h3>One executable</h3>
-        <p>The same program built from a clone with bun 1.4+, as one file or with <code>bun run start</code>; its data is one directory.</p>
+        <p>Built from a clone with bun; its data is one directory.</p>
         <pre><code>bun run compile -- --target bun-linux-x64 --outfile flowee</code></pre>
       </li>
       <li class="card glow reveal">
-        <span class="num">4</span>
+        <svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>
         <h3>Your own Cloudflare deployment</h3>
-        <p>A Worker on your Cloudflare account at its <code>*.workers.dev</code> URL; nothing to keep running yourself.</p>
+        <p>A Worker on your own account; nothing to keep running.</p>
         <pre><code>bun run deploy</code></pre>
       </li>
     </ol>
@@ -173,19 +173,19 @@
     <div>
       <p class="eyebrow reveal">For agents</p>
       <h2 class="reveal" id="agents-h">Your agent needs only this URL.</h2>
-      <p class="lead reveal">This instance serves its own skills, docs, client and a setup procedure written for agents. Tell your agent:</p>
+      <p class="lead reveal">Tell your agent:</p>
       <div class="prompt big reveal" role="group" aria-label="The prompt for your agent">
         <code id="prompt">Use {{base}} to set up Flowee for this project.</code>
         <button class="copy" type="button" data-copy="prompt">Copy</button>
       </div>
       <ul class="links reveal">
-        <li><a href="/llms.txt"><code>/llms.txt</code></a> the setup procedure as markdown (also <code>/</code> for curl)</li>
+        <li><a href="/llms.txt"><code>/llms.txt</code></a> the setup procedure</li>
         <li><a href="/INSTALL.md"><code>/INSTALL.md</code></a> every way to install</li>
-        <li><a href="/skills/"><code>/skills/</code></a> flowee-install, flowee-configure, flowee-use</li>
+        <li><a href="/skills/"><code>/skills/</code></a> the three skills</li>
         <li><a href="/docs/"><code>/docs/</code></a> the documentation</li>
-        <li><a href="/bundle.tar.gz"><code>/bundle.tar.gz</code></a> all of it in one download</li>
+        <li><a href="/bundle.tar.gz"><code>/bundle.tar.gz</code></a> everything in one download</li>
         <li><a href="/schema/workspace.schema.json"><code>/schema/workspace.schema.json</code></a> the JSON Schema</li>
-        <li><a href="/client/flowee.py"><code>/client/flowee.py</code></a> the client: one Python file, standard library only</li>
+        <li><a href="/client/flowee.py"><code>/client/flowee.py</code></a> the client</li>
       </ul>
     </div>
     <aside class="card facts reveal" aria-labelledby="facts-h">
@@ -199,7 +199,6 @@
         <dt>Trackers</dt><dd>{{trackers}}</dd>
         <dt>Chat backends</dt><dd>{{chats}}</dd>
       </dl>
-      <p class="dim">Documents are checked here with <code>POST /validate</code>; nothing is stored.</p>
     </aside>
   </div>
 </section>

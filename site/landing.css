@@ -178,7 +178,6 @@ h3 { font-size: 19px; font-weight: 700; }
 .flow b { display: block; font: 700 15px var(--mono); color: var(--fg); }
 .flow .who { display: inline-block; margin: 6px 0 4px; font-size: 12.5px; font-weight: 650; color: var(--accent); }
 .flow .who.owner { color: var(--amber); }
-.flow small { display: block; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
 .js .flow li.on::before { opacity: 0; }
 .flow li.on { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2), 0 12px 40px -16px var(--accent2); transform: translateY(-2px); }
 .flow li.on.owner-step { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 12px 40px -16px var(--amber); }
@@ -194,14 +193,11 @@ h3 { font-size: 19px; font-weight: 700; }
 .js .ticket { display: block; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
-.grid .card h3::before { content: ""; display: block; width: 28px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); margin-bottom: 14px; }
-.switches { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
-.switches li { font-size: 14px; color: var(--muted); padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); }
-.switches code { margin-right: 6px; color: var(--accent); }
 
 .variants { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; }
 .variants .card { display: flex; flex-direction: column; }
-.num { font: 800 34px var(--sans); color: transparent; -webkit-text-stroke: 1.5px var(--accent2); line-height: 1; margin-bottom: 14px; }
+.ic { display: block; width: 30px; height: 30px; margin-bottom: 14px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ic.amber { stroke: var(--amber); }
 .variants pre { margin: auto 0 0; padding-top: 16px; }
 .variants pre code { display: block; padding: 10px 12px; border-radius: 10px; font-size: 13px; white-space: pre-wrap; }
 .here { border-left: 3px solid var(--amber); padding-left: 12px; color: var(--fg) !important; font-size: 15px; }
